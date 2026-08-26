@@ -1,0 +1,60 @@
+name: geolearn-production
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
+      NEXT_PUBLIC_APP_ENV: production
+    depends_on:
+      database:
+        condition: service_healthy
+    networks: [production_app, production_edge]
+
+  database:
+    image: postgis/postgis:17-3.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - production_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [production_app]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      APP_UPSTREAM: web:3000
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - production_caddy_data:/data
+      - production_caddy_config:/config
+    depends_on: [web]
+    networks: [production_edge]
+
+volumes:
+  production_postgres:
+    name: geolearn_production_postgres
+  production_caddy_data:
+    name: geolearn_production_caddy_data
+  production_caddy_config:
+    name: geolearn_production_caddy_config
+
+networks:
+  production_app:
+    name: geolearn_production_app
+    internal: true
+  production_edge:
+    name: geolearn_production_edge

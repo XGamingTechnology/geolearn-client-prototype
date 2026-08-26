@@ -1,4 +1,41 @@
-# GeoLearn — Client Review Static Prototype
+# GeoLearn
+
+Repository utama GeoLearn sedang berkembang dari prototype statis menjadi produk **QuizInLearning + WebGIS untuk pembelajaran geografi SMA**.
+
+> **Prototype tetap dipertahankan:** `index.html` dan `assets/` di root adalah prototype client-review yang tetap dapat dibuka langsung dan dideploy melalui GitHub Pages. Aplikasi produk baru berada terpisah di `apps/web`.
+
+## Struktur repository
+
+```text
+.
+├── index.html, assets/       # prototype statis GitHub Pages
+├── apps/web/                 # produk Next.js 16
+├── docs/                     # arsitektur, requirement, rencana migrasi
+├── deploy/                   # Compose + Caddy untuk production/staging
+├── ops/                      # operasi deployment worktree di VPS
+└── AGENTS.md                 # aturan kontribusi repository
+```
+
+## Menjalankan produk Next.js
+
+```bash
+npm install
+npm run dev
+```
+
+Validasi dari root repository:
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
+
+Lihat [`docs/MIGRATION_PLAN.md`](docs/MIGRATION_PLAN.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), dan [`docs/PRODUCT_REQUIREMENTS.md`](docs/PRODUCT_REQUIREMENTS.md) untuk arah implementasi bertahap.
+
+---
+
+## Static Client Review Prototype
 
 Prototype statis untuk menggambarkan konsep **QuizInLearning + WebGIS + Spatial Thinking** pada GeoLearn.
 
