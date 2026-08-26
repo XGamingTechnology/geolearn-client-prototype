@@ -1,0 +1,60 @@
+name: geolearn-staging
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
+      NEXT_PUBLIC_APP_ENV: staging
+    depends_on:
+      database:
+        condition: service_healthy
+    networks: [staging_app, staging_edge]
+
+  database:
+    image: postgis/postgis:17-3.5-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - staging_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [staging_app]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      APP_UPSTREAM: web:3000
+    ports: ["8080:80", "8443:443", "8443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - staging_caddy_data:/data
+      - staging_caddy_config:/config
+    depends_on: [web]
+    networks: [staging_edge]
+
+volumes:
+  staging_postgres:
+    name: geolearn_staging_postgres
+  staging_caddy_data:
+    name: geolearn_staging_caddy_data
+  staging_caddy_config:
+    name: geolearn_staging_caddy_config
+
+networks:
+  staging_app:
+    name: geolearn_staging_app
+    internal: true
+  staging_edge:
+    name: geolearn_staging_edge
