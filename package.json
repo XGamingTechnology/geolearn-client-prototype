@@ -9,6 +9,7 @@
     "dev": "npm run dev --workspace=@geolearn/web",
     "lint": "npm run lint --workspace=@geolearn/web",
     "typecheck": "npm run typecheck --workspace=@geolearn/web",
+    "test": "npm run test --workspace=@geolearn/web",
     "build": "npm run build --workspace=@geolearn/web"
   },
   "engines": {

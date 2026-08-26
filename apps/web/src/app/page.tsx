@@ -1,5 +1,5 @@
 import { LearningWorkspace } from "@/components/learning-workspace";
-import { exampleQuestion } from "@/features/questions/example-question";
+import { spatialInfluenceQuestion } from "@/features/questions/example-question";
 
 export default function Home() {
   return (
@@ -18,12 +18,12 @@ export default function Home() {
           <p className="lede">Setiap soal menentukan sendiri alat analisis dan lapisan peta yang dibutuhkan siswa.</p>
         </div>
         <dl className="principle">
-          <div><dt>Mode</dt><dd>{exampleQuestion.spatialMode}</dd></div>
-          <div><dt>Alat aktif</dt><dd>{exampleQuestion.tools.length}</dd></div>
-          <div><dt>Lapisan</dt><dd>{exampleQuestion.layers.length}</dd></div>
+          <div><dt>Mode</dt><dd>{spatialInfluenceQuestion.spatialMode}</dd></div>
+          <div><dt>Alat aktif</dt><dd>{spatialInfluenceQuestion.tools.length}</dd></div>
+          <div><dt>Lapisan</dt><dd>{spatialInfluenceQuestion.layers.length}</dd></div>
         </dl>
       </section>
-      <LearningWorkspace question={exampleQuestion} />
+      <LearningWorkspace question={spatialInfluenceQuestion} />
       <footer>Fondasi produk GeoLearn · Data pada layar ini hanya demonstrasi.</footer>
     </main>
   );

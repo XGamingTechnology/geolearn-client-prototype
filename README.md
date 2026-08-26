@@ -28,6 +28,7 @@ Validasi dari root repository:
 ```bash
 npm run lint
 npm run typecheck
+npm run test
 npm run build
 ```
 
