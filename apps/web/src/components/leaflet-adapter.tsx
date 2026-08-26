@@ -3,9 +3,9 @@
 import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl } from "react-leaflet";
 import type { PathOptions } from "leaflet";
 import type { GisSnapshot } from "@/features/gis/types";
-import type { QuestionConfig } from "@/features/questions/types";
+import type { SpatialInfluenceQuestionConfig } from "@/features/questions/types";
 
-export function LeafletAdapter({ question, snapshot }: { question: QuestionConfig; snapshot: GisSnapshot }) {
+export function LeafletAdapter({ question, snapshot }: { question: SpatialInfluenceQuestionConfig; snapshot: GisSnapshot }) {
   const river = question.layers.find((layer) => layer.kind === "river");
   const villages = question.layers.find((layer) => layer.kind === "villages");
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { spatialInfluenceQuestion } from "@/features/questions/example-question";
 import { canSubmitAnswer, evaluateAnswer } from "@/features/questions/session";
 import { createGisEngine } from "./engine";
+import { gisToolRegistry } from "./tool-registry";
 
 describe("Spatial Influence GIS engine", () => {
   const clock = () => new Date("2026-08-26T10:00:00.000Z");
@@ -51,5 +52,14 @@ describe("Spatial Influence GIS engine", () => {
       isCorrect: false,
       explanation: spatialInfluenceQuestion.explanation,
     });
+  });
+
+  it("keeps the product GIS registry broad without fake analytical runners", () => {
+    expect(Object.keys(gisToolRegistry)).toEqual([
+      "pan", "zoom", "search", "coordinate", "layer-control", "popup", "attribute-table",
+      "buffer", "overlay", "distance", "filter", "symbology", "network",
+      "administrative-layer", "swipe", "compare", "heatmap", "cluster", "transparency",
+    ]);
+    expect(Object.entries(gisToolRegistry).filter(([, tool]) => tool.run).map(([id]) => id)).toEqual(["buffer", "overlay"]);
   });
 });

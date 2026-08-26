@@ -1,11 +1,11 @@
 import { booleanIntersects, buffer } from "@turf/turf";
-import type { Feature, LineString, MultiPolygon, Polygon } from "geojson";
-import type { QuestionConfig } from "@/features/questions/types";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
+import type { SpatialInfluenceQuestionConfig } from "@/features/questions/types";
 import type { GisActivity, GisSnapshot, GisToolResult } from "./types";
 
 export type GisEngine = ReturnType<typeof createGisEngine>;
 
-export function createGisEngine(question: QuestionConfig, now: () => Date = () => new Date()) {
+export function createGisEngine(question: SpatialInfluenceQuestionConfig, now: () => Date = () => new Date()) {
   let snapshot: GisSnapshot = {
     bufferFeature: null,
     affectedVillageIds: [],
@@ -39,14 +39,15 @@ export function createGisEngine(question: QuestionConfig, now: () => Date = () =
         throw new Error(`Layer sungai '${settings.sourceLayerId}' tidak ditemukan.`);
       }
 
-      const result = buffer(source.data as Feature<LineString>, settings.distanceMeters, { units: "meters" });
+      const result = buffer(source.data, settings.distanceMeters, { units: "meters" });
       if (!result) throw new Error("Buffer tidak dapat dihitung untuk geometri sungai.");
       snapshot = { ...snapshot, bufferFeature: result as Feature<Polygon | MultiPolygon>, affectedVillageIds: [] };
       return record("buffer", `Buffer ${settings.distanceMeters} m`, `Zona pengaruh dibuat dari layer ${source.label}.`);
     },
 
     runOverlay(): GisToolResult {
-      if (!snapshot.bufferFeature) {
+      const bufferFeature = snapshot.bufferFeature;
+      if (!bufferFeature) {
         throw new Error("Jalankan Buffer 500 m sebelum Overlay.");
       }
       const targetId = question.toolSettings.overlay.targetLayerId;
@@ -55,7 +56,7 @@ export function createGisEngine(question: QuestionConfig, now: () => Date = () =
         throw new Error(`Layer desa '${targetId}' tidak ditemukan.`);
       }
       const affectedVillageIds = villages.data
-        .filter((village) => booleanIntersects(snapshot.bufferFeature!, village))
+        .filter((village) => booleanIntersects(bufferFeature, village))
         .map((village) => village.properties.id);
       snapshot = { ...snapshot, affectedVillageIds };
       return record("overlay", "Overlay desa", `${affectedVillageIds.length} desa berpotongan dengan zona buffer.`);

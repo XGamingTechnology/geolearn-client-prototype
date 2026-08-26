@@ -6,7 +6,7 @@ import { createGisEngine } from "@/features/gis/engine";
 import { gisToolRegistry } from "@/features/gis/tool-registry";
 import type { GisSnapshot } from "@/features/gis/types";
 import { canSubmitAnswer, evaluateAnswer, hasCompletedRequiredTools } from "@/features/questions/session";
-import type { AnswerId, GisToolId, QuestionConfig } from "@/features/questions/types";
+import type { AnswerId, GisToolId, SpatialInfluenceQuestionConfig } from "@/features/questions/types";
 
 const LeafletAdapter = dynamic(
   () => import("./leaflet-adapter").then((module) => module.LeafletAdapter),
@@ -15,7 +15,7 @@ const LeafletAdapter = dynamic(
 
 type AnswerResult = { isCorrect: boolean; selectedAnswer: AnswerId } | null;
 
-export function LearningWorkspace({ question }: { question: QuestionConfig }) {
+export function LearningWorkspace({ question }: { question: SpatialInfluenceQuestionConfig }) {
   const engine = useMemo(() => createGisEngine(question), [question]);
   const [snapshot, setSnapshot] = useState<GisSnapshot>(engine.getSnapshot());
   const [selectedAnswer, setSelectedAnswer] = useState<AnswerId | null>(null);
@@ -26,7 +26,9 @@ export function LearningWorkspace({ question }: { question: QuestionConfig }) {
 
   function activateTool(toolId: GisToolId) {
     try {
-      const result = gisToolRegistry[toolId].run(engine);
+      const tool = gisToolRegistry[toolId];
+      if (!tool.run) throw new Error(`${tool.label} belum memiliki implementasi analisis.`);
+      const result = tool.run(engine);
       setSnapshot({ ...result.snapshot });
       setToolError(null);
     } catch (error) {

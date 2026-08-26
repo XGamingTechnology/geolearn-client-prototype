@@ -1,6 +1,38 @@
-import type { Feature, LineString, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Geometry, LineString, Polygon } from "geojson";
 
-export const gisToolIds = ["buffer", "overlay"] as const;
+export const spatialThinkingModes = [
+  "location",
+  "condition",
+  "influence",
+  "group",
+  "hierarchy",
+  "analogy",
+  "pattern",
+  "association",
+] as const;
+export type SpatialThinkingMode = (typeof spatialThinkingModes)[number];
+
+export const gisToolIds = [
+  "pan",
+  "zoom",
+  "search",
+  "coordinate",
+  "layer-control",
+  "popup",
+  "attribute-table",
+  "buffer",
+  "overlay",
+  "distance",
+  "filter",
+  "symbology",
+  "network",
+  "administrative-layer",
+  "swipe",
+  "compare",
+  "heatmap",
+  "cluster",
+  "transparency",
+] as const;
 export type GisToolId = (typeof gisToolIds)[number];
 export type AnswerId = "A" | "B" | "C" | "D";
 
@@ -18,20 +50,44 @@ export type VillageLayer = {
   data: Array<Feature<Polygon, { id: string; name: string }>>;
 };
 
-export type QuestionConfig = {
+export type GenericSpatialLayer = {
+  id: string;
+  kind: "geojson";
+  label: string;
+  data: Feature<Geometry> | FeatureCollection<Geometry>;
+};
+
+export type SpatialLayer = RiverLayer | VillageLayer | GenericSpatialLayer;
+
+export type GisToolSettings = {
+  buffer?: { sourceLayerId: string; distanceMeters: number };
+  overlay?: { targetLayerId: string };
+};
+
+export type QuestionConfig<
+  TMode extends SpatialThinkingMode = SpatialThinkingMode,
+  TLayer extends SpatialLayer = SpatialLayer,
+  TSettings extends GisToolSettings = GisToolSettings,
+> = {
   id: string;
   theme: string;
-  spatialMode: "influence";
+  spatialMode: TMode;
   prompt: string;
   instruction: string;
   tools: GisToolId[];
   requiredTools: GisToolId[];
-  toolSettings: {
-    buffer: { sourceLayerId: string; distanceMeters: number };
-    overlay: { targetLayerId: string };
-  };
-  layers: [RiverLayer, VillageLayer];
-  answers: Array<{ id: AnswerId; label: string; villageId: string }>;
+  toolSettings: TSettings;
+  layers: TLayer[];
+  answers: Array<{ id: AnswerId; label: string; featureId?: string }>;
   correctAnswer: AnswerId;
   explanation: string;
 };
+
+export type SpatialInfluenceQuestionConfig = QuestionConfig<
+  "influence",
+  RiverLayer | VillageLayer,
+  {
+    buffer: { sourceLayerId: string; distanceMeters: number };
+    overlay: { targetLayerId: string };
+  }
+>;

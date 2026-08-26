@@ -1,7 +1,7 @@
 import { lineString, polygon } from "@turf/helpers";
-import type { QuestionConfig } from "./types";
+import type { SpatialInfluenceQuestionConfig } from "./types";
 
-export const spatialInfluenceQuestion: QuestionConfig = {
+export const spatialInfluenceQuestion: SpatialInfluenceQuestionConfig = {
   id: "BAN-INF-01",
   theme: "Kebencanaan",
   spatialMode: "influence",
@@ -39,10 +39,10 @@ export const spatialInfluenceQuestion: QuestionConfig = {
     },
   ],
   answers: [
-    { id: "A", label: "Desa A", villageId: "village-a" },
-    { id: "B", label: "Desa B", villageId: "village-b" },
-    { id: "C", label: "Desa C", villageId: "village-c" },
-    { id: "D", label: "Desa D", villageId: "village-d" },
+    { id: "A", label: "Desa A", featureId: "village-a" },
+    { id: "B", label: "Desa B", featureId: "village-b" },
+    { id: "C", label: "Desa C", featureId: "village-c" },
+    { id: "D", label: "Desa D", featureId: "village-d" },
   ],
   correctAnswer: "A",
   explanation: "Desa A berpotongan dengan zona buffer 500 meter dari alur sungai. Desa B, C, dan D berada di luar zona pengaruh pada data simulasi ini.",

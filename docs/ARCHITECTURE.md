@@ -31,6 +31,7 @@ Browser
 - **PostgreSQL + PostGIS** is authoritative for users, curriculum content, question configuration, attempts, and persisted spatial datasets. Spatial indexes and SRID constraints are required when schemas are introduced.
 - **Leaflet/React Leaflet** renders interactive maps. Turf.js handles appropriate, bounded client-side preview/interaction calculations; authoritative or expensive analysis belongs in PostGIS.
 - A typed **GIS tool registry** maps stable tool IDs to UI and execution behavior. A typed question schema refers only to registered tools and layers.
+- The registry retains the cross-mode capability catalog (navigation, exploration, analysis, and visualization). A capability may be declared `planned` without a runner; only Buffer and Overlay have analytical runners in the current vertical slice, so placeholder tools cannot masquerade as completed analysis.
 
 ## Security and environment isolation
 
@@ -57,6 +58,6 @@ Question Config
            -> Leaflet Adapter
 ```
 
-The page does not calculate buffers, inspect village geometry, or decide which tools exist. It loads a question and passes it to the learning workspace. The registry translates configured tool IDs into engine operations; the engine validates prerequisites and performs Turf analysis; the adapter renders the resulting snapshot. This keeps future PostGIS-backed engines or alternative map adapters possible without creating a page per question.
+The page does not calculate buffers, inspect village geometry, or decide which tools exist. It loads a question and passes it to the learning workspace. The registry translates configured tool IDs into implemented engine operations; the engine validates prerequisites and performs Turf analysis; the adapter renders the resulting snapshot. Generic question types retain all eight Spatial Thinking modes while specialized configurations can require mode-specific layers and settings. This keeps future PostGIS-backed engines or alternative map adapters possible without creating a page per question.
 
 These are scaffolding contracts, not a finalized domain model. Introduce runtime schema validation and migrations before accepting authored content.
