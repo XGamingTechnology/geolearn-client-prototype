@@ -1,0 +1,17 @@
+{
+  "name": "geolearn",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@geolearn/web",
+    "lint": "npm run lint --workspace=@geolearn/web",
+    "typecheck": "npm run typecheck --workspace=@geolearn/web",
+    "build": "npm run build --workspace=@geolearn/web"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
