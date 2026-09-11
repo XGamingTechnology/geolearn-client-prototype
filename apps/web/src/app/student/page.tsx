@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function StudentPage() { return <main className="entry-page"><Link className="brand" href="/"><span className="brand-mark">G</span><span>GeoLearn<small>Ruang Siswa</small></span></Link><section><p className="eyebrow">Rute siswa</p><h1>Siap belajar dengan peta?</h1><p>Akses PIN kelas akan hadir pada slice berikutnya. Sementara itu, jelajahi demonstrasi soal spasial.</p><Link className="button" href="/learn/demo">Buka demonstrasi</Link></section></main>; }
