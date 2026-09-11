@@ -40,7 +40,7 @@
 
 ## Rollout and rollback
 
-- Merge features into `develop`; deploy and validate the staging worktree.
-- Promote reviewed commits to `main`; deploy the production worktree by immutable commit.
+- Merge reviewed features into `staging`; deploy and validate the staging worktree.
+- Promote the validated commits to `production`; deploy the production worktree by immutable commit.
 - Application rollback resets the relevant worktree to a known commit and reruns Compose. Database migrations must be backward compatible during rollout; destructive cleanup occurs only after the rollback window.
 - The GitHub Pages prototype remains available as the independent reference/demo throughout migration.

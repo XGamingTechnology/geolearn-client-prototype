@@ -9,7 +9,7 @@
 │   ├── production.env
 │   └── staging.env
 └── worktrees/
-    ├── production -> main
+    ├── production -> production
     └── staging -> staging
 ```
 
@@ -18,7 +18,7 @@
 ```bash
 sudo install -d -m 0750 /opt/geolearn/{secrets,worktrees}
 sudo git clone --bare git@github.com:XGamingTechnology/geolearn-client-prototype.git /opt/geolearn/repository.git
-sudo git --git-dir=/opt/geolearn/repository.git worktree add /opt/geolearn/worktrees/production main
+sudo git --git-dir=/opt/geolearn/repository.git worktree add /opt/geolearn/worktrees/production production
 sudo git --git-dir=/opt/geolearn/repository.git worktree add /opt/geolearn/worktrees/staging staging
 sudo cp /opt/geolearn/worktrees/production/deploy/.env.production.example /opt/geolearn/secrets/production.env
 sudo cp /opt/geolearn/worktrees/staging/deploy/.env.staging.example /opt/geolearn/secrets/staging.env

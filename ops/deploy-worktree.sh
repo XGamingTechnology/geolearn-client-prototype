@@ -6,7 +6,7 @@ readonly REPOSITORY="$ROOT/repository.git"
 
 case "${1:-}" in
   production)
-    readonly BRANCH=main
+    readonly BRANCH=production
     readonly WORKTREE="$ROOT/worktrees/production"
     readonly COMPOSE_FILE=compose.production.yml
     readonly ENV_FILE="$ROOT/secrets/production.env"
