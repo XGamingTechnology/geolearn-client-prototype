@@ -16,7 +16,7 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    networks: [staging_app]
+    networks: [staging_app, staging_edge]
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
       interval: 15s
@@ -60,3 +60,5 @@ networks:
   staging_app:
     name: geolearn_staging_app
     internal: true
+  staging_edge:
+    name: geolearn_staging_edge
