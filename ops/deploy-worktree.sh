@@ -6,13 +6,13 @@ readonly REPOSITORY="$ROOT/repository.git"
 
 case "${1:-}" in
   production)
-    readonly BRANCH=main
+    readonly BRANCH=production
     readonly WORKTREE="$ROOT/worktrees/production"
     readonly COMPOSE_FILE=compose.production.yml
     readonly ENV_FILE="$ROOT/secrets/production.env"
     ;;
   staging)
-    readonly BRANCH=develop
+    readonly BRANCH=staging
     readonly WORKTREE="$ROOT/worktrees/staging"
     readonly COMPOSE_FILE=compose.staging.yml
     readonly ENV_FILE="$ROOT/secrets/staging.env"
@@ -34,11 +34,7 @@ if [[ ! -e "$WORKTREE/.git" ]]; then
 fi
 
 git -C "$WORKTREE" reset --hard "origin/$BRANCH"
-docker compose \
-  --env-file "$ENV_FILE" \
-  --file "$WORKTREE/deploy/$COMPOSE_FILE" \
-  build --pull web
-docker compose \
-  --env-file "$ENV_FILE" \
-  --file "$WORKTREE/deploy/$COMPOSE_FILE" \
-  up --detach --remove-orphans
+
+docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   build --pull web
+
+docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   up --detach --remove-orphans
