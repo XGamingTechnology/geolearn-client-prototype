@@ -12,7 +12,7 @@ case "${1:-}" in
     readonly ENV_FILE="$ROOT/secrets/production.env"
     ;;
   staging)
-    readonly BRANCH=develop
+    readonly BRANCH=staging
     readonly WORKTREE="$ROOT/worktrees/staging"
     readonly COMPOSE_FILE=compose.staging.yml
     readonly ENV_FILE="$ROOT/secrets/staging.env"

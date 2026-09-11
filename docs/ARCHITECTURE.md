@@ -39,6 +39,14 @@ Production and staging use different Compose projects, database credentials, dat
 
 Authentication, authorization roles, audit events, backups, restore tests, rate limits, and privacy retention rules are required before storing real student data; they are intentionally not implemented in this foundation.
 
+## Slice 1 runtime and delivery
+
+- The runtime baseline is Node.js 24, Next.js 16 App Router, React 19, and strict TypeScript. Product routes live only in `apps/web`; the root prototype is not imported or built by the product.
+- Server-only database access is centralized in `src/server/db.ts`. `GET /api/health` checks a real PostGIS query and reports only status, environment, PostGIS version, and timestamp; connection strings and exception details are never returned.
+- SQL migrations are ordered, forward-only, checksummed, transactionally applied, and serialized with a PostgreSQL advisory lock. The initial migration explicitly enables PostGIS before later spatial schemas are introduced.
+- Staging Compose binds the app's internal port 3000 to `127.0.0.1:3101` only. Its PostGIS service has no host port and lives on an internal network. The host's shared Caddy instance terminates TLS for `geolearn.43-156-101-13.sslip.io` and proxies to that loopback address; Caddy is intentionally not duplicated inside the staging project.
+- The staging checkout remains `/opt/geolearn/worktrees/staging`, deployed from the staging integration branch. Environment secrets remain outside the worktree.
+
 ## Initial module contracts
 
 - `features/questions/types.ts`: small compile-time question configuration contract.
