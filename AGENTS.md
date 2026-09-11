@@ -9,16 +9,32 @@
 
 ## Repository boundary
 
-- The static prototype at the repository root (`index.html`, `assets/`, and `.nojekyll`) is a maintained GitHub Pages artifact. Do not move it, convert it to Next.js, or give its deployment workflow a build dependency.
-- The production product lives in `apps/web`. Product code must not import files from the root prototype.
+- The static prototype at the repository root (`index.html`, `assets/`, and `.nojekyll`) is a maintained review artifact. Do not let prototype code become a dependency of the production product.
+- The real product lives in `apps/web`.
 - Architecture and requirements decisions belong in `docs`; container orchestration belongs in `deploy`; VPS/worktree automation belongs in `ops`.
-- Never commit secrets, generated build output, database dumps, or production student data.
+- Never commit secrets, generated build output, database dumps, or real student production data.
 
 ## Engineering workflow
 
-- `main` is production, `develop` is staging, and work is developed on `feature/*` branches.
+- `production` is the stable release branch.
+- `staging` is the integration branch deployed to the VPS staging environment.
+- All implementation work must happen on `feature/*` branches created from `staging`.
+- Feature work is merged by pull request into `staging` only after lint/typecheck/test/build pass.
+- Promotion to production is performed by pull request from `staging` to `production` after VPS staging validation.
+- Never develop directly on `production`.
+- Avoid direct feature commits to `staging`; staging is an integration target.
 - Use TypeScript in strict mode. Prefer server components; add `"use client"` only at the browser boundary (for example Leaflet).
-- Validate changes from the repository root with `npm run lint`, `npm run typecheck`, and `npm run build`.
+- Validate changes from the repository root with `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build`.
 - Database changes must be forward-compatible migrations and must account for PostGIS explicitly.
-- Keep production and staging credentials, databases, Docker networks, and volumes isolated. PostgreSQL must never publish a host port.
+- Keep production and staging credentials, databases, Docker networks, volumes, sessions, and uploaded assets isolated.
+- PostgreSQL must never publish a host port.
 - Update relevant documentation in the same change as an architectural, deployment, or product-contract change.
+
+## Codex workflow
+
+- Treat Issue #8 and the locked product/domain/UI documents as the implementation contract.
+- Codex should work in one focused `feature/*` branch at a time.
+- Prefer vertical slices that are runnable end-to-end over broad scaffolding with unfinished placeholders.
+- Do not rewrite the question-driven GIS engine into one bespoke page per question.
+- Preserve existing working GIS behavior while migrating contracts to V2.
+- Never merge automatically into `production`.
