@@ -1,6 +1,8 @@
-{$APP_DOMAIN} {
+# Import this site block into the shared host Caddy configuration. The staging
+# Compose project deliberately exposes only a loopback-bound application port.
+geolearn.43-156-101-13.sslip.io {
   encode zstd gzip
-  reverse_proxy {$APP_UPSTREAM}
+  reverse_proxy 127.0.0.1:3101
 
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
