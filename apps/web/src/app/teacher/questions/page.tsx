@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const questions = [
   { title: "Pengaruh Sungai terhadap Akses Sekolah", mode: "Influence", stimulus: "WebGIS", response: "A–E", difficulty: "Sedang", scope: "School", version: "v1", status: "Published" },
   { title: "Pola Permukiman di Wilayah Pesisir", mode: "Pattern", stimulus: "Static Map", response: "A–E", difficulty: "Sedang", scope: "My", version: "v3", status: "Draft" },
@@ -10,7 +12,7 @@ export default function QuestionsPage() {
     <main className="dashboard catalog-page">
       <header className="catalog-header">
         <div><p className="eyebrow">Content Bank</p><h1>Bank Soal</h1><p>Temukan dan gunakan soal reusable berdasarkan Spatial Thinking, stimulus, response, scope, dan versi.</p></div>
-        <button className="button" type="button" disabled>+ Soal Baru</button>
+        <Link className="button" href="/teacher/questions/new">+ Soal Baru</Link>
       </header>
       <div className="scope-tabs" aria-label="Scope Bank Soal"><span className="active">Semua</span><span>System Bank</span><span>School Bank</span><span>My Bank</span></div>
       <div className="catalog-toolbar">
