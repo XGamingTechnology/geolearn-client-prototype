@@ -17,7 +17,7 @@ const navigation = [
   { href: "/teacher/accounts", label: "Akun", short: "Akun", icon: "♙" },
 ];
 
-export function TeacherShell({ children, displayName, schoolName }: { children: ReactNode; displayName: string; schoolName: string | null }) {
+export function TeacherShell({ children, displayName, schoolName, canManageAccounts }: { children: ReactNode; displayName: string; schoolName: string | null; canManageAccounts: boolean }) {
   const pathname = usePathname();
   const isActive = (href: string) => href === "/teacher" ? pathname === href : pathname.startsWith(href);
 
@@ -29,7 +29,7 @@ export function TeacherShell({ children, displayName, schoolName }: { children: 
           <span>GeoLearn<small>Teacher Workspace</small></span>
         </Link>
         <nav className="teacher-desktop-nav" aria-label="Navigasi guru">
-          {navigation.map((item) => (
+          {navigation.filter((item) => item.href !== "/teacher/accounts" || canManageAccounts).map((item) => (
             <Link className={isActive(item.href) ? "active" : ""} href={item.href} key={item.href}>{item.label}</Link>
           ))}
         </nav>
@@ -41,7 +41,7 @@ export function TeacherShell({ children, displayName, schoolName }: { children: 
       </header>
       <div className="teacher-main">{children}</div>
       <nav className="mobile-nav" aria-label="Navigasi guru seluler">
-        {navigation.filter((item) => ["/teacher","/teacher/classes","/teacher/questions","/teacher/data"].includes(item.href)).map((item) => (
+        {navigation.filter((item) => ["/teacher","/teacher/classes","/teacher/questions","/teacher/data"].includes(item.href) && (item.href !== "/teacher/accounts" || canManageAccounts)).map((item) => (
           <Link className={isActive(item.href) ? "active" : ""} href={item.href} key={item.href}>
             <span aria-hidden="true">{item.icon}</span><small>{item.short}</small>
           </Link>
