@@ -82,3 +82,6 @@
 
 @media(max-width:1000px){.assignment-summary-grid{grid-template-columns:1fr 1fr}.assignment-management-row{grid-template-columns:46px minmax(0,1fr) 110px auto}.assignment-management-row .row-actions{grid-column:2/-1}}
 @media(max-width:767px){.assignment-summary-grid{grid-template-columns:1fr 1fr}.assignment-management-row{grid-template-columns:42px 1fr}.assignment-progress-cell,.assignment-status,.assignment-management-row .row-actions{grid-column:2}.more-module-grid{grid-template-columns:1fr}.student-task-row{grid-template-columns:auto 1fr}.student-task-status,.student-task-row>.button{grid-column:2}.student-task-row>.button{width:max-content}.student-tasks-section{width:calc(100% - 28px)}}
+
+/* Authentication */
+.auth-error{margin:16px 0 0;padding:10px 12px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#991b1b;font-size:10px;line-height:1.5}.logout-button{min-height:32px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted);font-size:8px;font-weight:750;cursor:pointer}.logout-button:hover{border-color:#bfdbfe;color:var(--primary)}.student-identity form,.teacher-actions form{margin:0}
