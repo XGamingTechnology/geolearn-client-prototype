@@ -37,7 +37,7 @@ export default function StudentPage() {
 
       <nav className="student-bottom-nav" aria-label="Navigasi siswa">
         <Link className="active" href="/student"><span>⌂</span><small>Beranda</small></Link>
-        <Link href="/student/assessment/demo"><span>▣</span><small>Tugas</small></Link>
+        <Link href="/student/tasks"><span>▣</span><small>Tugas</small></Link>
         <Link href="/student/result"><span>◔</span><small>Hasil Saya</small></Link>
       </nav>
     </main>
