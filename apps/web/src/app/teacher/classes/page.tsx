@@ -1,8 +1,10 @@
+import Link from "next/link";
+
 const classes = [
-  { name: "XI-A Geografi", grade: "XI", students: 32, assignments: 2, code: "GL-XIA-7K3Q", teacher: "Guru Geografi" },
-  { name: "XI-B Geografi", grade: "XI", students: 31, assignments: 1, code: "GL-XIB-4M8P", teacher: "Guru Geografi" },
-  { name: "XII-A Geografi", grade: "XII", students: 30, assignments: 2, code: "GL-XIIA-9D2K", teacher: "Guru Geografi" },
-  { name: "X-1 Geografi", grade: "X", students: 35, assignments: 1, code: "GL-X1-6R5T", teacher: "Guru Geografi" },
+  { id: "xi-a", name: "XI-A Geografi", grade: "XI", students: 32, assignments: 2, code: "GL-XIA-7K3Q", teacher: "Guru Geografi" },
+  { id: "xi-b", name: "XI-B Geografi", grade: "XI", students: 31, assignments: 1, code: "GL-XIB-4M8P", teacher: "Guru Geografi" },
+  { id: "xii-a", name: "XII-A Geografi", grade: "XII", students: 30, assignments: 2, code: "GL-XIIA-9D2K", teacher: "Guru Geografi" },
+  { id: "x-1", name: "X-1 Geografi", grade: "X", students: 35, assignments: 1, code: "GL-X1-6R5T", teacher: "Guru Geografi" },
 ];
 
 export default function ClassesPage() {
@@ -24,7 +26,7 @@ export default function ClassesPage() {
             <p>{item.teacher}</p>
             <div className="class-metrics"><div><strong>{item.students}</strong><small>Siswa</small></div><div><strong>{item.assignments}</strong><small>Tugas aktif</small></div></div>
             <div className="class-code"><span>Class Code</span><strong>{item.code}</strong><button type="button" disabled>Salin</button></div>
-            <button className="button button-secondary button-wide" type="button" disabled>Buka Kelas</button>
+            <Link className="button button-secondary button-wide" href={`/teacher/classes/${item.id}`}>Buka Kelas</Link>
           </article>
         ))}
       </section>
