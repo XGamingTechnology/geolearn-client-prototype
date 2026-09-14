@@ -1,8 +1,10 @@
+import Link from "next/link";
+
 const media = [
-  { title: "Video Banjir Rob Pesisir", type: "Video", meta: "02:14 · 1080p", icon: "▶" },
-  { title: "Citra Perubahan Tutupan Lahan", type: "Image", meta: "2400 × 1600", icon: "▣" },
-  { title: "Infografik Siklus Hidrologi", type: "Illustration", meta: "SVG · 1.8 MB", icon: "◇" },
-  { title: "Tabel Curah Hujan Bulanan", type: "Document", meta: "PDF · 6 halaman", icon: "▤" },
+  { id:"video-banjir-rob", title: "Video Banjir Rob Pesisir", type: "Video", meta: "02:14 · 1080p", icon: "▶" },
+  { id:"citra-tutupan-lahan", title: "Citra Perubahan Tutupan Lahan", type: "Image", meta: "2400 × 1600", icon: "▣" },
+  { id:"infografik-siklus-hidrologi", title: "Infografik Siklus Hidrologi", type: "Illustration", meta: "SVG · 1.8 MB", icon: "◇" },
+  { id:"tabel-curah-hujan", title: "Tabel Curah Hujan Bulanan", type: "Document", meta: "PDF · 6 halaman", icon: "▤" },
 ];
 
 export default function MediaPage() {
@@ -18,7 +20,7 @@ export default function MediaPage() {
         {media.map((m) => (
           <article className="media-card" key={m.title}>
             <div className="media-preview"><span>{m.icon}</span><small>{m.type}</small></div>
-            <div className="media-body"><div className="dataset-badges"><span>{m.type}</span><span>School</span></div><h2>{m.title}</h2><p>{m.meta}</p><div className="dataset-actions"><button type="button" disabled>Preview</button><button type="button" disabled>Use in Case</button><button type="button" disabled>Use in Question</button></div></div>
+            <div className="media-body"><div className="dataset-badges"><span>{m.type}</span><span>School</span></div><h2>{m.title}</h2><p>{m.meta}</p><div className="dataset-actions"><Link href={`/teacher/media/${m.id}`}>Preview</Link><Link href="/teacher/cases">Use in Case</Link><Link href="/teacher/questions/new">Use in Question</Link></div></div>
           </article>
         ))}
       </section>
