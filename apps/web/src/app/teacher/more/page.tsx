@@ -1,15 +1,23 @@
 import Link from "next/link";
+import { getStaffPermissions } from "@/server/auth/permissions";
+import { requireTeacherSession } from "@/server/auth/session";
 
-const items = [
+const baseItems = [
   {href:"/teacher/cases",icon:"◇",title:"Case Library",copy:"Media + dataset + related questions"},
   {href:"/teacher/media",icon:"▣",title:"Media",copy:"Image, video, document, illustration"},
   {href:"/teacher/gis",icon:"◎",title:"GIS Studio",copy:"Layer, digitize, Buffer, Overlay"},
   {href:"/teacher/assignments",icon:"✓",title:"Penugasan",copy:"Quiz version, kelas, jadwal, monitoring"},
   {href:"/teacher/results",icon:"◔",title:"Hasil",copy:"Spatial Thinking analytics"},
-  {href:"/teacher/accounts",icon:"♙",title:"Akun & Hak Akses",copy:"Tambah akun, role, permission, status"},
 ];
 
-export default function TeacherMorePage(){
+export default async function TeacherMorePage(){
+  const session=await requireTeacherSession();
+  const permissions=await getStaffPermissions(session.staffUserId);
+  const canManageAccounts=session.role==="SYSTEM_ADMIN"||session.role==="SCHOOL_ADMIN"||permissions.includes("ACCOUNT_MANAGE");
+  const items=canManageAccounts
+    ? [...baseItems,{href:"/teacher/accounts",icon:"♙",title:"Akun & Hak Akses",copy:"Tambah akun, role, permission, status"}]
+    : baseItems;
+
   return (
     <main className="dashboard catalog-page teacher-more-page">
       <header className="catalog-header"><div><p className="eyebrow">Teacher Workspace</p><h1>More</h1><p>Akses modul tambahan GeoLearn pada layar mobile maupun desktop.</p></div></header>
