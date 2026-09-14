@@ -6,6 +6,7 @@ const items = [
   {href:"/teacher/gis",icon:"◎",title:"GIS Studio",copy:"Layer, digitize, Buffer, Overlay"},
   {href:"/teacher/assignments",icon:"✓",title:"Penugasan",copy:"Quiz version, kelas, jadwal, monitoring"},
   {href:"/teacher/results",icon:"◔",title:"Hasil",copy:"Spatial Thinking analytics"},
+  {href:"/teacher/accounts",icon:"♙",title:"Akun & Hak Akses",copy:"Tambah akun, role, permission, status"},
 ];
 
 export default function TeacherMorePage(){
