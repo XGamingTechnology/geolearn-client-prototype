@@ -67,6 +67,8 @@ export async function createStaffAccount(input: {
   if (!input.actor.schoolId) throw new AuthorizationError();
   validateRole(input.role);
   const permissions = validatePermissions(input.permissions);
+  if (input.actor.role === "TEACHER" && input.role === "SCHOOL_ADMIN") throw new AuthorizationError();
+  if (input.actor.role === "TEACHER" && permissions.some((permission) => permission === "ACCOUNT_MANAGE" || permission === "SCHOOL_SETTINGS")) throw new AuthorizationError();
   const email = input.email.trim().toLowerCase();
   const displayName = input.displayName.trim();
   if (!email || email.length > 320 || !displayName || displayName.length > 160) throw new Error("Invalid account data");
@@ -126,6 +128,8 @@ export async function updateStaffAccount(input: {
   const [target] = await query<{school_id:string; role:string}>("select school_id,role from staff_users where id=$1",[input.staffUserId]);
   if (!target) throw new Error("Account not found");
   assertTeacherSchool(input.actor,target.school_id);
+  if (input.actor.role === "TEACHER" && (target.role === "SCHOOL_ADMIN" || input.role === "SCHOOL_ADMIN")) throw new AuthorizationError();
+  if (input.actor.role === "TEACHER" && permissions.some((permission) => permission === "ACCOUNT_MANAGE" || permission === "SCHOOL_SETTINGS")) throw new AuthorizationError();
 
   const client = await database().connect();
   try {
