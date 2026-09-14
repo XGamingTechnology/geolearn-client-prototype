@@ -14,6 +14,7 @@ const navigation = [
   { href: "/teacher/media", label: "Media", short: "Media", icon: "▣" },
   { href: "/teacher/gis", label: "GIS Studio", short: "GIS", icon: "◎" },
   { href: "/teacher/results", label: "Hasil", short: "Hasil", icon: "◔" },
+  { href: "/teacher/accounts", label: "Akun", short: "Akun", icon: "♙" },
 ];
 
 export function TeacherShell({ children, displayName, schoolName }: { children: ReactNode; displayName: string; schoolName: string | null }) {
@@ -45,7 +46,7 @@ export function TeacherShell({ children, displayName, schoolName }: { children: 
             <span aria-hidden="true">{item.icon}</span><small>{item.short}</small>
           </Link>
         ))}
-        <Link className={["/teacher/assignments", "/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results", "/teacher/more"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/more">
+        <Link className={["/teacher/assignments", "/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results", "/teacher/accounts", "/teacher/more"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/more">
           <span aria-hidden="true">•••</span><small>More</small>
         </Link>
       </nav>
