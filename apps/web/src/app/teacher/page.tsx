@@ -19,7 +19,7 @@ export default function TeacherDashboard() {
         </div>
         <div className="dashboard-actions">
           <Link className="button button-secondary" href="/teacher/questions">+ Soal Baru</Link>
-          <button className="button" type="button" disabled title="Aktif setelah assignment backend tersedia">+ Buat Tugas</button>
+          <Link className="button" href="/teacher/assignments">+ Buat Tugas</Link>
         </div>
       </header>
 
@@ -59,6 +59,7 @@ export default function TeacherDashboard() {
         <div className="module-grid">
           <Link href="/teacher/classes"><span>▦</span><div><strong>Kelas & Siswa</strong><small>Class code, roster, enrollment</small></div></Link>
           <Link href="/teacher/questions"><span>?</span><div><strong>Bank Soal</strong><small>System, School, My Bank</small></div></Link>
+          <Link href="/teacher/assignments"><span>✓</span><div><strong>Penugasan</strong><small>Quiz version, kelas, jadwal</small></div></Link>
           <Link href="/teacher/cases"><span>◇</span><div><strong>Case Library</strong><small>Media + data + related questions</small></div></Link>
           <Link href="/teacher/data"><span>◫</span><div><strong>Bank Data</strong><small>Dataset spatial reusable</small></div></Link>
           <Link href="/teacher/media"><span>▣</span><div><strong>Media</strong><small>Image, video, document</small></div></Link>
