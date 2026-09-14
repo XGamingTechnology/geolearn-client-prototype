@@ -16,7 +16,7 @@ const navigation = [
   { href: "/teacher/results", label: "Hasil", short: "Hasil", icon: "◔" },
 ];
 
-export function TeacherShell({ children }: { children: ReactNode }) {
+export function TeacherShell({ children, displayName, schoolName }: { children: ReactNode; displayName: string; schoolName: string | null }) {
   const pathname = usePathname();
   const isActive = (href: string) => href === "/teacher" ? pathname === href : pathname.startsWith(href);
 
@@ -34,7 +34,8 @@ export function TeacherShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="teacher-actions">
           <span className="environment">STAGING</span>
-          <div className="profile-chip"><span>GM</span><div><strong>Guru Geografi</strong><small>SMA Nusantara</small></div></div>
+          <div className="profile-chip"><span>{displayName.slice(0,2).toUpperCase()}</span><div><strong>{displayName}</strong><small>{schoolName ?? "GeoLearn"}</small></div></div>
+          <form action="/api/auth/logout" method="post"><button className="logout-button" type="submit">Keluar</button></form>
         </div>
       </header>
       <div className="teacher-main">{children}</div>
