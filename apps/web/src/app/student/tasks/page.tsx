@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireStudentSession } from "@/server/auth/session";
 
 const tasks=[
   {title:"Pengaruh Sungai terhadap Akses Sekolah",mode:"Influence",stimulus:"WebGIS",status:"Belum dikerjakan",due:"18 Sep 2026",href:"/student/assessment/demo"},
@@ -6,12 +7,13 @@ const tasks=[
   {title:"Banjir Rob Semarang–Demak",mode:"Association",stimulus:"Composite",status:"Belum dikerjakan",due:"21 Sep 2026",href:"/student/assessment/demo"},
 ];
 
-export default function StudentTasksPage(){
+export default async function StudentTasksPage(){
+  const session = await requireStudentSession();
   return (
     <main className="student-home">
       <header className="student-header">
         <Link className="brand" href="/student"><span className="brand-mark">G</span><span>GeoLearn<small>Tugas</small></span></Link>
-        <div className="student-identity"><span>XI-A</span><strong>Mode Preview</strong></div>
+        <div className="student-identity"><span>{session.className}</span><strong>{session.fullName}</strong></div>
       </header>
 
       <section className="student-section student-tasks-section">
