@@ -45,13 +45,13 @@ export default function PublicHome() {
             </div>
           </div>
           <p className="access-intro">Gunakan kredensial yang diberikan guru. Siswa tidak membuat akun sendiri.</p>
-          <div className="auth-fields" aria-label="Pratinjau form login siswa">
+          <div className="auth-fields" aria-label="Format kredensial siswa">
             <label>Kode Kelas<input placeholder="GL-XIA-7K3Q" readOnly /></label>
             <label>ID Siswa<input placeholder="GL-11A-001" readOnly /></label>
             <label>PIN<input type="password" placeholder="••••••" readOnly /></label>
           </div>
-          <Link className="button button-wide" href="/student">Masuk ke Ruang Belajar</Link>
-          <p className="preview-note">Mode UI preview — autentikasi aktif pada Slice Identity/Auth.</p>
+          <Link className="button button-wide" href="/student-login">Masuk ke Ruang Belajar</Link>
+          <p className="preview-note">Autentikasi menggunakan Kode Kelas + ID Siswa + PIN.</p>
         </aside>
       </section>
 

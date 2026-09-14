@@ -14,9 +14,10 @@ const navigation = [
   { href: "/teacher/media", label: "Media", short: "Media", icon: "▣" },
   { href: "/teacher/gis", label: "GIS Studio", short: "GIS", icon: "◎" },
   { href: "/teacher/results", label: "Hasil", short: "Hasil", icon: "◔" },
+  { href: "/teacher/accounts", label: "Akun", short: "Akun", icon: "♙" },
 ];
 
-export function TeacherShell({ children }: { children: ReactNode }) {
+export function TeacherShell({ children, displayName, schoolName, canManageAccounts }: { children: ReactNode; displayName: string; schoolName: string | null; canManageAccounts: boolean }) {
   const pathname = usePathname();
   const isActive = (href: string) => href === "/teacher" ? pathname === href : pathname.startsWith(href);
 
@@ -28,23 +29,24 @@ export function TeacherShell({ children }: { children: ReactNode }) {
           <span>GeoLearn<small>Teacher Workspace</small></span>
         </Link>
         <nav className="teacher-desktop-nav" aria-label="Navigasi guru">
-          {navigation.map((item) => (
+          {navigation.filter((item) => item.href !== "/teacher/accounts" || canManageAccounts).map((item) => (
             <Link className={isActive(item.href) ? "active" : ""} href={item.href} key={item.href}>{item.label}</Link>
           ))}
         </nav>
         <div className="teacher-actions">
           <span className="environment">STAGING</span>
-          <div className="profile-chip"><span>GM</span><div><strong>Guru Geografi</strong><small>SMA Nusantara</small></div></div>
+          <div className="profile-chip"><span>{displayName.slice(0,2).toUpperCase()}</span><div><strong>{displayName}</strong><small>{schoolName ?? "GeoLearn"}</small></div></div>
+          <form action="/api/auth/logout" method="post"><button className="logout-button" type="submit">Keluar</button></form>
         </div>
       </header>
       <div className="teacher-main">{children}</div>
       <nav className="mobile-nav" aria-label="Navigasi guru seluler">
-        {navigation.filter((item) => ["/teacher","/teacher/classes","/teacher/questions","/teacher/data"].includes(item.href)).map((item) => (
+        {navigation.filter((item) => ["/teacher","/teacher/classes","/teacher/questions","/teacher/data"].includes(item.href) && (item.href !== "/teacher/accounts" || canManageAccounts)).map((item) => (
           <Link className={isActive(item.href) ? "active" : ""} href={item.href} key={item.href}>
             <span aria-hidden="true">{item.icon}</span><small>{item.short}</small>
           </Link>
         ))}
-        <Link className={["/teacher/assignments", "/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results", "/teacher/more"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/more">
+        <Link className={["/teacher/assignments", "/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results", "/teacher/accounts", "/teacher/more"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/more">
           <span aria-hidden="true">•••</span><small>More</small>
         </Link>
       </nav>
