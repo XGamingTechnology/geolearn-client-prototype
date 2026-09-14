@@ -59,6 +59,7 @@ export default function TeacherDashboard() {
         <div className="module-grid">
           <Link href="/teacher/classes"><span>▦</span><div><strong>Kelas & Siswa</strong><small>Class code, roster, enrollment</small></div></Link>
           <Link href="/teacher/questions"><span>?</span><div><strong>Bank Soal</strong><small>System, School, My Bank</small></div></Link>
+          <Link href="/teacher/cases"><span>◇</span><div><strong>Case Library</strong><small>Media + data + related questions</small></div></Link>
           <Link href="/teacher/data"><span>◫</span><div><strong>Bank Data</strong><small>Dataset spatial reusable</small></div></Link>
           <Link href="/teacher/media"><span>▣</span><div><strong>Media</strong><small>Image, video, document</small></div></Link>
           <Link href="/teacher/gis"><span>◎</span><div><strong>GIS Studio</strong><small>Layer, digitize, analyze</small></div></Link>
