@@ -8,6 +8,7 @@ const navigation = [
   { href: "/teacher", label: "Dashboard", short: "Home", icon: "⌂" },
   { href: "/teacher/classes", label: "Kelas", short: "Kelas", icon: "▦" },
   { href: "/teacher/questions", label: "Bank Soal", short: "Soal", icon: "?" },
+  { href: "/teacher/cases", label: "Case", short: "Case", icon: "◇" },
   { href: "/teacher/data", label: "Bank Data", short: "Data", icon: "◫" },
   { href: "/teacher/media", label: "Media", short: "Media", icon: "▣" },
   { href: "/teacher/gis", label: "GIS Studio", short: "GIS", icon: "◎" },
@@ -37,12 +38,12 @@ export function TeacherShell({ children }: { children: ReactNode }) {
       </header>
       <div className="teacher-main">{children}</div>
       <nav className="mobile-nav" aria-label="Navigasi guru seluler">
-        {navigation.slice(0, 4).map((item) => (
+        {navigation.filter((item) => ["/teacher","/teacher/classes","/teacher/questions","/teacher/data"].includes(item.href)).map((item) => (
           <Link className={isActive(item.href) ? "active" : ""} href={item.href} key={item.href}>
             <span aria-hidden="true">{item.icon}</span><small>{item.short}</small>
           </Link>
         ))}
-        <Link className={["/teacher/media", "/teacher/gis", "/teacher/results"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/gis">
+        <Link className={["/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/gis">
           <span aria-hidden="true">•••</span><small>More</small>
         </Link>
       </nav>
