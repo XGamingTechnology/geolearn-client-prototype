@@ -31,14 +31,14 @@ export default function StudentPage() {
             <h3>Pengaruh sungai terhadap akses sekolah</h3>
             <p>Gunakan Buffer pada peta, amati wilayah pengaruh, lalu jawab pertanyaan A–E.</p>
           </div>
-          <Link className="button" href="/learn/demo">Mulai Demo</Link>
+          <Link className="button" href="/student/assessment/demo">Mulai Tugas</Link>
         </article>
       </section>
 
       <nav className="student-bottom-nav" aria-label="Navigasi siswa">
         <Link className="active" href="/student"><span>⌂</span><small>Beranda</small></Link>
-        <Link href="/student"><span>▣</span><small>Tugas</small></Link>
-        <Link href="/student"><span>◔</span><small>Hasil Saya</small></Link>
+        <Link href="/student/assessment/demo"><span>▣</span><small>Tugas</small></Link>
+        <Link href="/student/result"><span>◔</span><small>Hasil Saya</small></Link>
       </nav>
     </main>
   );
