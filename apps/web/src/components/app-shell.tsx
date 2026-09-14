@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 const navigation = [
   { href: "/teacher", label: "Dashboard", short: "Home", icon: "⌂" },
   { href: "/teacher/classes", label: "Kelas", short: "Kelas", icon: "▦" },
+  { href: "/teacher/assignments", label: "Penugasan", short: "Tugas", icon: "✓" },
   { href: "/teacher/questions", label: "Bank Soal", short: "Soal", icon: "?" },
   { href: "/teacher/cases", label: "Case", short: "Case", icon: "◇" },
   { href: "/teacher/data", label: "Bank Data", short: "Data", icon: "◫" },
@@ -43,7 +44,7 @@ export function TeacherShell({ children }: { children: ReactNode }) {
             <span aria-hidden="true">{item.icon}</span><small>{item.short}</small>
           </Link>
         ))}
-        <Link className={["/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/gis">
+        <Link className={["/teacher/assignments", "/teacher/cases", "/teacher/media", "/teacher/gis", "/teacher/results", "/teacher/more"].some((href) => pathname.startsWith(href)) ? "active" : ""} href="/teacher/more">
           <span aria-hidden="true">•••</span><small>More</small>
         </Link>
       </nav>
