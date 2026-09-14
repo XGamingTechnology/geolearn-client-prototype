@@ -1,10 +1,12 @@
+import Link from "next/link";
+
 const datasets = [
-  { title: "Sungai Siak", format: "GeoJSON", scope: "System", type: "LineString", count: "1 feature", srid: "EPSG:4326", accent: "river" },
-  { title: "Sekolah Pekanbaru", format: "GeoJSON", scope: "School", type: "Point", count: "186 features", srid: "EPSG:4326", accent: "point" },
-  { title: "Batas Administrasi Pekanbaru", format: "GeoJSON", scope: "System", type: "Polygon", count: "83 features", srid: "EPSG:4326", accent: "polygon" },
-  { title: "DEM Jawa Timur", format: "GeoTIFF", scope: "My", type: "Raster", count: "30 m resolution", srid: "EPSG:4326", accent: "raster" },
-  { title: "Curah Hujan Tahunan", format: "GeoTIFF", scope: "School", type: "Raster", count: "2025 composite", srid: "EPSG:4326", accent: "raster" },
-  { title: "Fasilitas Kesehatan Kota", format: "GeoJSON", scope: "My", type: "Point", count: "74 features", srid: "EPSG:4326", accent: "point" },
+  { id:"sungai-siak", title: "Sungai Siak", format: "GeoJSON", scope: "System", type: "LineString", count: "1 feature", srid: "EPSG:4326", accent: "river" },
+  { id:"sekolah-pekanbaru", title: "Sekolah Pekanbaru", format: "GeoJSON", scope: "School", type: "Point", count: "186 features", srid: "EPSG:4326", accent: "point" },
+  { id:"batas-administrasi-pekanbaru", title: "Batas Administrasi Pekanbaru", format: "GeoJSON", scope: "System", type: "Polygon", count: "83 features", srid: "EPSG:4326", accent: "polygon" },
+  { id:"dem-jawa-timur", title: "DEM Jawa Timur", format: "GeoTIFF", scope: "My", type: "Raster", count: "30 m resolution", srid: "EPSG:4326", accent: "raster" },
+  { id:"curah-hujan-tahunan", title: "Curah Hujan Tahunan", format: "GeoTIFF", scope: "School", type: "Raster", count: "2025 composite", srid: "EPSG:4326", accent: "raster" },
+  { id:"fasilitas-kesehatan-kota", title: "Fasilitas Kesehatan Kota", format: "GeoJSON", scope: "My", type: "Point", count: "74 features", srid: "EPSG:4326", accent: "point" },
 ];
 
 export default function DataPage() {
@@ -12,7 +14,7 @@ export default function DataPage() {
     <main className="dashboard catalog-page">
       <header className="catalog-header">
         <div><p className="eyebrow">Spatial Data Catalog</p><h1>Bank Data</h1><p>Data spatial reusable untuk Case, Question, GIS Studio, dan analisis pembelajaran.</p></div>
-        <div className="dashboard-actions"><button className="button button-secondary" type="button" disabled>Open GIS Studio</button><button className="button" type="button" disabled>Upload Data</button></div>
+        <div className="dashboard-actions"><Link className="button button-secondary" href="/teacher/gis">Open GIS Studio</Link><button className="button" type="button" disabled>Upload Data</button></div>
       </header>
       <div className="scope-tabs"><span className="active">All Accessible</span><span>System Data</span><span>School Data</span><span>My Data</span></div>
       <div className="catalog-toolbar">
@@ -25,7 +27,7 @@ export default function DataPage() {
             <div className={"dataset-preview " + d.accent}><span>{d.type}</span></div>
             <div className="dataset-card-body"><div className="dataset-badges"><span>{d.format}</span><span>{d.scope}</span><span className="ready">Ready</span></div><h2>{d.title}</h2><p>Dataset preview untuk alur GeoLearn spatial content.</p>
               <dl><div><dt>Geometry</dt><dd>{d.type}</dd></div><div><dt>Objects</dt><dd>{d.count}</dd></div><div><dt>CRS</dt><dd>{d.srid}</dd></div></dl>
-              <div className="dataset-actions"><button type="button" disabled>Preview</button><button type="button" disabled>Use</button><button type="button" disabled>Open in Studio</button></div>
+              <div className="dataset-actions"><Link href={`/teacher/data/${d.id}`}>Preview</Link><button type="button" disabled>Use</button><Link href="/teacher/gis">Open in Studio</Link></div>
             </div>
           </article>
         ))}
