@@ -10,7 +10,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "auth:bootstrap": "node scripts/bootstrap-auth.mjs"
+    "auth:bootstrap-admin": "node scripts/bootstrap-admin.mjs"
   },
   "dependencies": {
     "@turf/turf": "^7.2.0",
