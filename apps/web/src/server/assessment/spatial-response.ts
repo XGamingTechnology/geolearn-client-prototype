@@ -2,6 +2,7 @@ import { database, query } from "@/server/db";
 import type { StudentSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
 import { getAttemptRuntime } from "@/server/assessment/service";
+import type { Geometry } from "geojson";
 
 type SpatialResponseType="draw-point"|"draw-line"|"draw-polygon"|"feature-select";
 
@@ -181,7 +182,7 @@ export async function getSavedSpatialResponses(session:StudentSession,attemptId:
   const runtime=await getAttemptRuntime(session,attemptId);
   if(!runtime) throw new AuthorizationError();
   const rows=await query<{
-    quizItemId:string;responseType:string;geometry:unknown|null;selectedFeatureIds:string[];
+    quizItemId:string;responseType:string;geometry:Geometry|null;selectedFeatureIds:string[];
   }>(
     `select r.quiz_item_id as "quizItemId",r.response_json->>'type' as "responseType",
        case when rsa.geom is not null then ST_AsGeoJSON(rsa.geom)::json else null end as geometry,
