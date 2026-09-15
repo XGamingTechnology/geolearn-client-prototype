@@ -1,14 +1,10 @@
 import Link from "next/link";
 import { requireStudentSession } from "@/server/auth/session";
+import { listStudentAssignments } from "@/server/assessment/service";
 
-const tasks=[
-  {title:"Pengaruh Sungai terhadap Akses Sekolah",mode:"Influence",stimulus:"WebGIS",status:"Belum dikerjakan",due:"18 Sep 2026",href:"/student/assessment/demo"},
-  {title:"Pola Permukiman Wilayah Pesisir",mode:"Pattern",stimulus:"Static Map",status:"Selesai",due:"20 Sep 2026",href:"/student/result"},
-  {title:"Banjir Rob Semarang–Demak",mode:"Association",stimulus:"Composite",status:"Belum dikerjakan",due:"21 Sep 2026",href:"/student/assessment/demo"},
-];
-
-export default async function StudentTasksPage(){
-  const session = await requireStudentSession();
+export default async function StudentTasksPage({searchParams}:{searchParams:Promise<{status?:string}>}){
+  const session=await requireStudentSession();
+  const [tasks,{status}]=await Promise.all([listStudentAssignments(session),searchParams]);
   return (
     <main className="student-home">
       <header className="student-header">
@@ -17,18 +13,24 @@ export default async function StudentTasksPage(){
       </header>
 
       <section className="student-section student-tasks-section">
-        <div className="section-heading-row"><div><p className="eyebrow">Assignment List</p><h1>Tugas saya</h1><p>Lihat tugas aktif, deadline, dan status pengerjaan.</p></div><span className="status-pill">PREVIEW</span></div>
+        <div className="section-heading-row"><div><p className="eyebrow">Assignment List</p><h1>Tugas saya</h1><p>Assignment diambil langsung dari enrollment kelas aktif.</p></div><span className="status-pill">DATABASE</span></div>
+        {status==="error"&&<p className="account-alert error">Tugas belum dapat dimulai. Bisa jadi belum masuk jadwal atau attempt limit sudah tercapai.</p>}
         <div className="student-task-list">
-          {tasks.map((task)=>(
-            <article className="student-task-row" key={task.title}>
-              <div className="assignment-icon">{task.stimulus==="WebGIS"?"◎":task.stimulus==="Composite"?"◫":"▣"}</div>
-              <div><span className="assignment-kicker">{task.mode} · {task.stimulus}</span><h2>{task.title}</h2><p>Deadline {task.due}</p></div>
-              <span className={task.status==="Selesai"?"student-task-status complete":"student-task-status"}>{task.status}</span>
-              <Link className="button button-secondary" href={task.href}>{task.status==="Selesai"?"Lihat Hasil":"Mulai"}</Link>
-            </article>
-          ))}
+          {tasks.map((task)=>{
+            const closed=task.isExpired;
+            const notOpen=task.isScheduled;
+            const submitted=task.attemptStatus==="SUBMITTED";
+            return <article className="student-task-row" key={task.id}>
+              <div className="assignment-icon">▣</div>
+              <div><span className="assignment-kicker">{task.quizTitle} · {task.itemCount} soal</span><h2>{task.title}</h2><p>{task.closesAt?"Deadline "+new Intl.DateTimeFormat("id-ID",{dateStyle:"medium",timeStyle:"short"}).format(task.closesAt):"Tanpa deadline"}</p></div>
+              <span className={submitted?"student-task-status complete":"student-task-status"}>{submitted?"Selesai":notOpen?"Belum buka":closed?"Ditutup":task.attemptStatus==="IN_PROGRESS"?"Sedang dikerjakan":"Belum dikerjakan"}</span>
+              {submitted
+                ? <Link className="button button-secondary" href={"/student/result?attempt="+task.attemptId}>Lihat Hasil</Link>
+                : <form action={"/api/assessment/assignments/"+task.id+"/start"} method="post"><button className="button button-secondary" disabled={closed||notOpen} type="submit">{task.attemptStatus==="IN_PROGRESS"?"Lanjutkan":"Mulai"}</button></form>}
+            </article>;
+          })}
         </div>
-        <p className="preview-banner">Daftar tugas masih UI preview dan belum berasal dari enrollment / assignment database.</p>
+        {!tasks.length&&<div className="empty-state"><strong>Belum ada tugas.</strong><p>Assignment dari guru akan muncul di sini.</p></div>}
       </section>
 
       <nav className="student-bottom-nav" aria-label="Navigasi siswa">

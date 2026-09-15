@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { updateQuestionDraft } from "@/server/content/service";
+import { replaceQuestionDraftDatasetBindings } from "@/server/content/question-datasets";
 
 function answer(form:FormData,id:"A"|"B"|"C"|"D"|"E"){return {id,label:String(form.get("answer_"+id)??"").trim()};}
+
+function activityConfig(form:FormData){
+  const stimulus=String(form.get("stimulusType")??"text");
+  const tool=String(form.get("requiredGisTool")??"").trim();
+  if(stimulus!=="webgis"||!tool)return {};
+  const distance=Number(form.get("bufferDistance")??500);
+  return {tools:[tool],requiredActions:[{tool,parameters:tool==="buffer"?{distanceMeters:Number.isFinite(distance)&&distance>0?distance:500}:{}}]};
+}
 
 export async function POST(request:NextRequest,{params}:{params:Promise<{questionId:string}>}){
   const {questionId}=await params;
@@ -22,7 +31,12 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{questio
       correctAnswer:String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E",
       feedbackCorrect:String(form.get("feedbackCorrect")??""),
       feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
+      activityConfig:activityConfig(form),
     });
+    await replaceQuestionDraftDatasetBindings(actor,questionId,[
+      {datasetId:String(form.get("sourceDatasetId")??""),role:"SOURCE"},
+      {datasetId:String(form.get("targetDatasetId")??""),role:"TARGET"},
+    ]);
     return NextResponse.redirect(new URL("/teacher/questions/"+questionId+"?status=updated",request.url),303);
   }catch{
     return NextResponse.redirect(new URL("/teacher/questions/"+questionId+"?status=error",request.url),303);

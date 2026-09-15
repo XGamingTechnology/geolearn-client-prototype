@@ -274,7 +274,7 @@ export async function updateQuestionDraft(input:{
   actor:TeacherSession;questionId:string;title:string;subject:string;topic:string;
   spatialMode:string;difficulty:string;prompt:string;stimulusType:string;
   answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>;correctAnswer:"A"|"B"|"C"|"D"|"E";
-  feedbackCorrect:string;feedbackIncorrect:string;
+  feedbackCorrect:string;feedbackIncorrect:string; activityConfig?:Record<string,unknown>;
 }):Promise<void>{
   await editableQuestion(input.actor,input.questionId);
   const spatialMode=validateSpatialMode(input.spatialMode);
@@ -289,10 +289,11 @@ export async function updateQuestionDraft(input:{
   ]);
   await query(
     `update question_versions set spatial_mode=$2,difficulty=$3,prompt=$4,
-       stimulus_config=$5::jsonb,response_config=$6::jsonb,validation_config=$7::jsonb,
-       feedback_config=$8::jsonb where id=$1`,
+       stimulus_config=$5::jsonb,activity_config=$6::jsonb,response_config=$7::jsonb,validation_config=$8::jsonb,
+       feedback_config=$9::jsonb where id=$1`,
     [draft.id,spatialMode,input.difficulty.trim()||null,input.prompt.trim(),
      JSON.stringify({type:input.stimulusType}),
+     JSON.stringify(input.activityConfig??{}),
      JSON.stringify({type:"multiple-choice",answers:input.answers}),
      JSON.stringify({method:"static-answer",correctAnswer:input.correctAnswer}),
      JSON.stringify({correct:input.feedbackCorrect,incorrect:input.feedbackIncorrect})],
