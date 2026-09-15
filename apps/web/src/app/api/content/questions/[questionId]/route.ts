@@ -12,6 +12,7 @@ function spatialValidationConfig(form:FormData){
     const maxDistanceMeters=Number(form.get("maxDistanceMeters")??100);
     return {method,maxDistanceMeters:Number.isFinite(maxDistanceMeters)&&maxDistanceMeters>=0?maxDistanceMeters:100,targetRole:"TARGET"};
   }
+  if(method==="selected-feature-rule") return {method,targetRole:"TARGET"};
   if(method==="geometry-overlap"){
     const minOverlapRatio=Number(form.get("minOverlapRatio")??0.5);
     return {method,minOverlapRatio:Number.isFinite(minOverlapRatio)?Math.min(Math.max(minOverlapRatio,0),1):0.5,targetRole:"TARGET"};
