@@ -238,3 +238,87 @@ export async function createMediaAsset(input:{actor:TeacherSession;title:string;
   if(!row) throw new Error("Media creation failed");
   return row.id;
 }
+
+
+export type QuestionEditorRecord = QuestionBankItem & {
+  stimulusConfig:Record<string,unknown>|null;
+  activityConfig:Record<string,unknown>|null;
+  responseConfig:{type?:string;answers?:Array<{id:string;label:string}>}|null;
+  validationConfig:{method?:string;correctAnswer?:string}|null;
+  feedbackConfig:{correct?:string;incorrect?:string}|null;
+};
+
+export async function getQuestionEditor(session:TeacherSession,questionId:string):Promise<QuestionEditorRecord|null>{
+  const [row]=await query<QuestionEditorRecord>(
+    `select q.id,q.title,q.subject,q.topic,q.scope,q.owner_teacher_id as "ownerTeacherId",
+       qv.id as "versionId",qv.version_number as "versionNumber",qv.spatial_mode as "spatialMode",
+       qv.difficulty,qv.prompt,qv.status as "versionStatus",
+       qv.stimulus_config->>'type' as "stimulusType",qv.response_config->>'type' as "responseType",
+       qv.stimulus_config as "stimulusConfig",qv.activity_config as "activityConfig",
+       qv.response_config as "responseConfig",qv.validation_config as "validationConfig",
+       qv.feedback_config as "feedbackConfig"
+     from questions q
+     join lateral (
+       select * from question_versions x where x.question_id=q.id
+       order by case x.status when 'DRAFT' then 0 else 1 end,x.version_number desc limit 1
+     ) qv on true
+     where q.id=$1 and q.status='ACTIVE' and (
+       q.scope='SYSTEM' or (q.scope='SCHOOL' and q.school_id=$2) or (q.scope='PRIVATE' and q.owner_teacher_id=$3)
+     )`,
+    [questionId,session.schoolId,session.staffUserId],
+  );
+  return row??null;
+}
+
+export async function updateQuestionDraft(input:{
+  actor:TeacherSession;questionId:string;title:string;subject:string;topic:string;
+  spatialMode:string;difficulty:string;prompt:string;stimulusType:string;
+  answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>;correctAnswer:"A"|"B"|"C"|"D"|"E";
+  feedbackCorrect:string;feedbackIncorrect:string;
+}):Promise<void>{
+  await editableQuestion(input.actor,input.questionId);
+  const spatialMode=validateSpatialMode(input.spatialMode);
+  const [draft]=await query<{id:string}>(
+    "select id from question_versions where question_id=$1 and status='DRAFT' order by version_number desc limit 1",
+    [input.questionId],
+  );
+  if(!draft) throw new Error("Published question is immutable. Create a new draft version first.");
+  if(input.answers.length!==5 || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("Invalid answer config");
+  await query("update questions set title=$2,subject=$3,topic=$4,updated_at=now() where id=$1",[
+    input.questionId,input.title.trim(),input.subject.trim()||null,input.topic.trim()||null,
+  ]);
+  await query(
+    `update question_versions set spatial_mode=$2,difficulty=$3,prompt=$4,
+       stimulus_config=$5::jsonb,response_config=$6::jsonb,validation_config=$7::jsonb,
+       feedback_config=$8::jsonb where id=$1`,
+    [draft.id,spatialMode,input.difficulty.trim()||null,input.prompt.trim(),
+     JSON.stringify({type:input.stimulusType}),
+     JSON.stringify({type:"multiple-choice",answers:input.answers}),
+     JSON.stringify({method:"static-answer",correctAnswer:input.correctAnswer}),
+     JSON.stringify({correct:input.feedbackCorrect,incorrect:input.feedbackIncorrect})],
+  );
+}
+
+export async function createNextQuestionDraft(session:TeacherSession,questionId:string):Promise<void>{
+  await editableQuestion(session,questionId);
+  const [existing]=await query<{id:string}>("select id from question_versions where question_id=$1 and status='DRAFT' limit 1",[questionId]);
+  if(existing) return;
+  const [source]=await query<{
+    version_number:number;case_version_id:string|null;spatial_mode:string;difficulty:string|null;bloom_level:string|null;prompt:string;
+    stimulus_config:unknown;activity_config:unknown;response_config:unknown;validation_config:unknown;feedback_config:unknown;
+  }>(
+    `select version_number,case_version_id,spatial_mode,difficulty,bloom_level,prompt,stimulus_config,activity_config,
+       response_config,validation_config,feedback_config
+     from question_versions where question_id=$1 and status='PUBLISHED' order by version_number desc limit 1`,
+    [questionId],
+  );
+  if(!source) throw new Error("No published source version");
+  await query(
+    `insert into question_versions(question_id,version_number,case_version_id,spatial_mode,difficulty,bloom_level,prompt,
+       stimulus_config,activity_config,response_config,validation_config,feedback_config,status,created_by)
+     values($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb,'DRAFT',$13)`,
+    [questionId,source.version_number+1,source.case_version_id,source.spatial_mode,source.difficulty,source.bloom_level,source.prompt,
+     JSON.stringify(source.stimulus_config),JSON.stringify(source.activity_config),JSON.stringify(source.response_config),
+     JSON.stringify(source.validation_config),JSON.stringify(source.feedback_config),session.staffUserId],
+  );
+}
