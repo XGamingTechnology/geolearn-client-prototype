@@ -6,6 +6,19 @@ import { replaceQuestionDraftMediaBindings } from "@/server/content/question-med
 
 function answer(form:FormData,id:"A"|"B"|"C"|"D"|"E"){return {id,label:String(form.get("answer_"+id)??"").trim()};}
 
+function spatialValidationConfig(form:FormData){
+  const method=String(form.get("spatialValidationMethod")??"manual-review");
+  if(method==="geometry-distance"){
+    const maxDistanceMeters=Number(form.get("maxDistanceMeters")??100);
+    return {method,maxDistanceMeters:Number.isFinite(maxDistanceMeters)&&maxDistanceMeters>=0?maxDistanceMeters:100,targetRole:"TARGET"};
+  }
+  if(method==="geometry-overlap"){
+    const minOverlapRatio=Number(form.get("minOverlapRatio")??0.5);
+    return {method,minOverlapRatio:Number.isFinite(minOverlapRatio)?Math.min(Math.max(minOverlapRatio,0),1):0.5,targetRole:"TARGET"};
+  }
+  return {method:"manual-review"};
+}
+
 function activityConfig(form:FormData){
   const stimulus=String(form.get("stimulusType")??"text");
   const tool=String(form.get("requiredGisTool")??"").trim();
@@ -35,6 +48,7 @@ export async function POST(request:NextRequest){
       feedbackCorrect:String(form.get("feedbackCorrect")??""),
       feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
       activityConfig:activityConfig(form),
+      validationConfig:spatialValidationConfig(form),
     });
     await replaceQuestionDraftDatasetBindings(actor,id,[
       {datasetId:String(form.get("sourceDatasetId")??""),role:"SOURCE"},
