@@ -16,6 +16,7 @@ export type TeacherAssignmentRow={
 export type StudentAssignmentRow={
   id:string;title:string;instructions:string|null;opensAt:Date|null;closesAt:Date|null;status:string;
   quizTitle:string;itemCount:number;attemptId:string|null;attemptStatus:string|null;scoreRaw:number|null;scoreMax:number|null;
+  isOpen:boolean; isExpired:boolean; isScheduled:boolean;
 };
 
 export async function listPublishedQuestionOptions(session:TeacherSession):Promise<PublishedQuestionOption[]>{
@@ -143,7 +144,10 @@ export async function listStudentAssignments(session:StudentSession):Promise<Stu
     `select a.id,a.title,a.instructions,a.opens_at as "opensAt",a.closes_at as "closesAt",a.status,
        q.title as "quizTitle",count(distinct qi.id)::int as "itemCount",
        last_at.id as "attemptId",last_at.status as "attemptStatus",
-       last_at.score_raw::float8 as "scoreRaw",last_at.score_max::float8 as "scoreMax"
+       last_at.score_raw::float8 as "scoreRaw",last_at.score_max::float8 as "scoreMax",
+       (a.status='ACTIVE' and (a.opens_at is null or a.opens_at<=now()) and (a.closes_at is null or a.closes_at>=now())) as "isOpen",
+       (a.status<>'ACTIVE' or (a.closes_at is not null and a.closes_at<now())) as "isExpired",
+       (a.opens_at is not null and a.opens_at>now()) as "isScheduled"
      from assignments a
      join quiz_versions qv on qv.id=a.quiz_version_id and qv.status='PUBLISHED'
      join quizzes q on q.id=qv.quiz_id
