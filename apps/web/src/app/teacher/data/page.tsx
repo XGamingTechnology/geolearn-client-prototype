@@ -1,38 +1,48 @@
 import Link from "next/link";
+import { requireTeacherSession } from "@/server/auth/session";
+import { listDatasets } from "@/server/data/service";
 
-const datasets = [
-  { id:"sungai-siak", title: "Sungai Siak", format: "GeoJSON", scope: "System", type: "LineString", count: "1 feature", srid: "EPSG:4326", accent: "river" },
-  { id:"sekolah-pekanbaru", title: "Sekolah Pekanbaru", format: "GeoJSON", scope: "School", type: "Point", count: "186 features", srid: "EPSG:4326", accent: "point" },
-  { id:"batas-administrasi-pekanbaru", title: "Batas Administrasi Pekanbaru", format: "GeoJSON", scope: "System", type: "Polygon", count: "83 features", srid: "EPSG:4326", accent: "polygon" },
-  { id:"dem-jawa-timur", title: "DEM Jawa Timur", format: "GeoTIFF", scope: "My", type: "Raster", count: "30 m resolution", srid: "EPSG:4326", accent: "raster" },
-  { id:"curah-hujan-tahunan", title: "Curah Hujan Tahunan", format: "GeoTIFF", scope: "School", type: "Raster", count: "2025 composite", srid: "EPSG:4326", accent: "raster" },
-  { id:"fasilitas-kesehatan-kota", title: "Fasilitas Kesehatan Kota", format: "GeoJSON", scope: "My", type: "Point", count: "74 features", srid: "EPSG:4326", accent: "point" },
-];
+function accent(type:string|null){return type==="Point"||type==="MultiPoint"?"point":type?.includes("Line")?"river":type?.includes("Polygon")?"polygon":"raster";}
 
-export default function DataPage() {
+export default async function DataPage({searchParams}:{searchParams:Promise<{status?:string}>}) {
+  const session=await requireTeacherSession();
+  const datasets=await listDatasets(session);
+  const {status}=await searchParams;
+
   return (
     <main className="dashboard catalog-page">
       <header className="catalog-header">
-        <div><p className="eyebrow">Spatial Data Catalog</p><h1>Bank Data</h1><p>Data spatial reusable untuk Case, Question, GIS Studio, dan analisis pembelajaran.</p></div>
-        <div className="dashboard-actions"><Link className="button button-secondary" href="/teacher/gis">Open GIS Studio</Link><button className="button" type="button" disabled>Upload Data</button></div>
+        <div><p className="eyebrow">Spatial Data Catalog</p><h1>Bank Data</h1><p>Dataset reusable dari PostgreSQL/PostGIS. GeoJSON upload masuk sebagai DatasetVersion immutable.</p></div>
+        <div className="dashboard-actions"><Link className="button button-secondary" href="/teacher/gis">Open GIS Studio</Link></div>
       </header>
+      {status==="error"&&<p className="account-alert error">Upload dataset gagal. Pastikan file GeoJSON FeatureCollection valid dan maksimal 5000 feature.</p>}
+
+      <details className="class-create-panel">
+        <summary>+ Upload GeoJSON</summary>
+        <form action="/api/data/datasets" method="post" encType="multipart/form-data" className="dataset-upload-form">
+          <label>Judul<input name="title" required maxLength={220} placeholder="Sekolah Pekanbaru"/></label>
+          <label>Scope<select name="scope" defaultValue="PRIVATE"><option value="PRIVATE">My Data</option><option value="SCHOOL">School Data</option></select></label>
+          <label>Deskripsi<input name="description" placeholder="Keterangan dataset"/></label>
+          <label>GeoJSON<input name="file" type="file" accept=".geojson,.json,application/geo+json,application/json" required/></label>
+          <button className="button" type="submit">Upload & Publish Version</button>
+        </form>
+      </details>
+
       <div className="scope-tabs"><span className="active">All Accessible</span><span>System Data</span><span>School Data</span><span>My Data</span></div>
-      <div className="catalog-toolbar">
-        <div className="search-box">⌕ <input aria-label="Cari dataset" placeholder="Cari dataset..." readOnly /></div>
-        <div className="filter-chips"><span className="active">Semua</span><span>Vector</span><span>Raster</span><span>Table</span></div>
-      </div>
       <section className="dataset-grid">
-        {datasets.map((d) => (
-          <article className="dataset-card" key={d.title}>
-            <div className={"dataset-preview " + d.accent}><span>{d.type}</span></div>
-            <div className="dataset-card-body"><div className="dataset-badges"><span>{d.format}</span><span>{d.scope}</span><span className="ready">Ready</span></div><h2>{d.title}</h2><p>Dataset preview untuk alur GeoLearn spatial content.</p>
-              <dl><div><dt>Geometry</dt><dd>{d.type}</dd></div><div><dt>Objects</dt><dd>{d.count}</dd></div><div><dt>CRS</dt><dd>{d.srid}</dd></div></dl>
-              <div className="dataset-actions"><Link href={`/teacher/data/${d.id}`}>Preview</Link><button type="button" disabled>Use</button><Link href="/teacher/gis">Open in Studio</Link></div>
+        {datasets.map((d)=>(
+          <article className="dataset-card" key={d.id}>
+            <div className={"dataset-preview "+accent(d.geometryType)}><span>{d.geometryType??d.dataKind}</span></div>
+            <div className="dataset-card-body">
+              <div className="dataset-badges"><span>{d.format??"-"}</span><span>{d.scope}</span><span className="ready">{d.processingStatus??"-"}</span></div>
+              <h2>{d.title}</h2><p>{d.description??"Dataset spatial reusable GeoLearn."}</p>
+              <dl><div><dt>Geometry</dt><dd>{d.geometryType??"-"}</dd></div><div><dt>Objects</dt><dd>{d.featureCount??0}</dd></div><div><dt>CRS</dt><dd>{d.srid?"EPSG:"+d.srid:"-"}</dd></div></dl>
+              <div className="dataset-actions"><Link href={"/teacher/data/"+d.id}>Preview</Link><Link href={"/teacher/gis?dataset="+d.id}>Open in Studio</Link></div>
             </div>
           </article>
         ))}
       </section>
-      <p className="preview-banner">Dataset di layar ini bersifat UI preview, bukan inventaris data authoritative.</p>
+      {!datasets.length&&<div className="empty-state"><strong>Bank Data masih kosong.</strong><p>Upload GeoJSON pertama untuk mulai memakai PostGIS.</p></div>}
     </main>
   );
 }
