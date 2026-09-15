@@ -207,7 +207,7 @@ export type AttemptQuestion={
 };
 export type AttemptRuntime={
   attemptId:string;assignmentId:string;assignmentTitle:string;quizTitle:string;attemptNumber:number;status:string;
-  resultVisibility:string;questions:AttemptQuestion[];
+  resultVisibility:string;questions:AttemptQuestion[];savedResponses:Record<string,{answer:string;isCorrect:boolean|null;scoreAwarded:number|null}>;
 };
 
 export async function getAttemptRuntime(session:StudentSession,attemptId:string):Promise<AttemptRuntime|null>{
@@ -230,7 +230,16 @@ export async function getAttemptRuntime(session:StudentSession,attemptId:string)
      join questions q on q.id=qv.question_id where qi.quiz_version_id=$1 order by qi.position`,
     [base.quizVersionId],
   );
-  return {...base,questions};
+  const saved=await query<{quizItemId:string;answer:string|null;isCorrect:boolean|null;scoreAwarded:number|null}>(
+    `select quiz_item_id as "quizItemId",response_json->>'answer' as answer,is_correct as "isCorrect",
+       score_awarded::float8 as "scoreAwarded"
+     from responses where attempt_id=$1`,
+    [attemptId],
+  );
+  const savedResponses=Object.fromEntries(saved.filter((row)=>row.answer).map((row)=>[
+    row.quizItemId,{answer:row.answer as string,isCorrect:row.isCorrect,scoreAwarded:row.scoreAwarded},
+  ]));
+  return {...base,questions,savedResponses};
 }
 
 function requiredTools(activityConfig:Record<string,unknown>):string[]{
