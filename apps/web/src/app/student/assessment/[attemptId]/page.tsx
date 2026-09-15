@@ -19,7 +19,7 @@ export default async function AssessmentAttemptPage({params,searchParams}:{param
         <Link className="assessment-exit" href="/student/tasks">Keluar</Link>
       </header>
       {status==="error"&&<p className="account-alert error">Attempt belum dapat disubmit. Pastikan semua soal sudah dijawab.</p>}
-      <AssessmentRuntimeClient attemptId={attemptId} questions={runtime.questions}/>
+      <AssessmentRuntimeClient attemptId={attemptId} questions={runtime.questions} savedResponses={runtime.savedResponses}/>
     </main>
   );
 }
