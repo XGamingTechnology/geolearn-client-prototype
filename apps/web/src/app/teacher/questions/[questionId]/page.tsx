@@ -15,6 +15,8 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const answers=item.responseConfig?.answers??[];
   const key=item.validationConfig?.correctAnswer??"A";
   const isDraft=item.versionStatus==="DRAFT";
+  const requiredActions=Array.isArray(item.activityConfig?.requiredActions)?item.activityConfig.requiredActions:[];
+  const firstRequired=(requiredActions[0]??{}) as {tool?:string;parameters?:{distanceMeters?:number}};
 
   return (
     <main className="dashboard builder-page">
@@ -33,7 +35,7 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
           <section className="dashboard-panel"><p className="eyebrow">Information</p>
             <div className="builder-two-col"><label>Judul<input name="title" defaultValue={item.title} required/></label><label>Subject<input name="subject" defaultValue={item.subject??""}/></label></div>
             <div className="builder-two-col"><label>Topik<input name="topic" defaultValue={item.topic??""}/></label><label>Difficulty<input name="difficulty" defaultValue={item.difficulty??""}/></label></div>
-            <div className="builder-two-col"><label>Spatial Mode<select name="spatialMode" defaultValue={item.spatialMode??"location"}>{modes.map((m)=><option key={m}>{m}</option>)}</select></label><label>Stimulus<select name="stimulusType" defaultValue={item.stimulusType??"text"}>{stimuli.map((x)=><option value={x} key={x}>{x}</option>)}</select></label></div>
+            <div className="builder-two-col"><label>Spatial Mode<select name="spatialMode" defaultValue={item.spatialMode??"location"}>{modes.map((m)=><option key={m}>{m}</option>)}</select></label><label>Stimulus<select name="stimulusType" defaultValue={item.stimulusType??"text"}>{stimuli.map((x)=><option value={x} key={x}>{x}</option>)}</select></label></div><div className="builder-two-col"><label>Required GIS Tool<select name="requiredGisTool" defaultValue={firstRequired.tool??""}><option value="">Tidak wajib</option><option value="buffer">Buffer</option><option value="overlay">Overlay</option><option value="distance">Distance</option></select></label><label>Buffer Distance (m)<input name="bufferDistance" type="number" min={1} max={100000} defaultValue={firstRequired.parameters?.distanceMeters??500}/></label></div>
           </section>
           <section className="dashboard-panel"><p className="eyebrow">Prompt & A–E</p><label>Prompt<textarea name="prompt" rows={5} defaultValue={item.prompt??""} required/></label><div className="answer-form-grid">{["A","B","C","D","E"].map((id)=><label key={id}>{id}<input name={"answer_"+id} defaultValue={answers.find((a)=>a.id===id)?.label??""} required/></label>)}</div><label>Kunci<select name="correctAnswer" defaultValue={key}>{["A","B","C","D","E"].map((id)=><option key={id}>{id}</option>)}</select></label></section>
           <section className="dashboard-panel"><p className="eyebrow">Feedback</p><label>Benar<textarea name="feedbackCorrect" rows={3} defaultValue={item.feedbackConfig?.correct??""}/></label><label>Belum tepat<textarea name="feedbackIncorrect" rows={3} defaultValue={item.feedbackConfig?.incorrect??""}/></label></section>
