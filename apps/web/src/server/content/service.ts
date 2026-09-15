@@ -75,7 +75,7 @@ function validateScope(value:string):ContentScope{
 export async function createQuestionDraft(input:{
   actor:TeacherSession; title:string; subject?:string; topic?:string; scope:string;
   spatialMode:string; difficulty?:string; prompt:string; stimulusType:string;
-  answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>; correctAnswer:"A"|"B"|"C"|"D"|"E";
+  answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>; correctAnswer:"A"|"B"|"C"|"D"|"E"; responseType?:string;
   activityConfig?:Record<string,unknown>; feedbackCorrect?:string; feedbackIncorrect?:string;
 }):Promise<string>{
   const scope=validateScope(input.scope);
@@ -83,7 +83,13 @@ export async function createQuestionDraft(input:{
   const spatialMode=validateSpatialMode(input.spatialMode);
   const title=input.title.trim(); const prompt=input.prompt.trim();
   if(!title||title.length>220||!prompt) throw new Error("Title and prompt are required");
-  if(input.answers.length!==5 || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("A-E answers and valid key are required");
+  const responseType=input.responseType??"multiple-choice";
+  const spatialResponseTypes=["draw-point","draw-line","draw-polygon","feature-select"];
+  if(responseType==="multiple-choice"){
+    if(input.answers.length!==5 || input.answers.some((answer)=>!answer.label) || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("A-E answers and valid key are required");
+  }else if(!spatialResponseTypes.includes(responseType)){
+    throw new Error("Unsupported response type");
+  }
 
   const client=await database().connect();
   try{
@@ -103,8 +109,8 @@ export async function createQuestionDraft(input:{
         questionId,spatialMode,input.difficulty?.trim()||null,prompt,
         JSON.stringify({type:input.stimulusType}),
         JSON.stringify(input.activityConfig??{}),
-        JSON.stringify({type:"multiple-choice",answers:input.answers}),
-        JSON.stringify({method:"static-answer",correctAnswer:input.correctAnswer}),
+        JSON.stringify(responseType==="multiple-choice"?{type:"multiple-choice",answers:input.answers}:{type:responseType}),
+        JSON.stringify(responseType==="multiple-choice"?{method:"static-answer",correctAnswer:input.correctAnswer}:{method:"manual-review"}),
         JSON.stringify({correct:input.feedbackCorrect??"",incorrect:input.feedbackIncorrect??""}),
         input.actor.staffUserId,
       ],
@@ -273,7 +279,7 @@ export async function getQuestionEditor(session:TeacherSession,questionId:string
 export async function updateQuestionDraft(input:{
   actor:TeacherSession;questionId:string;title:string;subject:string;topic:string;
   spatialMode:string;difficulty:string;prompt:string;stimulusType:string;
-  answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>;correctAnswer:"A"|"B"|"C"|"D"|"E";
+  answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>;correctAnswer:"A"|"B"|"C"|"D"|"E";responseType?:string;
   feedbackCorrect:string;feedbackIncorrect:string; activityConfig?:Record<string,unknown>;
 }):Promise<void>{
   await editableQuestion(input.actor,input.questionId);
@@ -283,7 +289,13 @@ export async function updateQuestionDraft(input:{
     [input.questionId],
   );
   if(!draft) throw new Error("Published question is immutable. Create a new draft version first.");
-  if(input.answers.length!==5 || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("Invalid answer config");
+  const responseType=input.responseType??"multiple-choice";
+  const spatialResponseTypes=["draw-point","draw-line","draw-polygon","feature-select"];
+  if(responseType==="multiple-choice"){
+    if(input.answers.length!==5 || input.answers.some((answer)=>!answer.label) || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("Invalid answer config");
+  }else if(!spatialResponseTypes.includes(responseType)){
+    throw new Error("Unsupported response type");
+  }
   await query("update questions set title=$2,subject=$3,topic=$4,updated_at=now() where id=$1",[
     input.questionId,input.title.trim(),input.subject.trim()||null,input.topic.trim()||null,
   ]);
