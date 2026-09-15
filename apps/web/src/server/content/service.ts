@@ -306,8 +306,8 @@ export async function updateQuestionDraft(input:{
     [draft.id,spatialMode,input.difficulty.trim()||null,input.prompt.trim(),
      JSON.stringify({type:input.stimulusType}),
      JSON.stringify(input.activityConfig??{}),
-     JSON.stringify({type:"multiple-choice",answers:input.answers}),
-     JSON.stringify({method:"static-answer",correctAnswer:input.correctAnswer}),
+     JSON.stringify(responseType==="multiple-choice"?{type:"multiple-choice",answers:input.answers}:{type:responseType}),
+     JSON.stringify(responseType==="multiple-choice"?{method:"static-answer",correctAnswer:input.correctAnswer}:{method:"manual-review"}),
      JSON.stringify({correct:input.feedbackCorrect,incorrect:input.feedbackIncorrect})],
   );
 }
