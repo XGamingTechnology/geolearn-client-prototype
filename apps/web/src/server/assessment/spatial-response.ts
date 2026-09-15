@@ -82,6 +82,24 @@ export async function saveSpatialResponse(input:{
     );
     isCorrect=result?.distanceMeters!==null&&result?.distanceMeters!==undefined&&result.distanceMeters<=maxDistanceMeters;
     scoreAwarded=isCorrect?question.points:0;
+  }else if(input.responseType==="feature-select"&&validation.method==="selected-feature-rule"){
+    const [target]=await query<{datasetVersionId:string}>(
+      `select dataset_version_id as "datasetVersionId"
+       from question_version_dataset_layers
+       where question_version_id=$1 and role='TARGET'
+       order by position limit 1`,
+      [question.questionVersionId],
+    );
+    if(!target) throw new Error("TARGET DatasetVersion is required for selected-feature-rule");
+    const expectedIds=await query<{id:string}>(
+      `select coalesce(source_feature_id,id::text) as id
+       from dataset_features where dataset_version_id=$1 order by coalesce(source_feature_id,id::text)`,
+      [target.datasetVersionId],
+    );
+    const expectedSet=[...new Set(expectedIds.map((row)=>row.id))].sort();
+    const selectedSet=[...new Set(input.selectedFeatureIds??[])].sort();
+    isCorrect=expectedSet.length===selectedSet.length&&expectedSet.every((id,index)=>id===selectedSet[index]);
+    scoreAwarded=isCorrect?question.points:0;
   }else if(expected&&validation.method==="geometry-overlap"){
     if(input.responseType!=="draw-polygon") throw new Error("geometry-overlap requires draw-polygon response");
     const [target]=await query<{datasetVersionId:string}>(
