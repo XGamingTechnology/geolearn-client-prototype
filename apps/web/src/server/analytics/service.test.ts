@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const queryMock=vi.fn();
-const listClassesMock=vi.fn();
+const {queryMock,listClassesMock}=vi.hoisted(()=>({
+  queryMock:vi.fn(),
+  listClassesMock:vi.fn(),
+}));
 
 vi.mock("@/server/db",()=>({query:queryMock}));
 vi.mock("@/server/classes/service",()=>({listClasses:listClassesMock}));
