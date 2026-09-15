@@ -31,6 +31,7 @@ export async function POST(request:NextRequest){
       stimulusType:String(form.get("stimulusType")??"text"),
       answers:["A","B","C","D","E"].map((x)=>answer(form,x as "A"|"B"|"C"|"D"|"E")),
       correctAnswer:correct,
+      responseType:String(form.get("responseType")??"multiple-choice"),
       feedbackCorrect:String(form.get("feedbackCorrect")??""),
       feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
       activityConfig:activityConfig(form),
