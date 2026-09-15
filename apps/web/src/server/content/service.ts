@@ -322,3 +322,74 @@ export async function createNextQuestionDraft(session:TeacherSession,questionId:
      JSON.stringify(source.validation_config),JSON.stringify(source.feedback_config),session.staffUserId],
   );
 }
+
+
+export type CaseDetailRecord = CaseBankItem & {
+  narrative:string|null; mapConfig:Record<string,unknown>|null; stimulusLayoutConfig:Record<string,unknown>|null;
+};
+export async function getCaseDetail(session:TeacherSession,caseId:string):Promise<CaseDetailRecord|null>{
+  const [row]=await query<CaseDetailRecord>(
+    `select c.id,c.title,c.description,c.scope,c.owner_teacher_id as "ownerTeacherId",
+       cv.id as "versionId",cv.version_number as "versionNumber",cv.status as "versionStatus",
+       cv.narrative,cv.map_config as "mapConfig",cv.stimulus_layout_config as "stimulusLayoutConfig"
+     from cases c join lateral (
+       select * from case_versions x where x.case_id=c.id
+       order by case x.status when 'DRAFT' then 0 else 1 end,x.version_number desc limit 1
+     ) cv on true
+     where c.id=$1 and c.status='ACTIVE' and (
+       c.scope='SYSTEM' or (c.scope='SCHOOL' and c.school_id=$2) or (c.scope='PRIVATE' and c.owner_teacher_id=$3)
+     )`,
+    [caseId,session.schoolId,session.staffUserId],
+  );
+  return row??null;
+}
+async function editableCase(session:TeacherSession,caseId:string){
+  const [row]=await query<{school_id:string|null;owner_teacher_id:string|null;scope:ContentScope}>(
+    "select school_id,owner_teacher_id,scope from cases where id=$1 and status='ACTIVE'",[caseId],
+  );
+  if(!row) throw new Error("Case not found");
+  if(row.scope==="SYSTEM"){if(session.role!=="SYSTEM_ADMIN") throw new AuthorizationError();}
+  else if(row.scope==="SCHOOL"){
+    if(row.school_id!==session.schoolId || !(await canManageSchoolContent(session))) throw new AuthorizationError();
+  }else if(row.owner_teacher_id!==session.staffUserId) throw new AuthorizationError();
+}
+export async function publishCaseDraft(session:TeacherSession,caseId:string):Promise<void>{
+  await editableCase(session,caseId);
+  const [draft]=await query<{id:string}>(
+    "select id from case_versions where case_id=$1 and status='DRAFT' order by version_number desc limit 1",[caseId],
+  );
+  if(!draft) throw new Error("No draft case version");
+  await query("update case_versions set status='PUBLISHED',published_at=now() where id=$1",[draft.id]);
+}
+export async function duplicateCase(session:TeacherSession,caseId:string):Promise<string>{
+  const source=await getCaseDetail(session,caseId);
+  if(!source?.versionId || source.versionStatus!=="PUBLISHED" || !session.schoolId) throw new AuthorizationError();
+  const client=await database().connect();
+  try{
+    await client.query("begin");
+    const created=await client.query<{id:string}>(
+      `insert into cases(school_id,owner_teacher_id,scope,title,description,status,forked_from_case_version_id)
+       values($1,$2,'PRIVATE',$3,$4,'ACTIVE',$5) returning id`,
+      [session.schoolId,session.staffUserId,`${source.title} — Salinan`,source.description,source.versionId],
+    );
+    const newId=created.rows[0]?.id;if(!newId) throw new Error("Duplicate failed");
+    await client.query(
+      `insert into case_versions(case_id,version_number,status,narrative,map_config,stimulus_layout_config,created_by)
+       values($1,1,'DRAFT',$2,$3::jsonb,$4::jsonb,$5)`,
+      [newId,source.narrative,JSON.stringify(source.mapConfig??{}),JSON.stringify(source.stimulusLayoutConfig??{}),session.staffUserId],
+    );
+    await client.query("commit");return newId;
+  }catch(error){await client.query("rollback");throw error;}finally{client.release();}
+}
+
+export async function getMediaAsset(session:TeacherSession,mediaId:string):Promise<MediaAssetRecord|null>{
+  const [row]=await query<MediaAssetRecord>(
+    `select id,title,scope,owner_teacher_id as "ownerTeacherId",media_type as "mediaType",
+       storage_key as "storageKey",mime_type as "mimeType",size_bytes::bigint::float8 as "sizeBytes",status
+     from media_assets where id=$1 and status='ACTIVE' and (
+       scope='SYSTEM' or (scope='SCHOOL' and school_id=$2) or (scope='PRIVATE' and owner_teacher_id=$3)
+     )`,
+    [mediaId,session.schoolId,session.staffUserId],
+  );
+  return row??null;
+}
