@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Question={
@@ -30,7 +30,6 @@ export function AssessmentRuntimeClient({attemptId,questions}:{attemptId:string;
   const [feedback,setFeedback]=useState<Record<string,string>>({});
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
-  const startedAt=useMemo(()=>Date.now(),[]);
   const question=questions[index];
 
   if(!question)return <div className="empty-state"><strong>Tidak ada soal pada QuizVersion ini.</strong></div>;
@@ -69,7 +68,7 @@ export function AssessmentRuntimeClient({attemptId,questions}:{attemptId:string;
     try{
       const response=await fetch(`/api/assessment/attempts/${attemptId}/responses`,{
         method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({quizItemId:question.quizItemId,answer:selected,durationMs:Date.now()-startedAt}),
+        body:JSON.stringify({quizItemId:question.quizItemId,answer:selected,durationMs:0}),
       });
       const body=await response.json();
       if(!response.ok) throw new Error(body.error??"Jawaban gagal disimpan.");
