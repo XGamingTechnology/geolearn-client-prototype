@@ -4,6 +4,12 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { GeoJsonObject } from "geojson";
+import { AssessmentMediaRenderer } from "@/components/assessment-media-renderer";
+
+const AssessmentSpatialResponseMap=dynamic(
+  ()=>import("./assessment-spatial-response-map").then((module)=>module.AssessmentSpatialResponseMap),
+  {ssr:false,loading:()=><div className="runtime-map-shell"><div className="map-loading">Menyiapkan respons spasial…</div></div>},
+);
 
 const AssessmentLeafletMap=dynamic(
   ()=>import("./assessment-leaflet-map").then((module)=>module.AssessmentLeafletMap),
@@ -30,17 +36,19 @@ function requiredTools(config:Record<string,unknown>):string[]{
 }
 
 export function AssessmentRuntimeClient({
-  attemptId,questions,savedResponses,initialCompletedTools,
+  attemptId,questions,savedResponses,initialCompletedTools,initialSpatialResponses,
 }:{
   attemptId:string;
   questions:Question[];
   savedResponses:Record<string,{answer:string;isCorrect:boolean|null;scoreAwarded:number|null}>;
   initialCompletedTools:Record<string,string[]>;
+  initialSpatialResponses:Record<string,{responseType:string;geometry:GeoJsonObject|null;selectedFeatureIds:string[]}>;
 }){
   const router=useRouter();
   const [index,setIndex]=useState(0);
   const [answers,setAnswers]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.answer])));
   const [completedTools,setCompletedTools]=useState<Record<string,string[]>>(initialCompletedTools);
+  const [spatialSaved,setSpatialSaved]=useState<Record<string,boolean>>(()=>Object.fromEntries(Object.keys(initialSpatialResponses).map((key)=>[key,true])));
   const [analysisGeojson,setAnalysisGeojson]=useState<Record<string,GeoJsonObject|null>>({});
   const [toolSummary,setToolSummary]=useState<Record<string,string>>({});
   const [feedback,setFeedback]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.isCorrect===true?"Jawaban sebelumnya benar.":"Jawaban sebelumnya tersimpan."])));
@@ -56,6 +64,9 @@ export function AssessmentRuntimeClient({
   const options=question.responseConfig.answers??[];
   const selected=answers[question.quizItemId]??"";
   const stimulusType=String(question.stimulusConfig.type??"text");
+  const responseType=String(question.responseConfig.type??"multiple-choice");
+  const isSpatialResponse=["draw-point","draw-line","draw-polygon","feature-select"].includes(responseType);
+  const savedSpatial=initialSpatialResponses[question.quizItemId];
 
   async function runTool(tool:string){
     setBusy(true);setError("");
@@ -115,28 +126,43 @@ export function AssessmentRuntimeClient({
             analysisGeojson={analysisGeojson[question.questionVersionId]??null}
           />}
 
-        {stimulusType==="image"&&<div className="runtime-media-shell">Image stimulus · MediaAsset renderer berikutnya.</div>}
-        {stimulusType==="video"&&<div className="runtime-media-shell">Video stimulus · MediaAsset renderer berikutnya.</div>}
+        {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
+        {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
 
         {required.length>0&&<div className="runtime-tool-row">{required.map((tool)=><button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button">{done.has(tool)?"✓ ":""}{tool} · PostGIS</button>)}</div>}
 
-        <fieldset disabled={!requiredComplete||busy}>
+        {!isSpatialResponse&&<fieldset disabled={!requiredComplete||busy}>
           <legend>Jawaban</legend>
           {options.map((option)=><label className={"answer "+(selected===option.id?"selected":"")} key={option.id}><input type="radio" name={"answer-"+question.quizItemId} checked={selected===option.id} onChange={()=>setAnswers((current)=>({...current,[question.quizItemId]:option.id}))}/><b>{option.id}</b>{option.label}</label>)}
-        </fieldset>
+        </fieldset>}
+
+        {isSpatialResponse&&requiredComplete&&
+          <AssessmentSpatialResponseMap
+            attemptId={attemptId}
+            questionVersionId={question.questionVersionId}
+            quizItemId={question.quizItemId}
+            responseType={responseType as "draw-point"|"draw-line"|"draw-polygon"|"feature-select"}
+            initialGeometry={(savedSpatial?.geometry as never)??null}
+            initialSelectedFeatureIds={savedSpatial?.selectedFeatureIds??[]}
+            onSaved={()=>setSpatialSaved((current)=>({...current,[question.quizItemId]:true}))}
+          />}
+        {isSpatialResponse&&!requiredComplete&&<div className="runtime-media-shell">Selesaikan aktivitas GIS wajib sebelum menyimpan respons spasial.</div>}
 
         {feedback[question.quizItemId]&&<div className="answer-result correct"><strong>Jawaban tersimpan</strong><p>{feedback[question.quizItemId]}</p></div>}
+        {spatialSaved[question.quizItemId]&&<div className="answer-result correct"><strong>Respons spasial tersimpan</strong><p>Geometry/selection disimpan sebagai ResponseSpatialArtifact.</p></div>}
         {error&&<p className="auth-error">{error}</p>}
 
         <div className="runtime-question-actions">
           <button className="button button-secondary" disabled={index===0||busy} onClick={()=>setIndex(Math.max(0,index-1))} type="button">← Sebelumnya</button>
-          <button className="button" disabled={!selected||!requiredComplete||busy} onClick={saveAnswer} type="button">{index===questions.length-1?"Simpan Jawaban":"Simpan & Lanjut"}</button>
+          {!isSpatialResponse
+            ? <button className="button" disabled={!selected||!requiredComplete||busy} onClick={saveAnswer} type="button">{index===questions.length-1?"Simpan Jawaban":"Simpan & Lanjut"}</button>
+            : <button className="button" disabled={!spatialSaved[question.quizItemId]||busy} onClick={()=>setIndex(Math.min(questions.length-1,index+1))} type="button">{index===questions.length-1?"Respons tersimpan":"Lanjut →"}</button>}
         </div>
       </article>
 
       <aside className="assessment-runtime-sidebar">
         <div><p className="eyebrow">Progress</p><strong>{index+1} / {questions.length}</strong></div>
-        <div className="runtime-question-nav">{questions.map((q,i)=><button className={i===index?"active":answers[q.quizItemId]?"answered":""} onClick={()=>setIndex(i)} key={q.quizItemId} type="button">{q.position}</button>)}</div>
+        <div className="runtime-question-nav">{questions.map((q,i)=><button className={i===index?"active":answers[q.quizItemId]||spatialSaved[q.quizItemId]?"answered":""} onClick={()=>setIndex(i)} key={q.quizItemId} type="button">{q.position}</button>)}</div>
         <form action={"/api/assessment/attempts/"+attemptId+"/submit"} method="post"><button className="button button-wide" type="submit">Submit Attempt</button></form>
         <small>Submit hanya berhasil jika semua soal sudah mempunyai Response.</small>
       </aside>

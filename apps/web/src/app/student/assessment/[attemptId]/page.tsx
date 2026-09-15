@@ -4,6 +4,7 @@ import { AssessmentRuntimeClient } from "@/components/assessment-runtime-client"
 import { requireStudentSession } from "@/server/auth/session";
 import { getAttemptRuntime } from "@/server/assessment/service";
 import { completedAssessmentGisTools } from "@/server/assessment/gis";
+import { getSavedSpatialResponses } from "@/server/assessment/spatial-response";
 
 export default async function AssessmentAttemptPage({params,searchParams}:{params:Promise<{attemptId:string}>;searchParams:Promise<{status?:string}>}){
   const session=await requireStudentSession();
@@ -15,6 +16,7 @@ export default async function AssessmentAttemptPage({params,searchParams}:{param
     question.questionVersionId,await completedAssessmentGisTools(session,attemptId,question.questionVersionId),
   ] as const));
   const initialCompletedTools=Object.fromEntries(completedEntries);
+  const initialSpatialResponses=await getSavedSpatialResponses(session,attemptId);
 
   return (
     <main className="assessment-page">
@@ -24,7 +26,7 @@ export default async function AssessmentAttemptPage({params,searchParams}:{param
         <Link className="assessment-exit" href="/student/tasks">Keluar</Link>
       </header>
       {status==="error"&&<p className="account-alert error">Attempt belum dapat disubmit. Pastikan semua soal sudah dijawab.</p>}
-      <AssessmentRuntimeClient attemptId={attemptId} questions={runtime.questions} savedResponses={runtime.savedResponses} initialCompletedTools={initialCompletedTools}/>
+      <AssessmentRuntimeClient attemptId={attemptId} questions={runtime.questions} savedResponses={runtime.savedResponses} initialCompletedTools={initialCompletedTools} initialSpatialResponses={initialSpatialResponses}/>
     </main>
   );
 }

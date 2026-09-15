@@ -2,8 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { updateQuestionDraft } from "@/server/content/service";
 import { replaceQuestionDraftDatasetBindings } from "@/server/content/question-datasets";
+import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 
 function answer(form:FormData,id:"A"|"B"|"C"|"D"|"E"){return {id,label:String(form.get("answer_"+id)??"").trim()};}
+
+function spatialValidationConfig(form:FormData){
+  const method=String(form.get("spatialValidationMethod")??"manual-review");
+  if(method==="geometry-distance"){
+    const maxDistanceMeters=Number(form.get("maxDistanceMeters")??100);
+    return {method,maxDistanceMeters:Number.isFinite(maxDistanceMeters)&&maxDistanceMeters>=0?maxDistanceMeters:100,targetRole:"TARGET"};
+  }
+  if(method==="selected-feature-rule") return {method,targetRole:"TARGET"};
+  if(method==="geometry-overlap"){
+    const minOverlapRatio=Number(form.get("minOverlapRatio")??0.5);
+    return {method,minOverlapRatio:Number.isFinite(minOverlapRatio)?Math.min(Math.max(minOverlapRatio,0),1):0.5,targetRole:"TARGET"};
+  }
+  return {method:"manual-review"};
+}
 
 function activityConfig(form:FormData){
   const stimulus=String(form.get("stimulusType")??"text");
@@ -29,13 +44,18 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{questio
       stimulusType:String(form.get("stimulusType")??"text"),
       answers:["A","B","C","D","E"].map((x)=>answer(form,x as "A"|"B"|"C"|"D"|"E")),
       correctAnswer:String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E",
+      responseType:String(form.get("responseType")??"multiple-choice"),
       feedbackCorrect:String(form.get("feedbackCorrect")??""),
       feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
       activityConfig:activityConfig(form),
+      validationConfig:spatialValidationConfig(form),
     });
     await replaceQuestionDraftDatasetBindings(actor,questionId,[
       {datasetId:String(form.get("sourceDatasetId")??""),role:"SOURCE"},
       {datasetId:String(form.get("targetDatasetId")??""),role:"TARGET"},
+    ]);
+    await replaceQuestionDraftMediaBindings(actor,questionId,[
+      {mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")},
     ]);
     return NextResponse.redirect(new URL("/teacher/questions/"+questionId+"?status=updated",request.url),303);
   }catch{
