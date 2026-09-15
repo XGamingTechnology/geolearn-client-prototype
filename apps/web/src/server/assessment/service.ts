@@ -320,3 +320,35 @@ export async function getStudentAttemptResult(session:StudentSession,attemptId:s
   );
   return row??null;
 }
+
+
+export async function listStudentResults(session:StudentSession){
+  return query<{
+    attemptId:string;assignmentTitle:string;quizTitle:string;scoreRaw:number|null;scoreMax:number|null;submittedAt:Date|null;
+  }>(
+    `select at.id as "attemptId",a.title as "assignmentTitle",q.title as "quizTitle",
+       at.score_raw::float8 as "scoreRaw",at.score_max::float8 as "scoreMax",at.submitted_at as "submittedAt"
+     from attempts at join assignments a on a.id=at.assignment_id
+     join quiz_versions qv on qv.id=at.quiz_version_id join quizzes q on q.id=qv.quiz_id
+     where at.student_id=$1 and at.enrollment_id=$2 and at.status='SUBMITTED'
+     order by at.submitted_at desc`,
+    [session.studentId,session.enrollmentId],
+  );
+}
+
+export async function getTeacherAssignmentResult(session:TeacherSession,assignmentId:string){
+  const assignments=await listTeacherAssignments(session);
+  const assignment=assignments.find((item)=>item.id===assignmentId);
+  if(!assignment) throw new AuthorizationError();
+  const attempts=await query<{
+    attemptId:string;studentName:string;loginId:string;status:string;scoreRaw:number|null;scoreMax:number|null;submittedAt:Date|null;
+  }>(
+    `select at.id as "attemptId",s.full_name as "studentName",cred.login_id as "loginId",at.status,
+       at.score_raw::float8 as "scoreRaw",at.score_max::float8 as "scoreMax",at.submitted_at as "submittedAt"
+     from attempts at join students s on s.id=at.student_id
+     join student_credentials cred on cred.student_id=s.id
+     where at.assignment_id=$1 order by s.full_name,at.attempt_number desc`,
+    [assignmentId],
+  );
+  return {assignment,attempts};
+}
