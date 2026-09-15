@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- MediaAsset URLs are user-managed and may use arbitrary approved storage hosts. */
 
 import { useEffect, useState } from "react";
 
