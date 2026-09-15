@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { updateQuestionDraft } from "@/server/content/service";
 import { replaceQuestionDraftDatasetBindings } from "@/server/content/question-datasets";
+import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 
 function answer(form:FormData,id:"A"|"B"|"C"|"D"|"E"){return {id,label:String(form.get("answer_"+id)??"").trim()};}
 
@@ -36,6 +37,9 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{questio
     await replaceQuestionDraftDatasetBindings(actor,questionId,[
       {datasetId:String(form.get("sourceDatasetId")??""),role:"SOURCE"},
       {datasetId:String(form.get("targetDatasetId")??""),role:"TARGET"},
+    ]);
+    await replaceQuestionDraftMediaBindings(actor,questionId,[
+      {mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")},
     ]);
     return NextResponse.redirect(new URL("/teacher/questions/"+questionId+"?status=updated",request.url),303);
   }catch{
