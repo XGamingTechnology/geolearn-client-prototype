@@ -5,8 +5,6 @@ import { listStudentAssignments } from "@/server/assessment/service";
 export default async function StudentTasksPage({searchParams}:{searchParams:Promise<{status?:string}>}){
   const session=await requireStudentSession();
   const [tasks,{status}]=await Promise.all([listStudentAssignments(session),searchParams]);
-  const now=Date.now();
-
   return (
     <main className="student-home">
       <header className="student-header">
@@ -19,8 +17,8 @@ export default async function StudentTasksPage({searchParams}:{searchParams:Prom
         {status==="error"&&<p className="account-alert error">Tugas belum dapat dimulai. Bisa jadi belum masuk jadwal atau attempt limit sudah tercapai.</p>}
         <div className="student-task-list">
           {tasks.map((task)=>{
-            const closed=task.status!=="ACTIVE"||(task.closesAt&&task.closesAt.getTime()<now);
-            const notOpen=Boolean(task.opensAt&&task.opensAt.getTime()>now);
+            const closed=task.isExpired;
+            const notOpen=task.isScheduled;
             const submitted=task.attemptStatus==="SUBMITTED";
             return <article className="student-task-row" key={task.id}>
               <div className="assignment-icon">▣</div>
