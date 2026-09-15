@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { updateQuestionDraft } from "@/server/content/service";
+import { replaceQuestionDraftDatasetBindings } from "@/server/content/question-datasets";
 
 function answer(form:FormData,id:"A"|"B"|"C"|"D"|"E"){return {id,label:String(form.get("answer_"+id)??"").trim()};}
 
@@ -32,6 +33,10 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{questio
       feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
       activityConfig:activityConfig(form),
     });
+    await replaceQuestionDraftDatasetBindings(actor,questionId,[
+      {datasetId:String(form.get("sourceDatasetId")??""),role:"SOURCE"},
+      {datasetId:String(form.get("targetDatasetId")??""),role:"TARGET"},
+    ]);
     return NextResponse.redirect(new URL("/teacher/questions/"+questionId+"?status=updated",request.url),303);
   }catch{
     return NextResponse.redirect(new URL("/teacher/questions/"+questionId+"?status=error",request.url),303);
