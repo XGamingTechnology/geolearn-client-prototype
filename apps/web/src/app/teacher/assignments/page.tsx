@@ -1,50 +1,80 @@
 import Link from "next/link";
+import { requireTeacherSession } from "@/server/auth/session";
+import { listClasses } from "@/server/classes/service";
+import { listPublishedQuestionOptions, listPublishedQuizOptions, listTeacherAssignments } from "@/server/assessment/service";
 
-const assignments = [
-  { title:"Pengaruh Sungai terhadap Akses Sekolah", className:"XI-A Geografi", mode:"Influence", type:"WebGIS", completion:"24/32", due:"18 Sep 2026", status:"Aktif" },
-  { title:"Pola Permukiman Wilayah Pesisir", className:"XI-B Geografi", mode:"Pattern", type:"Static Map", completion:"29/31", due:"20 Sep 2026", status:"Aktif" },
-  { title:"Banjir Rob Semarang–Demak", className:"XII-A Geografi", mode:"Association", type:"Composite", completion:"17/30", due:"21 Sep 2026", status:"Aktif" },
-  { title:"Zona Bahaya Gunung Merapi", className:"X-1 Geografi", mode:"Region", type:"WebGIS", completion:"35/35", due:"10 Sep 2026", status:"Selesai" },
-];
+export default async function AssignmentsPage({searchParams}:{searchParams:Promise<{status?:string}>}){
+  const session=await requireTeacherSession();
+  const [assignments,classes,questions,quizzes,{status}]=await Promise.all([
+    listTeacherAssignments(session),
+    listClasses(session),
+    listPublishedQuestionOptions(session),
+    listPublishedQuizOptions(session),
+    searchParams,
+  ]);
 
-export default function AssignmentsPage(){
   return (
     <main className="dashboard catalog-page">
       <header className="catalog-header">
-        <div><p className="eyebrow">Assessment Management</p><h1>Penugasan</h1><p>Atur quiz version, kelas tujuan, jadwal, dan pantau pengerjaan siswa.</p></div>
-        <button className="button" type="button" disabled>+ Buat Tugas</button>
+        <div><p className="eyebrow">Assessment Management</p><h1>Penugasan</h1><p>QuizVersion immutable → Assignment → Attempt siswa.</p></div>
+        <span className="status-pill">DATABASE</span>
       </header>
 
-      <section className="assignment-summary-grid">
-        <article><small>Aktif</small><strong>3</strong><span>assignment berjalan</span></article>
-        <article><small>Selesai</small><strong>1</strong><span>preview history</span></article>
-        <article><small>Completion</small><strong>82%</strong><span>rata-rata UI preview</span></article>
-        <article><small>Due minggu ini</small><strong>3</strong><span>butuh perhatian</span></article>
+      {status==="quiz-created"&&<p className="account-alert">QuizVersion immutable berhasil dibuat.</p>}
+      {status==="assignment-created"&&<p className="account-alert">Assignment berhasil dipublish ke kelas.</p>}
+      {status==="error"&&<p className="account-alert error">Operasi assessment gagal. Periksa QuizVersion, kelas, dan jadwal.</p>}
+
+      <section className="assessment-authoring-grid">
+        <details className="dashboard-panel assessment-create-panel">
+          <summary>1 · Buat QuizVersion</summary>
+          <form action="/api/assessment/quizzes" method="post" className="assessment-create-form">
+            <label>Judul Quiz<input name="title" required maxLength={220} placeholder="Spatial Thinking XI-A"/></label>
+            <label>Deskripsi<textarea name="description" rows={3}/></label>
+            <fieldset><legend>Pilih published QuestionVersion</legend>
+              {questions.map((q)=><label className="assessment-check" key={q.questionVersionId}><input type="checkbox" name="questionVersionIds" value={q.questionVersionId}/><span><strong>{q.title}</strong><small>v{q.versionNumber} · {q.spatialMode} · {q.stimulusType??"text"}</small></span></label>)}
+              {!questions.length&&<p>Belum ada QuestionVersion published.</p>}
+            </fieldset>
+            <button className="button" disabled={!questions.length} type="submit">Publish QuizVersion</button>
+          </form>
+        </details>
+
+        <details className="dashboard-panel assessment-create-panel">
+          <summary>2 · Assign ke Kelas</summary>
+          <form action="/api/assessment/assignments" method="post" className="assessment-create-form">
+            <label>Judul Tugas<input name="title" required placeholder="Analisis Pengaruh Sungai"/></label>
+            <label>QuizVersion<select name="quizVersionId" required defaultValue=""><option value="" disabled>Pilih Quiz</option>{quizzes.map((q)=><option key={q.quizVersionId} value={q.quizVersionId}>{q.title} · v{q.versionNumber} · {q.itemCount} soal</option>)}</select></label>
+            <label>Kelas<select name="classId" required defaultValue=""><option value="" disabled>Pilih Kelas</option>{classes.filter((c)=>c.status==="ACTIVE").map((c)=><option key={c.id} value={c.id}>{c.name} · {c.classCode}</option>)}</select></label>
+            <label>Instruksi<textarea name="instructions" rows={3}/></label>
+            <div className="builder-two-col"><label>Buka<input type="datetime-local" name="opensAt"/></label><label>Tutup<input type="datetime-local" name="closesAt"/></label></div>
+            <div className="builder-two-col"><label>Attempt Limit<input type="number" min={1} max={10} name="attemptLimit" defaultValue={1}/></label><label>Result<select name="resultVisibility" defaultValue="AFTER_SUBMIT"><option value="AFTER_SUBMIT">Setelah submit</option><option value="AFTER_CLOSE">Setelah deadline</option><option value="HIDDEN">Disembunyikan</option></select></label></div>
+            <button className="button" disabled={!quizzes.length||!classes.length} type="submit">Aktifkan Assignment</button>
+          </form>
+        </details>
       </section>
 
-      <div className="scope-tabs"><span className="active">Semua</span><span>Aktif</span><span>Selesai</span><span>Draft</span></div>
-      <div className="catalog-toolbar">
-        <div className="search-box">⌕ <input aria-label="Cari penugasan" placeholder="Cari tugas..." readOnly /></div>
-        <div className="filter-chips"><span>Kelas</span><span>Mode</span><span>Deadline</span></div>
-      </div>
+      <section className="assignment-summary-grid">
+        <article><small>Total</small><strong>{assignments.length}</strong><span>assignment database</span></article>
+        <article><small>Aktif</small><strong>{assignments.filter((a)=>a.status==="ACTIVE").length}</strong><span>sedang berjalan</span></article>
+        <article><small>Submitted</small><strong>{assignments.reduce((sum,a)=>sum+a.submittedCount,0)}</strong><span>attempt selesai</span></article>
+        <article><small>QuizVersion</small><strong>{quizzes.length}</strong><span>immutable</span></article>
+      </section>
 
       <section className="assignment-management-list">
         {assignments.map((item)=>(
-          <article className="assignment-management-row" key={item.title}>
-            <div className="assignment-type-icon">{item.type==="WebGIS"?"◎":item.type==="Composite"?"◫":"▣"}</div>
+          <article className="assignment-management-row" key={item.id}>
+            <div className="assignment-type-icon">✓</div>
             <div className="assignment-management-main">
-              <div className="question-tags"><span>{item.className}</span><span>{item.mode}</span><span>{item.type}</span></div>
+              <div className="question-tags"><span>{item.className}</span><span>Quiz v{item.quizVersion}</span><span>{item.status}</span></div>
               <h2>{item.title}</h2>
-              <p>Deadline {item.due}</p>
+              <p>{item.quizTitle} · deadline {item.closesAt?new Intl.DateTimeFormat("id-ID",{dateStyle:"medium",timeStyle:"short"}).format(item.closesAt):"tanpa batas"}</p>
             </div>
-            <div className="assignment-progress-cell"><strong>{item.completion}</strong><small>selesai</small><div><i style={{width:item.status==="Selesai"?"100%":"78%"}} /></div></div>
-            <span className={item.status==="Aktif"?"assignment-status active":"assignment-status complete"}>{item.status}</span>
-            <div className="row-actions"><Link href="/teacher/results">Hasil</Link><Link href="/student/assessment/demo">Preview</Link></div>
+            <div className="assignment-progress-cell"><strong>{item.submittedCount}/{item.attemptCount}</strong><small>submitted / attempt</small></div>
+            <span className={item.status==="ACTIVE"?"assignment-status active":"assignment-status complete"}>{item.status}</span>
+            <div className="row-actions"><Link href={"/teacher/results?assignment="+item.id}>Hasil</Link></div>
           </article>
         ))}
       </section>
-
-      <p className="preview-banner">Penugasan pada layar ini masih UI preview. Assignment real harus mereferensikan QuizVersion immutable.</p>
+      {!assignments.length&&<div className="empty-state"><strong>Belum ada Assignment.</strong><p>Buat QuizVersion lalu assign ke kelas.</p></div>}
     </main>
   );
 }
