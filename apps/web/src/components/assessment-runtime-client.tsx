@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { GeoJsonObject } from "geojson";
+import { AssessmentMediaRenderer } from "@/components/assessment-media-renderer";
 
 const AssessmentLeafletMap=dynamic(
   ()=>import("./assessment-leaflet-map").then((module)=>module.AssessmentLeafletMap),
@@ -115,8 +116,8 @@ export function AssessmentRuntimeClient({
             analysisGeojson={analysisGeojson[question.questionVersionId]??null}
           />}
 
-        {stimulusType==="image"&&<div className="runtime-media-shell">Image stimulus · MediaAsset renderer berikutnya.</div>}
-        {stimulusType==="video"&&<div className="runtime-media-shell">Video stimulus · MediaAsset renderer berikutnya.</div>}
+        {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
+        {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
 
         {required.length>0&&<div className="runtime-tool-row">{required.map((tool)=><button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button">{done.has(tool)?"✓ ":""}{tool} · PostGIS</button>)}</div>}
 
