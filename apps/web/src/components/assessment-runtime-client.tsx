@@ -22,12 +22,12 @@ function requiredTools(config:Record<string,unknown>):string[]{
   return actions.map((action)=>action&&typeof action==="object"&&typeof (action as {tool?:unknown}).tool==="string"?(action as {tool:string}).tool:null).filter((x):x is string=>Boolean(x));
 }
 
-export function AssessmentRuntimeClient({attemptId,questions}:{attemptId:string;questions:Question[]}){
+export function AssessmentRuntimeClient({attemptId,questions,savedResponses}:{attemptId:string;questions:Question[];savedResponses:Record<string,{answer:string;isCorrect:boolean|null;scoreAwarded:number|null}>}){
   const router=useRouter();
   const [index,setIndex]=useState(0);
-  const [answers,setAnswers]=useState<Record<string,string>>({});
+  const [answers,setAnswers]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.answer])));
   const [completedTools,setCompletedTools]=useState<Record<string,string[]>>({});
-  const [feedback,setFeedback]=useState<Record<string,string>>({});
+  const [feedback,setFeedback]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.isCorrect===true?"Jawaban sebelumnya benar.":value.isCorrect===false?"Jawaban sebelumnya tersimpan.":"Jawaban sebelumnya tersimpan."])));
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const question=questions[index];
