@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { requireTeacherSession } from "@/server/auth/session";
+import { listDatasets } from "@/server/data/service";
 
 const modes=["location","condition","influence","region","hierarchy","analogy","pattern","association"];
 const stimuli=["text","image","video","static-map","webgis","dual-map","map-table","map-chart","composite"];
 
 export default async function NewQuestionPage({searchParams}:{searchParams:Promise<{status?:string}>}){
-  const {status}=await searchParams;
+  const session=await requireTeacherSession();
+  const [datasets,{status}]=await Promise.all([listDatasets(session),searchParams]);
   return (
     <main className="dashboard builder-page">
       <header className="catalog-header"><div><p className="eyebrow">Question Builder</p><h1>Buat Soal Baru</h1><p>Draft tersimpan ke PostgreSQL dan dapat dipublish menjadi version immutable.</p></div><span className="status-pill">DATABASE</span></header>
@@ -18,7 +21,7 @@ export default async function NewQuestionPage({searchParams}:{searchParams:Promi
           <div className="builder-two-col"><label>Subject<input name="subject" defaultValue="Geografi"/></label><label>Topik<input name="topic"/></label></div>
           <div className="builder-two-col"><label>Spatial Thinking<select name="spatialMode" defaultValue="influence">{modes.map((m)=><option key={m}>{m}</option>)}</select></label><label>Difficulty<input name="difficulty" defaultValue="Sedang"/></label></div>
         </section>
-        <section className="dashboard-panel"><p className="eyebrow">2 · Stimulus & GIS Activity</p><label>Stimulus Type<select name="stimulusType" defaultValue="text">{stimuli.map((x)=><option value={x} key={x}>{x}</option>)}</select></label><div className="builder-two-col"><label>Required GIS Tool<select name="requiredGisTool" defaultValue=""><option value="">Tidak wajib</option><option value="buffer">Buffer</option><option value="overlay">Overlay</option><option value="distance">Distance</option></select></label><label>Buffer Distance (m)<input name="bufferDistance" type="number" min={1} max={100000} defaultValue={500}/></label></div><small className="form-note">Field GIS hanya dipakai ketika stimulus = webgis. Image/video tidak memerlukan GIS.</small></section>
+        <section className="dashboard-panel"><p className="eyebrow">2 · Stimulus & GIS Activity</p><label>Stimulus Type<select name="stimulusType" defaultValue="text">{stimuli.map((x)=><option value={x} key={x}>{x}</option>)}</select></label><div className="builder-two-col"><label>Required GIS Tool<select name="requiredGisTool" defaultValue=""><option value="">Tidak wajib</option><option value="buffer">Buffer</option><option value="overlay">Overlay</option><option value="distance">Distance</option></select></label><label>Buffer Distance (m)<input name="bufferDistance" type="number" min={1} max={100000} defaultValue={500}/></label></div><div className="builder-two-col"><label>Source Dataset<select name="sourceDatasetId" defaultValue=""><option value="">Tidak ada</option>{datasets.filter((d)=>d.versionStatus==="PUBLISHED"&&d.dataKind==="VECTOR").map((d)=><option value={d.id} key={d.id}>{d.title} · {d.geometryType??"Geometry"}</option>)}</select></label><label>Target Dataset<select name="targetDatasetId" defaultValue=""><option value="">Tidak ada</option>{datasets.filter((d)=>d.versionStatus==="PUBLISHED"&&d.dataKind==="VECTOR").map((d)=><option value={d.id} key={d.id}>{d.title} · {d.geometryType??"Geometry"}</option>)}</select></label></div><small className="form-note">WebGIS memakai immutable DatasetVersion dari Bank Data. Buffer memakai SOURCE; Overlay/Distance memakai SOURCE + TARGET.</small></section>
         <section className="dashboard-panel"><p className="eyebrow">3 · Prompt & Response A–E</p><label>Prompt<textarea name="prompt" required rows={5}/></label><div className="answer-form-grid">{["A","B","C","D","E"].map((id)=><label key={id}>{id}<input name={"answer_"+id} required/></label>)}</div><label>Kunci<select name="correctAnswer" defaultValue="A">{["A","B","C","D","E"].map((id)=><option key={id}>{id}</option>)}</select></label></section>
         <section className="dashboard-panel"><p className="eyebrow">4 · Feedback</p><label>Benar<textarea name="feedbackCorrect" rows={3}/></label><label>Belum tepat<textarea name="feedbackIncorrect" rows={3}/></label></section>
         <div className="builder-footer"><Link className="button button-secondary" href="/teacher/questions">← Bank Soal</Link><button className="button" type="submit">Simpan Draft</button></div>
