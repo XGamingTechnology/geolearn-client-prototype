@@ -282,3 +282,22 @@ export async function runDistanceAnalysis(session:TeacherSession,projectId:strin
   );
   return {distanceMeters:distance};
 }
+
+
+export async function runOverlayAnalysis(session:TeacherSession,projectId:string,aVersionId:string,bVersionId:string):Promise<{intersectionCount:number}>{
+  const project=await getOrCreateDefaultProject(session); if(project.id!==projectId) throw new AuthorizationError();
+  const [summary]=await query<{count:number}>(
+    `select count(*)::int as count
+     from dataset_features a join dataset_features b
+       on ST_Intersects(a.geom,b.geom)
+     where a.dataset_version_id=$1 and b.dataset_version_id=$2`,
+    [aVersionId,bVersionId],
+  );
+  const count=summary?.count??0;
+  await query(
+    `insert into gis_analysis_runs(project_id,actor_staff_user_id,tool_id,parameters_json,result_summary_json)
+     values($1,$2,'overlay',$3::jsonb,$4::jsonb)`,
+    [projectId,session.staffUserId,JSON.stringify({aVersionId,bVersionId}),JSON.stringify({intersectionCount:count})],
+  );
+  return {intersectionCount:count};
+}
