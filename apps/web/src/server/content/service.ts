@@ -76,7 +76,7 @@ export async function createQuestionDraft(input:{
   actor:TeacherSession; title:string; subject?:string; topic?:string; scope:string;
   spatialMode:string; difficulty?:string; prompt:string; stimulusType:string;
   answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>; correctAnswer:"A"|"B"|"C"|"D"|"E"; responseType?:string;
-  activityConfig?:Record<string,unknown>; feedbackCorrect?:string; feedbackIncorrect?:string;
+  activityConfig?:Record<string,unknown>; validationConfig?:Record<string,unknown>; feedbackCorrect?:string; feedbackIncorrect?:string;
 }):Promise<string>{
   const scope=validateScope(input.scope);
   await assertSchoolScopeWrite(input.actor,scope);
@@ -110,7 +110,7 @@ export async function createQuestionDraft(input:{
         JSON.stringify({type:input.stimulusType}),
         JSON.stringify(input.activityConfig??{}),
         JSON.stringify(responseType==="multiple-choice"?{type:"multiple-choice",answers:input.answers}:{type:responseType}),
-        JSON.stringify(responseType==="multiple-choice"?{method:"static-answer",correctAnswer:input.correctAnswer}:{method:"manual-review"}),
+        JSON.stringify(responseType==="multiple-choice"?{method:"static-answer",correctAnswer:input.correctAnswer}:(input.validationConfig??{method:"manual-review"})),
         JSON.stringify({correct:input.feedbackCorrect??"",incorrect:input.feedbackIncorrect??""}),
         input.actor.staffUserId,
       ],
@@ -280,7 +280,7 @@ export async function updateQuestionDraft(input:{
   actor:TeacherSession;questionId:string;title:string;subject:string;topic:string;
   spatialMode:string;difficulty:string;prompt:string;stimulusType:string;
   answers:Array<{id:"A"|"B"|"C"|"D"|"E";label:string}>;correctAnswer:"A"|"B"|"C"|"D"|"E";responseType?:string;
-  feedbackCorrect:string;feedbackIncorrect:string; activityConfig?:Record<string,unknown>;
+  feedbackCorrect:string;feedbackIncorrect:string; activityConfig?:Record<string,unknown>; validationConfig?:Record<string,unknown>;
 }):Promise<void>{
   await editableQuestion(input.actor,input.questionId);
   const spatialMode=validateSpatialMode(input.spatialMode);
@@ -307,7 +307,7 @@ export async function updateQuestionDraft(input:{
      JSON.stringify({type:input.stimulusType}),
      JSON.stringify(input.activityConfig??{}),
      JSON.stringify(responseType==="multiple-choice"?{type:"multiple-choice",answers:input.answers}:{type:responseType}),
-     JSON.stringify(responseType==="multiple-choice"?{method:"static-answer",correctAnswer:input.correctAnswer}:{method:"manual-review"}),
+     JSON.stringify(responseType==="multiple-choice"?{method:"static-answer",correctAnswer:input.correctAnswer}:(input.validationConfig??{method:"manual-review"})),
      JSON.stringify({correct:input.feedbackCorrect,incorrect:input.feedbackIncorrect})],
   );
 }
