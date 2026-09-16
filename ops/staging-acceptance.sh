@@ -31,20 +31,18 @@ echo "$HEALTH" | grep -q '"connected":true' || fail "database is not connected"
 ok "health endpoint"
 
 echo "== Database schema =="
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc '
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 <<SQL
+cat <<'SQL' | docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
 select PostGIS_Lib_Version();
 select version from geolearn_schema_migrations order by version;
-select to_regclass('''public.staff_users''') as staff_users,
-       to_regclass('''public.classes''') as classes,
-       to_regclass('''public.question_versions''') as question_versions,
-       to_regclass('''public.dataset_features''') as dataset_features,
-       to_regclass('''public.assignments''') as assignments,
-       to_regclass('''public.attempts''') as attempts,
-       to_regclass('''public.response_spatial_artifacts''') as response_spatial_artifacts,
-       to_regclass('''public.spatial_skill_scores''') as spatial_skill_scores;
+select to_regclass('public.staff_users') as staff_users,
+       to_regclass('public.classes') as classes,
+       to_regclass('public.question_versions') as question_versions,
+       to_regclass('public.dataset_features') as dataset_features,
+       to_regclass('public.assignments') as assignments,
+       to_regclass('public.attempts') as attempts,
+       to_regclass('public.response_spatial_artifacts') as response_spatial_artifacts,
+       to_regclass('public.spatial_skill_scores') as spatial_skill_scores;
 SQL
-'
 ok "critical database schema"
 
 echo "== Container health =="
