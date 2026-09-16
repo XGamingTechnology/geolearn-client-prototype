@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl, useMap } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
-import type { LatLngBoundsExpression, PathOptions } from "leaflet";
+import type { PathOptions } from "leaflet";
 import L from "leaflet";
 
 type Layer={
@@ -40,12 +40,11 @@ export function GisStudioLeafletMap({projectId,refreshKey}:{projectId:string;ref
 
   useEffect(()=>{
     let active=true;
-    setLoading(true);setError("");
     fetch(`/api/gis/projects/${projectId}/map?refresh=${encodeURIComponent(refreshKey)}`,{cache:"no-store"})
       .then(async(response)=>{
         const body=await response.json();
         if(!response.ok)throw new Error(body.error??"Peta tidak tersedia");
-        if(active)setLayers(Array.isArray(body.layers)?body.layers:[]);
+        if(active){setError("");setLayers(Array.isArray(body.layers)?body.layers:[]);}
       })
       .catch((reason)=>{if(active)setError(reason instanceof Error?reason.message:"Peta tidak tersedia");})
       .finally(()=>{if(active)setLoading(false);});
