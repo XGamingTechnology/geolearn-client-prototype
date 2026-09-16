@@ -36,9 +36,11 @@ export async function recomputeSpatialSkillScores(session:TeacherSession):Promis
 
   await query(
     `delete from spatial_skill_scores sss
-     using students s
-     where sss.student_id=s.id and s.school_id=$1`,
-    [session.schoolId],
+     using enrollments e
+     where sss.student_id=e.student_id
+       and sss.school_id=$1
+       and e.class_id=any($2::uuid[])`,
+    [session.schoolId,classIds],
   );
 
   const rows=await query<{count:number}>(
@@ -135,17 +137,20 @@ export async function getQuestionAnalytics(session:TeacherSession):Promise<Quest
 export async function getStudentSkillProfiles(session:TeacherSession):Promise<StudentSkillProfile[]>{
   if(!session.schoolId) throw new AuthorizationError();
   await recomputeSpatialSkillScores(session);
+  const classIds=await allowedClassIds(session);
+  if(!classIds.length)return [];
   const rows=await query<{
     studentId:string;studentName:string;loginId:string;mode:SpatialMode;score:number;answeredCount:number;correctCount:number;
   }>(
-    `select s.id as "studentId",s.full_name as "studentName",sc.login_id as "loginId",
+    `select distinct s.id as "studentId",s.full_name as "studentName",sc.login_id as "loginId",
        sss.spatial_mode as mode,sss.score::float8 as score,sss.answered_count as "answeredCount",sss.correct_count as "correctCount"
      from spatial_skill_scores sss
      join students s on s.id=sss.student_id and s.school_id=sss.school_id
      join student_credentials sc on sc.student_id=s.id
+     join enrollments e on e.student_id=s.id and e.class_id=any($2::uuid[])
      where sss.school_id=$1
      order by lower(s.full_name),sss.spatial_mode`,
-    [session.schoolId],
+    [session.schoolId,classIds],
   );
   const grouped=new Map<string,StudentSkillProfile>();
   for(const row of rows){
