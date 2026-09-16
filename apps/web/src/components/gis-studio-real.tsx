@@ -28,9 +28,9 @@ export function GisStudioReal({
   autoDatasetId?:string;
 }){
   const router=useRouter();
-  const [layers,setLayers]=useState(initialLayers);
+  const [visibilityOverrides,setVisibilityOverrides]=useState<Record<string,boolean>>({});
   const autoAddedRef=useRef(false);
-  useEffect(()=>setLayers(initialLayers),[initialLayers]);
+  const layers=useMemo(()=>initialLayers.map((layer)=>({...layer,visible:visibilityOverrides[layer.id]??layer.visible})),[initialLayers,visibilityOverrides]);
   const [selectedDataset,setSelectedDataset]=useState(autoDatasetId??datasets[0]?.id??"");
   const [activeTool,setActiveTool]=useState<"buffer"|"overlay"|"distance">("buffer");
   const [distance,setDistance]=useState(500);
@@ -64,7 +64,7 @@ export function GisStudioReal({
     });
     setBusy(false);
     if(response.ok){
-      setLayers((current)=>current.map((x)=>x.id===layer.id?{...x,visible:!x.visible}:x));
+      setVisibilityOverrides((current)=>({...current,[layer.id]:!layer.visible}));
     }else setResult("Gagal mengubah visibilitas.");
   }
 
