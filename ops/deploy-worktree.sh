@@ -35,6 +35,6 @@ fi
 
 git -C "$WORKTREE" reset --hard "refs/remotes/origin/$BRANCH"
 
-docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   build --pull web
+docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   build --pull web migrate
 
 docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   up --detach --remove-orphans
