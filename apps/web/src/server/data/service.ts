@@ -301,3 +301,44 @@ export async function runOverlayAnalysis(session:TeacherSession,projectId:string
   );
   return {intersectionCount:count};
 }
+
+
+export type GisProjectMapLayer = GisProjectLayer & { geojson:unknown };
+export type GisProjectMapPayload = { layers:GisProjectMapLayer[]; bbox:[number,number,number,number]|null };
+
+export async function getProjectMapPayload(session:TeacherSession,projectId:string):Promise<GisProjectMapPayload>{
+  const layers=await listProjectLayers(session,projectId);
+  const payloadLayers:GisProjectMapLayer[]=[];
+  for(const layer of layers){
+    const [row]=await query<{geojson:unknown}>(
+      `select jsonb_build_object(
+         'type','FeatureCollection',
+         'features',coalesce(jsonb_agg(jsonb_build_object(
+           'type','Feature',
+           'id',coalesce(source_feature_id,id::text),
+           'geometry',ST_AsGeoJSON(geom)::jsonb,
+           'properties',properties
+         ) order by source_feature_id),'[]'::jsonb)
+       ) as geojson
+       from dataset_features
+       where dataset_version_id=$1`,
+      [layer.datasetVersionId],
+    );
+    payloadLayers.push({...layer,geojson:row?.geojson??{type:"FeatureCollection",features:[]}});
+  }
+
+  if(!layers.length)return {layers:payloadLayers,bbox:null};
+
+  const [extent]=await query<{bbox:[number,number,number,number]|null}>(
+    `select case when ext is null then null else array[
+       ST_XMin(ext),ST_YMin(ext),ST_XMax(ext),ST_YMax(ext)
+     ]::float8[] end as bbox
+     from (
+       select ST_Extent(geom)::box2d ext
+       from dataset_features
+       where dataset_version_id=any($1::uuid[])
+     ) x`,
+    [layers.map((layer)=>layer.datasetVersionId)],
+  );
+  return {layers:payloadLayers,bbox:extent?.bbox??null};
+}
