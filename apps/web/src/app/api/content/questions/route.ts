@@ -3,6 +3,7 @@ import { requireTeacherSession } from "@/server/auth/session";
 import { createQuestionDraft } from "@/server/content/service";
 import { replaceQuestionDraftDatasetBindings } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 function answer(form:FormData,id:"A"|"B"|"C"|"D"|"E"){return {id,label:String(form.get("answer_"+id)??"").trim()};}
 
@@ -58,8 +59,8 @@ export async function POST(request:NextRequest){
     await replaceQuestionDraftMediaBindings(actor,id,[
       {mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")},
     ]);
-    return NextResponse.redirect(new URL("/teacher/questions/"+id,request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/"+id),303);
   }catch{
-    return NextResponse.redirect(new URL("/teacher/questions/new?status=error",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/new?status=error"),303);
   }
 }
