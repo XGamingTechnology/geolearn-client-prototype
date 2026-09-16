@@ -35,6 +35,19 @@ fi
 
 git -C "$WORKTREE" reset --hard "refs/remotes/origin/$BRANCH"
 
-docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   build --pull web migrate
+compose=(docker compose --env-file "$ENV_FILE" --file "$WORKTREE/deploy/$COMPOSE_FILE")
 
-docker compose   --env-file "$ENV_FILE"   --file "$WORKTREE/deploy/$COMPOSE_FILE"   up --detach --remove-orphans
+# Build the runtime and migrator separately. This makes a stale migrator image visible
+# instead of letting the deployment appear successful while migrations/scripts lag behind.
+"${compose[@]}" build --pull web
+"${compose[@]}" build --pull migrate
+
+if ! "${compose[@]}" run --rm --no-deps migrate sh -lc \
+  'test -f apps/web/scripts/bootstrap-admin.mjs && grep -q "\"auth:bootstrap-admin\"" apps/web/package.json'; then
+  echo "Migrator image verification failed; forcing a clean migrator rebuild." >&2
+  "${compose[@]}" build --pull --no-cache migrate
+  "${compose[@]}" run --rm --no-deps migrate sh -lc \
+    'test -f apps/web/scripts/bootstrap-admin.mjs && grep -q "\"auth:bootstrap-admin\"" apps/web/package.json'
+fi
+
+"${compose[@]}" up --detach --remove-orphans
