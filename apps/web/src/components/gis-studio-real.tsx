@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const GisStudioLeafletMap=dynamic(()=>import("./gis-studio-leaflet-map").then((m)=>m.GisStudioLeafletMap),{ssr:false});
 
 type Dataset = {
   id:string; title:string; versionId:string|null; geometryType:string|null; featureCount:number|null; scope:string;
@@ -26,6 +29,8 @@ export function GisStudioReal({
 }){
   const router=useRouter();
   const [layers,setLayers]=useState(initialLayers);
+  const autoAddedRef=useRef(false);
+  useEffect(()=>setLayers(initialLayers),[initialLayers]);
   const [selectedDataset,setSelectedDataset]=useState(autoDatasetId??datasets[0]?.id??"");
   const [activeTool,setActiveTool]=useState<"buffer"|"overlay"|"distance">("buffer");
   const [distance,setDistance]=useState(500);
@@ -33,6 +38,14 @@ export function GisStudioReal({
   const [busy,setBusy]=useState(false);
 
   const available=useMemo(()=>datasets.filter((d)=>!layers.some((l)=>l.datasetId===d.id)),[datasets,layers]);
+
+  useEffect(()=>{
+    if(!autoDatasetId||autoAddedRef.current||layers.some((layer)=>layer.datasetId===autoDatasetId))return;
+    autoAddedRef.current=true;
+    fetch(`/api/gis/projects/${projectId}/layers`,{
+      method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({datasetId:autoDatasetId}),
+    }).then((response)=>{if(response.ok)router.refresh();});
+  },[autoDatasetId,layers,projectId,router]);
 
   async function addLayer(){
     if(!selectedDataset)return;
@@ -112,16 +125,13 @@ export function GisStudioReal({
             <button className="button" disabled={busy} onClick={runAnalysis} type="button">{busy?"Running...":"Run PostGIS"}</button>
           </div>
 
-          <div className="gis-faux-map real-state">
-            <div className="gis-map-grid"/>
-            {layers.filter((l)=>l.visible).map((layer,index)=><div className={"real-layer-pill layer-"+(index%4)} key={layer.id}><strong>{layer.title}</strong><span>{layer.geometryType??"Geometry"}</span></div>)}
-            <div className="gis-map-note"><strong>Authoritative analysis</strong><span>{result||"Buffer, Overlay, dan Distance dihitung server-side oleh PostGIS."}</span></div>
-          </div>
+          <GisStudioLeafletMap projectId={projectId} refreshKey={layers.map((layer)=>layer.id+":"+layer.visible+":"+layer.opacity).join("|")}/>
+          <div className="gis-map-note"><strong>Authoritative analysis</strong><span>{result||"Layer ditampilkan dengan Leaflet; Buffer, Overlay, dan Distance dihitung server-side oleh PostGIS."}</span></div>
 
           <div className="gis-statusbar"><span>{layers.length} layer terikat</span><span>{activeTool}</span><span>EPSG:4326</span></div>
         </div>
       </section>
-      <p className="preview-banner gis-preview-note">Visual map canvas masih representasi UI; layer binding dan hasil analisis sudah berasal dari PostgreSQL/PostGIS.</p>
+      <p className="preview-banner gis-preview-note">Layer GeoJSON dirender dengan Leaflet; analisis tetap authoritative di PostgreSQL/PostGIS.</p>
     </main>
   );
 }
