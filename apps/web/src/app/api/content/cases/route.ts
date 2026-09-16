@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { createCaseDraft } from "@/server/content/service";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 export async function POST(request:NextRequest){
   try{
@@ -12,8 +13,8 @@ export async function POST(request:NextRequest){
       description:String(form.get("description")??""),
       scope:String(form.get("scope")??"PRIVATE"),
     });
-    return NextResponse.redirect(new URL("/teacher/cases/"+id,request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/cases/"+id),303);
   }catch{
-    return NextResponse.redirect(new URL("/teacher/cases?status=error",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/cases?status=error"),303);
   }
 }
