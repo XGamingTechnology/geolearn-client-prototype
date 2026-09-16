@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revokeSessionToken } from "@/server/auth/session";
 import { SESSION_COOKIE } from "@/server/auth/token";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 export async function POST(request: NextRequest) {
   await revokeSessionToken(request.cookies.get(SESSION_COOKIE)?.value);
-  const response = NextResponse.redirect(new URL("/", request.url), 303);
+  const response = NextResponse.redirect(publicRedirectUrl(request,"/"), 303);
   response.cookies.set({
     name: SESSION_COOKIE,
     value: "",

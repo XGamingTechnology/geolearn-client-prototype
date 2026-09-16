@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { updateClass } from "@/server/classes/service";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 export async function POST(request:NextRequest,{params}:{params:Promise<{classId:string}>}){
   try{
@@ -15,9 +16,9 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{classId
       semester:String(form.get("semester")??""),
       status:String(form.get("status")??"ACTIVE"),
     });
-    return NextResponse.redirect(new URL("/teacher/classes/"+classId+"?status=updated",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/classes/"+classId+"?status=updated"),303);
   }catch{
     const {classId}=await params;
-    return NextResponse.redirect(new URL("/teacher/classes/"+classId+"?status=error",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/classes/"+classId+"?status=error"),303);
   }
 }

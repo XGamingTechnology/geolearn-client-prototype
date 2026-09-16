@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { createAssignment } from "@/server/assessment/service";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 export async function POST(request:NextRequest){
   try{
@@ -17,8 +18,8 @@ export async function POST(request:NextRequest){
       attemptLimit:Number(form.get("attemptLimit")??1),
       resultVisibility:String(form.get("resultVisibility")??"AFTER_SUBMIT"),
     });
-    return NextResponse.redirect(new URL("/teacher/assignments?status=assignment-created",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/assignments?status=assignment-created"),303);
   }catch{
-    return NextResponse.redirect(new URL("/teacher/assignments?status=error",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/assignments?status=error"),303);
   }
 }

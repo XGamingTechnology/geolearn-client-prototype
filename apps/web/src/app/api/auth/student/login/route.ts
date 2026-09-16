@@ -3,9 +3,10 @@ import { authenticateStudent } from "@/server/auth/queries";
 import { createStudentSession } from "@/server/auth/session";
 import { AuthRateLimitedError } from "@/server/auth/throttle";
 import { sessionCookieOptions, SESSION_COOKIE } from "@/server/auth/token";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 function back(request: NextRequest, error: string) {
-  return NextResponse.redirect(new URL("/student-login?error=" + error, request.url), 303);
+  return NextResponse.redirect(publicRedirectUrl(request,"/student-login?error=" + error), 303);
 }
 
 export async function POST(request: NextRequest) {
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     if (!identity) return back(request, "invalid");
 
     const { token, expiresAt } = await createStudentSession(identity);
-    const response = NextResponse.redirect(new URL("/student", request.url), 303);
+    const response = NextResponse.redirect(publicRedirectUrl(request,"/student"), 303);
     response.cookies.set({ name: SESSION_COOKIE, value: token, ...sessionCookieOptions(expiresAt) });
     return response;
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { createClass } from "@/server/classes/service";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 export async function POST(request:NextRequest){
   try{
@@ -13,8 +14,8 @@ export async function POST(request:NextRequest){
       academicYear:String(form.get("academicYear")??""),
       semester:String(form.get("semester")??""),
     });
-    return NextResponse.redirect(new URL("/teacher/classes/"+classId,request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/classes/"+classId),303);
   }catch{
-    return NextResponse.redirect(new URL("/teacher/classes?status=error",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/classes?status=error"),303);
   }
 }
