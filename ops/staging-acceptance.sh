@@ -39,31 +39,30 @@ echo "$HEALTH" | grep -q '"connected":true' || fail "database is not connected"
 ok "health endpoint"
 
 echo "== Database schema =="
+POSTGIS_VERSION="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select PostGIS_Lib_Version();"' | tr -d '\r')"
+echo "PostGIS: $POSTGIS_VERSION"
+[[ -n "$POSTGIS_VERSION" ]] || fail "PostGIS version unavailable"
+
+MIGRATIONS="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select version from geolearn_schema_migrations order by version;"' | tr -d '\r')"
+echo "$MIGRATIONS"
+
+expected_migrations=(
+  0001_enable_postgis.sql
+  0002_identity_auth.sql
+  0003_account_management.sql
+  0004_content_authoring.sql
+  0005_data_gis.sql
+  0006_assessment_runtime.sql
+  0007_question_dataset_bindings.sql
+  0008_question_media_bindings.sql
+  0009_spatial_analytics.sql
+)
+for migration in "${expected_migrations[@]}"; do
+  grep -Fxq "$migration" <<<"$MIGRATIONS" || fail "missing migration: $migration"
+done
+ok "migrations 0001-0009"
+
 cat <<'SQL' | docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
-select PostGIS_Lib_Version();
-select version from geolearn_schema_migrations order by version;
-DO $
-DECLARE
-  expected text[] := ARRAY[
-    '0001_enable_postgis.sql',
-    '0002_identity_auth.sql',
-    '0003_account_management.sql',
-    '0004_content_authoring.sql',
-    '0005_data_gis.sql',
-    '0006_assessment_runtime.sql',
-    '0007_question_dataset_bindings.sql',
-    '0008_question_media_bindings.sql',
-    '0009_spatial_analytics.sql'
-  ];
-  missing text;
-BEGIN
-  SELECT string_agg(e, ', ') INTO missing
-  FROM unnest(expected) e
-  WHERE NOT EXISTS (SELECT 1 FROM geolearn_schema_migrations m WHERE m.version=e);
-  IF missing IS NOT NULL THEN
-    RAISE EXCEPTION 'Missing migrations: %', missing;
-  END IF;
-END $;
 select to_regclass('public.staff_users') as staff_users,
        to_regclass('public.classes') as classes,
        to_regclass('public.question_versions') as question_versions,
