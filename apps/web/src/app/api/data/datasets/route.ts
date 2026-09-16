@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { uploadGeoJsonDataset } from "@/server/data/service";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
 export async function POST(request:NextRequest){
   try{
@@ -8,7 +9,7 @@ export async function POST(request:NextRequest){
     const form=await request.formData();
     const file=form.get("file");
     if(!(file instanceof File) || file.size===0 || file.size>10*1024*1024){
-      return NextResponse.redirect(new URL("/teacher/data?status=error",request.url),303);
+      return NextResponse.redirect(publicRedirectUrl(request,"/teacher/data?status=error"),303);
     }
     const parsed=JSON.parse(await file.text()) as unknown;
     const id=await uploadGeoJsonDataset({
@@ -18,8 +19,8 @@ export async function POST(request:NextRequest){
       scope:String(form.get("scope")??"PRIVATE"),
       geojson:parsed,
     });
-    return NextResponse.redirect(new URL("/teacher/data/"+id,request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/data/"+id),303);
   }catch{
-    return NextResponse.redirect(new URL("/teacher/data?status=error",request.url),303);
+    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/data?status=error"),303);
   }
 }
