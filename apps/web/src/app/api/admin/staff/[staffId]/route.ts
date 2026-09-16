@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { requireStaffPermission } from "@/server/auth/permissions";
 import { updateStaffAccount } from "@/server/accounts/service";
+import { publicRedirectUrl } from "@/server/http/public-url";
 
-function back(request:NextRequest,status:string){return NextResponse.redirect(new URL("/teacher/accounts?status="+status,request.url),303);}
+function back(request:NextRequest,status:string){return NextResponse.redirect(publicRedirectUrl(request,"/teacher/accounts?status="+status),303);}
 
 export async function POST(request:NextRequest,{params}:{params:Promise<{staffId:string}>}){
   try{
