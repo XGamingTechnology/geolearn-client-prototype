@@ -2,7 +2,7 @@ import {afterEach,describe,expect,it} from "vitest";
 import {mkdtemp,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
-import {detectMediaMime,validateMediaBytes} from "./upload";
+import {detectMediaMime,validateMediaBytes} from "./validation";
 import {isLegacyMediaUrl,LocalMediaStorage,mediaDeliveryUrl} from "./storage";
 
 const jpeg=new Uint8Array([0xff,0xd8,0xff]);
