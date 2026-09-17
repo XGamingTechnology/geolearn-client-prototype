@@ -3,6 +3,7 @@ import { hasStaffPermission } from "@/server/auth/permissions";
 import type { TeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
 import { spatialThinkingModes, type SpatialThinkingMode } from "@/features/questions/types";
+import {answerIds,validateForPublish,type AnswerId, type StimulusType, type ResponseType} from "@/features/questions/builder";
 
 export type ContentScope = "SYSTEM" | "SCHOOL" | "PRIVATE";
 export type QuestionBankItem = {
@@ -72,6 +73,11 @@ function validateScope(value:string):ContentScope{
   return value;
 }
 
+function validateStimulus(value:string):StimulusType{
+  if(!["text","image","video","webgis"].includes(value)) throw new Error("Unsupported stimulus type");
+  return value as StimulusType;
+}
+
 export async function createQuestionDraft(input:{
   actor:TeacherSession; title:string; subject?:string; topic?:string; scope:string;
   spatialMode:string; difficulty?:string; prompt:string; stimulusType:string;
@@ -85,8 +91,9 @@ export async function createQuestionDraft(input:{
   if(!title||title.length>220||!prompt) throw new Error("Title and prompt are required");
   const responseType=input.responseType??"multiple-choice";
   const spatialResponseTypes=["draw-point","draw-line","draw-polygon","feature-select"];
+  validateStimulus(input.stimulusType);
   if(responseType==="multiple-choice"){
-    if(input.answers.length!==5 || input.answers.some((answer)=>!answer.label) || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("A-E answers and valid key are required");
+    if(input.answers.length>5 || input.answers.some((answer)=>!answer.label)||input.answers.some((answer,index)=>answer.id!==answerIds[index])) throw new Error("Invalid answer config");
   }else if(!spatialResponseTypes.includes(responseType)){
     throw new Error("Unsupported response type");
   }
@@ -134,11 +141,18 @@ async function editableQuestion(session:TeacherSession,questionId:string){
 
 export async function publishQuestionDraft(session:TeacherSession,questionId:string):Promise<void>{
   await editableQuestion(session,questionId);
-  const [draft]=await query<{id:string}>(
-    `select id from question_versions where question_id=$1 and status='DRAFT'
+  const [draft]=await query<{id:string;stimulusType:StimulusType;responseConfig:{type?:ResponseType;answers?:Array<{id:AnswerId;label:string}>};validationConfig:{correctAnswer?:string};activityConfig:{requiredActions?:Array<{tool?:string;parameters?:{distanceMeters?:number}}>}}>(
+    `select id,stimulus_config->>'type' as "stimulusType",response_config as "responseConfig",validation_config as "validationConfig",activity_config as "activityConfig" from question_versions where question_id=$1 and status='DRAFT'
      order by version_number desc limit 1`,[questionId],
   );
   if(!draft) throw new Error("No draft version");
+  const [datasets,media]=await Promise.all([
+    query<{role:string}>("select role from question_version_dataset_layers where question_version_id=$1",[draft.id]),
+    query<{mediaType:string}>("select ma.media_type as \"mediaType\" from question_version_media_assets qvm join media_assets ma on ma.id=qvm.media_asset_id where qvm.question_version_id=$1 and qvm.role='STIMULUS'",[draft.id]),
+  ]);
+  const action=draft.activityConfig.requiredActions?.[0];
+  const errors=validateForPublish({stimulusType:draft.stimulusType,responseType:draft.responseConfig.type??"multiple-choice",answers:draft.responseConfig.answers??[],correctAnswer:draft.validationConfig.correctAnswer,mediaAssetId:media[0]?"bound":undefined,selectedMediaType:media[0]?.mediaType,sourceDatasetId:datasets.some(x=>x.role==="SOURCE")?"bound":undefined,targetDatasetId:datasets.some(x=>x.role==="TARGET")?"bound":undefined,requiredGisTool:action?.tool,bufferDistance:action?.parameters?.distanceMeters});
+  if(errors.length) throw new Error(errors.join(" "));
   await query("update question_versions set status='PUBLISHED',published_at=now() where id=$1",[draft.id]);
 }
 
@@ -291,8 +305,9 @@ export async function updateQuestionDraft(input:{
   if(!draft) throw new Error("Published question is immutable. Create a new draft version first.");
   const responseType=input.responseType??"multiple-choice";
   const spatialResponseTypes=["draw-point","draw-line","draw-polygon","feature-select"];
+  validateStimulus(input.stimulusType);
   if(responseType==="multiple-choice"){
-    if(input.answers.length!==5 || input.answers.some((answer)=>!answer.label) || !input.answers.some((answer)=>answer.id===input.correctAnswer)) throw new Error("Invalid answer config");
+    if(input.answers.length>5 || input.answers.some((answer)=>!answer.label)||input.answers.some((answer,index)=>answer.id!==answerIds[index])) throw new Error("Invalid answer config");
   }else if(!spatialResponseTypes.includes(responseType)){
     throw new Error("Unsupported response type");
   }

@@ -80,7 +80,7 @@ export function AssessmentRuntimeClient({
   const required=requiredTools(question.activityConfig);
   const done=new Set(completedTools[question.questionVersionId]??[]);
   const requiredComplete=required.every((tool)=>done.has(tool));
-  const options=question.responseConfig.answers??[];
+  const options=(question.responseConfig.answers??[]).filter((option)=>option.label.trim());
   const selected=answers[question.quizItemId]??"";
   const stimulusType=String(question.stimulusConfig.type??"text");
   const responseType=String(question.responseConfig.type??"multiple-choice");
