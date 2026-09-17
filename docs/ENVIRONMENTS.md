@@ -99,3 +99,17 @@ official production domain
 8. Staging app is exposed only on loopback `127.0.0.1:3101`.
 9. Production app is exposed only on loopback `127.0.0.1:3100`.
 10. PostgreSQL/PostGIS is never published directly to the Internet.
+
+## Persistent media storage and backup
+
+Media Bank uploads use the application storage abstraction and a Docker named volume
+mounted at `/var/lib/geolearn/media`. Staging uses `geolearn_staging_media`; production
+uses the isolated `geolearn_production_media`. Files are delivered only through the
+authenticated `/api/media/{mediaAssetId}` endpoint, never through a Docker port or a
+direct static filesystem mount. A forced recreation of only `web` preserves the volume.
+
+Production recovery requires **both** a PostgreSQL backup and a backup of
+`geolearn_production_media`. A database-only backup is insufficient: PostgreSQL holds
+metadata and opaque keys, while the volume holds the bytes. Restore them as a matched
+set. If operators substitute a host bind mount, its host directory must be outside the
+Git worktree and must never be shared with staging.

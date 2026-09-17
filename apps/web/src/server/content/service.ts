@@ -249,11 +249,16 @@ export async function listMediaBank(session:TeacherSession):Promise<MediaAssetRe
 
 export async function createMediaAsset(input:{actor:TeacherSession;title:string;scope:string;mediaType:string;storageKey?:string;mimeType?:string}):Promise<string>{
   const scope=validateScope(input.scope); await assertSchoolScopeWrite(input.actor,scope);
-  if(!["IMAGE","VIDEO","DOCUMENT","ILLUSTRATION"].includes(input.mediaType)) throw new Error("Invalid media type");
+  if(!["IMAGE","VIDEO"].includes(input.mediaType)) throw new Error("Format file tidak didukung.");
+  const expectedMime=input.mediaType==="IMAGE"?["image/jpeg","image/png","image/webp"]:["video/mp4"];
+  if(input.mimeType&&!expectedMime.includes(input.mimeType))throw new Error("Format file tidak didukung.");
+  const storageKey=input.storageKey?.trim()??"";
+  if(!/^https?:\/\//i.test(storageKey)&&!(storageKey.startsWith("/")&&!storageKey.startsWith("//")))throw new Error("URL media tidak valid.");
+  if(!input.title.trim()||input.title.trim().length>220)throw new Error("Judul media wajib diisi.");
   const [row]=await query<{id:string}>(
     `insert into media_assets(school_id,owner_teacher_id,scope,title,media_type,storage_key,mime_type,status)
      values($1,$2,$3,$4,$5,$6,$7,'ACTIVE') returning id`,
-    [scope==="SYSTEM"?null:input.actor.schoolId,scope==="SYSTEM"?null:input.actor.staffUserId,scope,input.title.trim(),input.mediaType,input.storageKey?.trim()||null,input.mimeType?.trim()||null],
+    [scope==="SYSTEM"?null:input.actor.schoolId,scope==="SYSTEM"?null:input.actor.staffUserId,scope,input.title.trim(),input.mediaType,storageKey,input.mimeType?.trim()||null],
   );
   if(!row) throw new Error("Media creation failed");
   return row.id;

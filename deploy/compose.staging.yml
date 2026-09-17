@@ -9,6 +9,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB}
       APP_ENV: staging
+      MEDIA_STORAGE_PATH: /var/lib/geolearn/media
+      MEDIA_MAX_IMAGE_BYTES: ${MEDIA_MAX_IMAGE_BYTES:-10485760}
+      MEDIA_MAX_VIDEO_BYTES: ${MEDIA_MAX_VIDEO_BYTES:-104857600}
+    volumes:
+      - staging_media:/var/lib/geolearn/media
     ports:
       - "127.0.0.1:3101:3000"
     depends_on:
@@ -55,6 +60,8 @@ services:
 volumes:
   staging_postgres:
     name: geolearn_staging_postgres
+  staging_media:
+    name: geolearn_staging_media
 
 networks:
   staging_app:
