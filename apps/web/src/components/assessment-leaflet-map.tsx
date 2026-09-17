@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl } from "react-leaflet";
-import type { GeoJsonObject } from "geojson";
+import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl, useMap } from "react-leaflet";
+import type { Feature, GeoJsonObject, Geometry } from "geojson";
+import type { Layer } from "leaflet";
 import L from "leaflet";
 
 import { assessmentPathStyle, assessmentPointStyle } from "./assessment-map-style";
@@ -17,6 +18,24 @@ type MapLayer={
 };
 type Payload={layers:MapLayer[];bbox:[number,number,number,number]|null};
 
+function FitToData({bbox}:{bbox:Payload["bbox"]}){
+  const map=useMap();
+  if(!bbox)return null;
+  return <button className="runtime-fit-button" type="button" onClick={(event)=>{event.stopPropagation();map.fitBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]],{padding:[24,24]});}}>Fit ke data</button>;
+}
+
+function bindSafePopup(feature:Feature<Geometry>,layer:Layer){
+  const entries=Object.entries(feature.properties??{}).filter(([,value])=>value===null||["string","number","boolean"].includes(typeof value)).slice(0,12);
+  if(!entries.length)return;
+  const content=document.createElement("dl");content.className="runtime-feature-popup";
+  for(const [key,value] of entries){
+    const term=document.createElement("dt");term.textContent=key;
+    const detail=document.createElement("dd");detail.textContent=value===null?"—":String(value);
+    content.append(term,detail);
+  }
+  layer.bindPopup(content);
+}
+
 export function AssessmentLeafletMap({
   attemptId,
   questionVersionId,
@@ -28,6 +47,7 @@ export function AssessmentLeafletMap({
 }){
   const [payload,setPayload]=useState<Payload|null>(null);
   const [error,setError]=useState("");
+  const [visibility,setVisibility]=useState<Record<string,boolean>>({});
 
   useEffect(()=>{
     let active=true;
@@ -53,8 +73,9 @@ export function AssessmentLeafletMap({
     <div className="runtime-leaflet-shell">
       <MapContainer key={questionVersionId} center={center} zoom={payload.bbox?11:5} className="runtime-product-map" scrollWheelZoom zoomControl={false}>
         <ZoomControl position="bottomright"/>
+        <FitToData bbox={payload.bbox}/>
         <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
-        {payload.layers.filter((layer)=>layer.visible).map((layer)=>(
+        {payload.layers.filter((layer)=>(visibility[layer.datasetVersionId]??layer.visible)).map((layer)=>(
           <GeoJSON
             key={layer.datasetVersionId}
             data={layer.geojson}
@@ -62,6 +83,7 @@ export function AssessmentLeafletMap({
               ?assessmentPointStyle(layer.role,layer.opacity)
               :assessmentPathStyle(layer.role,layer.opacity)}
             pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(layer.role,layer.opacity))}
+            onEachFeature={bindSafePopup}
           >
             <Tooltip sticky>{layer.title} · {layer.role}</Tooltip>
           </GeoJSON>
@@ -70,7 +92,7 @@ export function AssessmentLeafletMap({
       </MapContainer>
       <aside className="runtime-layer-list">
         <strong>DatasetVersion</strong>
-        {payload.layers.map((layer)=><span key={layer.datasetVersionId}><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/>{layer.title}<small>{layer.role}</small></span>)}
+        {payload.layers.map((layer)=><label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}</small></label>)}
         {analysisGeojson&&<span><i className="runtime-layer-dot analysis"/>Hasil analisis<small>POSTGIS</small></span>}
       </aside>
     </div>

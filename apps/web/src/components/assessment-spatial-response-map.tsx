@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl, useMapEvents } from "react-leaflet";
+import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import type { Feature, GeoJsonObject, Geometry } from "geojson";
 import type { Layer } from "leaflet";
 import L from "leaflet";
@@ -28,6 +28,26 @@ function DrawClicks({enabled,onCoordinate}:{enabled:boolean;onCoordinate:(coordi
   return null;
 }
 
+function FitToData({bbox}:{bbox:Payload["bbox"]}){
+  const map=useMap();
+  if(!bbox)return null;
+  return <button className="runtime-fit-button" type="button" onClick={(event)=>{event.stopPropagation();map.fitBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]],{padding:[24,24]});}}>Fit ke data</button>;
+}
+
+function bindSafePopup(feature:Feature<Geometry>,layer:Layer){
+  const properties=feature.properties??{};
+  const entries=Object.entries(properties).filter(([,value])=>value===null||["string","number","boolean"].includes(typeof value)).slice(0,12);
+  if(!entries.length)return;
+  const content=document.createElement("dl");
+  content.className="runtime-feature-popup";
+  for(const [key,value] of entries){
+    const term=document.createElement("dt");term.textContent=key;
+    const detail=document.createElement("dd");detail.textContent=value===null?"—":String(value);
+    content.append(term,detail);
+  }
+  layer.bindPopup(content);
+}
+
 function draftGeometry(type:SpatialType,coordinates:Array<[number,number]>):Geometry|null{
   if(type==="draw-point"&&coordinates.length>=1)return {type:"Point",coordinates:coordinates[coordinates.length-1]};
   if(type==="draw-line"&&coordinates.length>=2)return {type:"LineString",coordinates};
@@ -42,6 +62,8 @@ export function AssessmentSpatialResponseMap({
   responseType,
   initialGeometry,
   initialSelectedFeatureIds,
+  durationMs,
+  onDirtyChange,
   onSaved,
 }:{
   attemptId:string;
@@ -50,7 +72,9 @@ export function AssessmentSpatialResponseMap({
   responseType:SpatialType;
   initialGeometry?:Geometry|null;
   initialSelectedFeatureIds?:string[];
-  onSaved:()=>void;
+  durationMs:()=>number;
+  onDirtyChange:(dirty:boolean)=>void;
+  onSaved:(value:{responseType:string;geometry:GeoJsonObject|null;selectedFeatureIds:string[]})=>void;
 }){
   const [payload,setPayload]=useState<Payload|null>(null);
   const [coordinates,setCoordinates]=useState<Array<[number,number]>>(()=>{
@@ -66,6 +90,7 @@ export function AssessmentSpatialResponseMap({
   const [selected,setSelected]=useState<string[]>(initialSelectedFeatureIds??[]);
   const [error,setError]=useState("");
   const [busy,setBusy]=useState(false);
+  const [visibility,setVisibility]=useState<Record<string,boolean>>({});
 
   useEffect(()=>{
     let active=true;
@@ -88,15 +113,18 @@ export function AssessmentSpatialResponseMap({
 
   function addCoordinate(coordinate:[number,number]){
     setError("");
+    onDirtyChange(true);
     if(responseType==="draw-point")setCoordinates([coordinate]);
     else setCoordinates((current)=>[...current,coordinate]);
   }
 
   function toggleFeature(id:string){
+    onDirtyChange(true);
     setSelected((current)=>current.includes(id)?current.filter((value)=>value!==id):[...current,id]);
   }
 
   function onEachFeature(feature:Feature<Geometry>,layer:Layer){
+    bindSafePopup(feature,layer);
     if(responseType!=="feature-select")return;
     const id=feature.id==null?null:String(feature.id);
     if(!id)return;
@@ -113,12 +141,17 @@ export function AssessmentSpatialResponseMap({
           quizItemId,responseType,
           geometry:responseType==="feature-select"?undefined:geometry,
           selectedFeatureIds:responseType==="feature-select"?selected:undefined,
-          durationMs:0,
+          durationMs:durationMs(),
         }),
       });
       const body=await response.json();
       if(!response.ok)throw new Error(body.error??"Respons spasial gagal disimpan.");
-      onSaved();
+      onDirtyChange(false);
+      onSaved({
+        responseType,
+        geometry:responseType==="feature-select"?null:geometry,
+        selectedFeatureIds:responseType==="feature-select"?selected:[],
+      });
     }catch(reason){setError(reason instanceof Error?reason.message:"Respons spasial gagal disimpan.");}
     finally{setBusy(false);}
   }
@@ -130,9 +163,10 @@ export function AssessmentSpatialResponseMap({
       <div className="runtime-leaflet-shell">
         <MapContainer center={center} zoom={payload.bbox?11:5} className="runtime-product-map" scrollWheelZoom zoomControl={false}>
           <ZoomControl position="bottomright"/>
+          <FitToData bbox={payload.bbox}/>
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
           <DrawClicks enabled={responseType!=="feature-select"} onCoordinate={addCoordinate}/>
-          {payload.layers.filter((item)=>item.visible).map((item)=>(
+          {payload.layers.filter((item)=>(visibility[item.datasetVersionId]??item.visible)).map((item)=>(
             <GeoJSON
               key={item.datasetVersionId+"-"+selected.join(",")}
               data={item.geojson}
@@ -153,6 +187,10 @@ export function AssessmentSpatialResponseMap({
           ))}
           {geometry&&<GeoJSON data={{type:"Feature",properties:{},geometry} as Feature<Geometry>} style={{color:"#dc2626",fillColor:"#f87171",weight:4,fillOpacity:.28}} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,{radius:7,color:"#dc2626",fillColor:"#f87171",weight:4,fillOpacity:.75})}><Tooltip sticky>Respons siswa</Tooltip></GeoJSON>}
         </MapContainer>
+        <aside className="runtime-layer-list">
+          <strong>Layer peta</strong>
+          {payload.layers.map((layer)=><label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}</small></label>)}
+        </aside>
       </div>
 
       <div className="spatial-response-toolbar">
@@ -161,7 +199,8 @@ export function AssessmentSpatialResponseMap({
           <small>{responseType==="draw-point"?"1 titik":responseType==="draw-line"?"Minimal 2 vertex":responseType==="draw-polygon"?"Minimal 3 vertex":"Bisa memilih lebih dari satu feature"}</small>
         </div>
         <span>{responseType==="feature-select"?selected.length:coordinates.length} {responseType==="feature-select"?"selected":"vertex"}</span>
-        <button className="button button-secondary" type="button" onClick={()=>{setCoordinates([]);setSelected([]);}} disabled={busy}>Reset</button>
+        {responseType!=="feature-select"&&<button className="button button-secondary" type="button" onClick={()=>{setCoordinates((current)=>current.slice(0,-1));onDirtyChange(true);}} disabled={busy||coordinates.length===0}>Urungkan vertex</button>}
+        <button className="button button-secondary" type="button" onClick={()=>{setCoordinates([]);setSelected([]);onDirtyChange(true);}} disabled={busy}>Reset</button>
         <button className="button" type="button" onClick={save} disabled={!valid||busy}>{busy?"Menyimpan…":"Simpan Respons Spasial"}</button>
       </div>
       {error&&<p className="auth-error">{error}</p>}

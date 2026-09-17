@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { GeoJsonObject } from "geojson";
 import { AssessmentMediaRenderer } from "@/components/assessment-media-renderer";
@@ -48,13 +49,27 @@ export function AssessmentRuntimeClient({
   const [index,setIndex]=useState(0);
   const [answers,setAnswers]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.answer])));
   const [completedTools,setCompletedTools]=useState<Record<string,string[]>>(initialCompletedTools);
-  const [spatialSaved,setSpatialSaved]=useState<Record<string,boolean>>(()=>Object.fromEntries(Object.keys(initialSpatialResponses).map((key)=>[key,true])));
+  const [persisted,setPersisted]=useState<Record<string,boolean>>(()=>Object.fromEntries([
+    ...Object.keys(savedResponses),...Object.keys(initialSpatialResponses),
+  ].map((key)=>[key,true])));
+  const [spatialDirty,setSpatialDirty]=useState<Record<string,boolean>>({});
+  const [spatialResponses,setSpatialResponses]=useState(initialSpatialResponses);
   const [analysisGeojson,setAnalysisGeojson]=useState<Record<string,GeoJsonObject|null>>({});
   const [toolSummary,setToolSummary]=useState<Record<string,string>>({});
   const [feedback,setFeedback]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.isCorrect===true?"Jawaban sebelumnya benar.":"Jawaban sebelumnya tersimpan."])));
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
+  const elapsedByQuestion=useRef<Record<string,number>>({});
+  const enteredAt=useRef(Date.now());
   const question=questions[index];
+
+  useEffect(()=>{
+    const warn=(event:BeforeUnloadEvent)=>{
+      if(Object.values(spatialDirty).some(Boolean)){event.preventDefault();event.returnValue="";}
+    };
+    window.addEventListener("beforeunload",warn);
+    return()=>window.removeEventListener("beforeunload",warn);
+  },[spatialDirty]);
 
   if(!question)return <div className="empty-state"><strong>Tidak ada soal pada QuizVersion ini.</strong></div>;
 
@@ -66,7 +81,20 @@ export function AssessmentRuntimeClient({
   const stimulusType=String(question.stimulusConfig.type??"text");
   const responseType=String(question.responseConfig.type??"multiple-choice");
   const isSpatialResponse=["draw-point","draw-line","draw-polygon","feature-select"].includes(responseType);
-  const savedSpatial=initialSpatialResponses[question.quizItemId];
+  const savedSpatial=spatialResponses[question.quizItemId];
+  const completedCount=questions.filter((item)=>persisted[item.quizItemId]).length;
+  const allPersisted=completedCount===questions.length;
+
+  function durationMs(){
+    return Math.max(0,Math.round((elapsedByQuestion.current[question.quizItemId]??0)+(Date.now()-enteredAt.current)));
+  }
+
+  function navigate(next:number){
+    if(spatialDirty[question.quizItemId]&&!window.confirm("Respons spasial belum disimpan. Tinggalkan perubahan ini?"))return;
+    elapsedByQuestion.current[question.quizItemId]=(elapsedByQuestion.current[question.quizItemId]??0)+(Date.now()-enteredAt.current);
+    enteredAt.current=Date.now();
+    setIndex(next);
+  }
 
   async function runTool(tool:string){
     setBusy(true);setError("");
@@ -97,12 +125,13 @@ export function AssessmentRuntimeClient({
     try{
       const response=await fetch(`/api/assessment/attempts/${attemptId}/responses`,{
         method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({quizItemId:question.quizItemId,answer:selected,durationMs:0}),
+        body:JSON.stringify({quizItemId:question.quizItemId,answer:selected,durationMs:durationMs()}),
       });
       const body=await response.json();
       if(!response.ok)throw new Error(body.error??"Jawaban gagal disimpan.");
       setFeedback((current)=>({...current,[question.quizItemId]:body.feedback||(body.isCorrect?"Jawaban benar.":"Jawaban tersimpan.")}));
-      if(index<questions.length-1)setIndex(index+1);else router.refresh();
+      setPersisted((current)=>({...current,[question.quizItemId]:true}));
+      if(index<questions.length-1)navigate(index+1);else router.refresh();
     }catch(e){setError(e instanceof Error?e.message:"Jawaban gagal disimpan.");}
     finally{setBusy(false);}
   }
@@ -133,38 +162,52 @@ export function AssessmentRuntimeClient({
 
         {!isSpatialResponse&&<fieldset disabled={!requiredComplete||busy}>
           <legend>Jawaban</legend>
-          {options.map((option)=><label className={"answer "+(selected===option.id?"selected":"")} key={option.id}><input type="radio" name={"answer-"+question.quizItemId} checked={selected===option.id} onChange={()=>setAnswers((current)=>({...current,[question.quizItemId]:option.id}))}/><b>{option.id}</b>{option.label}</label>)}
+          {options.map((option)=><label className={"answer "+(selected===option.id?"selected":"")} key={option.id}><input type="radio" name={"answer-"+question.quizItemId} checked={selected===option.id} onChange={()=>{
+            setAnswers((current)=>({...current,[question.quizItemId]:option.id}));
+            setPersisted((current)=>({...current,[question.quizItemId]:false}));
+            setFeedback((current)=>({...current,[question.quizItemId]:""}));
+          }}/><b>{option.id}</b>{option.label}</label>)}
         </fieldset>}
 
         {isSpatialResponse&&requiredComplete&&
-          <AssessmentSpatialResponseMap
+          <AssessmentSpatialResponseMap key={question.quizItemId}
             attemptId={attemptId}
             questionVersionId={question.questionVersionId}
             quizItemId={question.quizItemId}
             responseType={responseType as "draw-point"|"draw-line"|"draw-polygon"|"feature-select"}
             initialGeometry={(savedSpatial?.geometry as never)??null}
             initialSelectedFeatureIds={savedSpatial?.selectedFeatureIds??[]}
-            onSaved={()=>setSpatialSaved((current)=>({...current,[question.quizItemId]:true}))}
+            durationMs={durationMs}
+            onDirtyChange={(dirty)=>{
+              setSpatialDirty((current)=>({...current,[question.quizItemId]:dirty}));
+              if(dirty)setPersisted((current)=>({...current,[question.quizItemId]:false}));
+            }}
+            onSaved={(value)=>{
+              setSpatialResponses((current)=>({...current,[question.quizItemId]:value}));
+              setSpatialDirty((current)=>({...current,[question.quizItemId]:false}));
+              setPersisted((current)=>({...current,[question.quizItemId]:true}));
+            }}
           />}
         {isSpatialResponse&&!requiredComplete&&<div className="runtime-media-shell">Selesaikan aktivitas GIS wajib sebelum menyimpan respons spasial.</div>}
 
         {feedback[question.quizItemId]&&<div className="answer-result correct"><strong>Jawaban tersimpan</strong><p>{feedback[question.quizItemId]}</p></div>}
-        {spatialSaved[question.quizItemId]&&<div className="answer-result correct"><strong>Respons spasial tersimpan</strong><p>Geometry/selection disimpan sebagai ResponseSpatialArtifact.</p></div>}
+        {isSpatialResponse&&spatialDirty[question.quizItemId]&&<div className="answer-result pending" role="status"><strong>Perubahan belum disimpan</strong><p>Simpan respons spasial sebelum melanjutkan atau submit.</p></div>}
+        {isSpatialResponse&&persisted[question.quizItemId]&&!spatialDirty[question.quizItemId]&&<div className="answer-result correct"><strong>Respons spasial tersimpan</strong><p>Geometry/selection disimpan sebagai ResponseSpatialArtifact.</p></div>}
         {error&&<p className="auth-error">{error}</p>}
 
         <div className="runtime-question-actions">
-          <button className="button button-secondary" disabled={index===0||busy} onClick={()=>setIndex(Math.max(0,index-1))} type="button">← Sebelumnya</button>
+          <button className="button button-secondary" disabled={index===0||busy} onClick={()=>navigate(Math.max(0,index-1))} type="button">← Sebelumnya</button>
           {!isSpatialResponse
             ? <button className="button" disabled={!selected||!requiredComplete||busy} onClick={saveAnswer} type="button">{index===questions.length-1?"Simpan Jawaban":"Simpan & Lanjut"}</button>
-            : <button className="button" disabled={!spatialSaved[question.quizItemId]||busy} onClick={()=>setIndex(Math.min(questions.length-1,index+1))} type="button">{index===questions.length-1?"Respons tersimpan":"Lanjut →"}</button>}
+            : <button className="button" disabled={!persisted[question.quizItemId]||spatialDirty[question.quizItemId]||busy} onClick={()=>navigate(Math.min(questions.length-1,index+1))} type="button">{index===questions.length-1?"Respons tersimpan":"Lanjut →"}</button>}
         </div>
       </article>
 
       <aside className="assessment-runtime-sidebar">
-        <div><p className="eyebrow">Progress</p><strong>{index+1} / {questions.length}</strong></div>
-        <div className="runtime-question-nav">{questions.map((q,i)=><button className={i===index?"active":answers[q.quizItemId]||spatialSaved[q.quizItemId]?"answered":""} onClick={()=>setIndex(i)} key={q.quizItemId} type="button">{q.position}</button>)}</div>
-        <form action={"/api/assessment/attempts/"+attemptId+"/submit"} method="post"><button className="button button-wide" type="submit">Submit Attempt</button></form>
-        <small>Submit hanya berhasil jika semua soal sudah mempunyai Response.</small>
+        <div><p className="eyebrow">Respons tersimpan</p><strong>{completedCount} / {questions.length}</strong></div>
+        <div className="runtime-question-nav">{questions.map((q,i)=><button className={i===index?"active":persisted[q.quizItemId]?"answered":""} onClick={()=>navigate(i)} key={q.quizItemId} type="button" aria-label={`Soal ${q.position}${persisted[q.quizItemId]?", tersimpan":""}`}>{q.position}</button>)}</div>
+        <form action={"/api/assessment/attempts/"+attemptId+"/submit"} method="post" onSubmit={(event:FormEvent<HTMLFormElement>)=>{if(!window.confirm("Submit attempt sekarang? Jawaban tidak dapat diubah setelah dikirim."))event.preventDefault();}}><button className="button button-wide" disabled={!allPersisted||busy} type="submit">Submit Attempt</button></form>
+        <small>{allPersisted?"Semua respons tersimpan. Attempt siap disubmit.":`${questions.length-completedCount} soal belum mempunyai respons tersimpan.`}</small>
       </aside>
     </section>
   );
