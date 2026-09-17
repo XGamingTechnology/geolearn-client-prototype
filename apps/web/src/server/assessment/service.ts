@@ -19,6 +19,29 @@ export type StudentAssignmentRow={
   isOpen:boolean; isExpired:boolean; isScheduled:boolean;
 };
 
+const absoluteTimestamp=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+export function parseAssignmentInstant(value:string):Date|null{
+  if(!value)return null;
+  if(!absoluteTimestamp.test(value))throw new Error("Assignment schedule must include a timezone");
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))throw new Error("Invalid assignment schedule");
+  return date;
+}
+
+export function parseAssignmentSchedule(opensValue:string,closesValue:string){
+  const opensAt=parseAssignmentInstant(opensValue);
+  const closesAt=parseAssignmentInstant(closesValue);
+  if(opensAt&&closesAt&&closesAt<=opensAt)throw new Error("Close must be after open");
+  return {opensAt,closesAt};
+}
+
+export function assignmentAvailability(row:{status:string;opensAt:Date|null;closesAt:Date|null},now=new Date()){
+  const isScheduled=Boolean(row.opensAt&&row.opensAt>now);
+  const isExpired=row.status!=="ACTIVE"||Boolean(row.closesAt&&row.closesAt<now);
+  return {isScheduled,isExpired,isOpen:row.status==="ACTIVE"&&!isScheduled&&!isExpired};
+}
+
 export async function listPublishedQuestionOptions(session:TeacherSession):Promise<PublishedQuestionOption[]>{
   const visible=await listQuestionBank(session);
   const ids=visible.filter((q)=>q.versionStatus==="PUBLISHED"&&q.versionId).map((q)=>q.versionId as string);
@@ -105,11 +128,7 @@ export async function createAssignment(input:{
   const title=input.title.trim();if(!title) throw new Error("Assignment title required");
   const attemptLimit=Math.min(Math.max(Math.trunc(input.attemptLimit)||1,1),10);
   const visibility=["AFTER_SUBMIT","AFTER_CLOSE","HIDDEN"].includes(input.resultVisibility)?input.resultVisibility:"AFTER_SUBMIT";
-  const opensAt=input.opensAt?new Date(input.opensAt):null;
-  const closesAt=input.closesAt?new Date(input.closesAt):null;
-  if(opensAt&&Number.isNaN(opensAt.getTime())) throw new Error("Invalid opens_at");
-  if(closesAt&&Number.isNaN(closesAt.getTime())) throw new Error("Invalid closes_at");
-  if(opensAt&&closesAt&&closesAt<=opensAt) throw new Error("Close must be after open");
+  const {opensAt,closesAt}=parseAssignmentSchedule(input.opensAt,input.closesAt);
   const [row]=await query<{id:string}>(
     `insert into assignments(school_id,class_id,teacher_id,quiz_version_id,title,instructions,opens_at,closes_at,
        attempt_limit,result_visibility,status)
@@ -165,8 +184,7 @@ export async function listStudentAssignments(session:StudentSession):Promise<Stu
 }
 
 function assignmentOpen(row:{status:string;opens_at:Date|null;closes_at:Date|null}){
-  const now=Date.now();
-  return row.status==="ACTIVE"&&(!row.opens_at||row.opens_at.getTime()<=now)&&(!row.closes_at||row.closes_at.getTime()>=now);
+  return assignmentAvailability({status:row.status,opensAt:row.opens_at,closesAt:row.closes_at}).isOpen;
 }
 
 export async function startOrResumeAttempt(session:StudentSession,assignmentId:string):Promise<string>{

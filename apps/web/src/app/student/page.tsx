@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireStudentSession } from "@/server/auth/session";
 import { listStudentAssignments } from "@/server/assessment/service";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export default async function StudentPage() {
   const session = await requireStudentSession();
@@ -37,15 +38,12 @@ export default async function StudentPage() {
           const submitted = featuredTask.attemptStatus === "SUBMITTED";
           const unavailable = featuredTask.isExpired || featuredTask.isScheduled;
           const state = submitted ? "Selesai" : featuredTask.attemptStatus === "IN_PROGRESS" ? "Sedang dikerjakan" : featuredTask.isScheduled ? "Belum buka" : featuredTask.isExpired ? "Ditutup" : "Belum dikerjakan";
-          const deadline = featuredTask.closesAt
-            ? `Deadline ${new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(featuredTask.closesAt)}`
-            : "Tanpa deadline";
           return <article className="assignment-card">
             <div className="assignment-icon">◫</div>
             <div className="assignment-copy">
               <span className="assignment-kicker">{featuredTask.quizTitle} · {featuredTask.itemCount} soal · {state}</span>
               <h3>{featuredTask.title}</h3>
-              <p>{deadline}</p>
+              <p>{featuredTask.closesAt?<LocalDateTime value={featuredTask.closesAt} prefix="Deadline "/>:"Tanpa deadline"}</p>
             </div>
             {submitted
               ? <Link className="button" href={`/student/result?attempt=${featuredTask.attemptId}`}>Lihat Hasil</Link>

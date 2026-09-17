@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireTeacherSession } from "@/server/auth/session";
 import { listClasses } from "@/server/classes/service";
 import { listPublishedQuestionOptions, listPublishedQuizOptions, listTeacherAssignments } from "@/server/assessment/service";
+import { AssignmentScheduleFields } from "@/components/assignment-schedule-fields";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export default async function AssignmentsPage({searchParams}:{searchParams:Promise<{status?:string}>}){
   const session=await requireTeacherSession();
@@ -45,7 +47,7 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
             <label>QuizVersion<select name="quizVersionId" required defaultValue=""><option value="" disabled>Pilih Quiz</option>{quizzes.map((q)=><option key={q.quizVersionId} value={q.quizVersionId}>{q.title} · v{q.versionNumber} · {q.itemCount} soal</option>)}</select></label>
             <label>Kelas<select name="classId" required defaultValue=""><option value="" disabled>Pilih Kelas</option>{classes.filter((c)=>c.status==="ACTIVE").map((c)=><option key={c.id} value={c.id}>{c.name} · {c.classCode}</option>)}</select></label>
             <label>Instruksi<textarea name="instructions" rows={3}/></label>
-            <div className="builder-two-col"><label>Buka<input type="datetime-local" name="opensAt"/></label><label>Tutup<input type="datetime-local" name="closesAt"/></label></div>
+            <AssignmentScheduleFields/>
             <div className="builder-two-col"><label>Attempt Limit<input type="number" min={1} max={10} name="attemptLimit" defaultValue={1}/></label><label>Result<select name="resultVisibility" defaultValue="AFTER_SUBMIT"><option value="AFTER_SUBMIT">Setelah submit</option><option value="AFTER_CLOSE">Setelah deadline</option><option value="HIDDEN">Disembunyikan</option></select></label></div>
             <button className="button" disabled={!quizzes.length||!classes.length} type="submit">Aktifkan Assignment</button>
           </form>
@@ -66,7 +68,7 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
             <div className="assignment-management-main">
               <div className="question-tags"><span>{item.className}</span><span>Quiz v{item.quizVersion}</span><span>{item.status}</span></div>
               <h2>{item.title}</h2>
-              <p>{item.quizTitle} · deadline {item.closesAt?new Intl.DateTimeFormat("id-ID",{dateStyle:"medium",timeStyle:"short"}).format(item.closesAt):"tanpa batas"}</p>
+              <p>{item.quizTitle} · {item.closesAt?<LocalDateTime value={item.closesAt} prefix="deadline "/>:"tanpa batas"}</p>
             </div>
             <div className="assignment-progress-cell"><strong>{item.submittedCount}/{item.attemptCount}</strong><small>submitted / attempt</small></div>
             <span className={item.status==="ACTIVE"?"assignment-status active":"assignment-status complete"}>{item.status}</span>

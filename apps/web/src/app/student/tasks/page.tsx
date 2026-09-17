@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireStudentSession } from "@/server/auth/session";
 import { listStudentAssignments } from "@/server/assessment/service";
+import { LocalDateTime } from "@/components/local-date-time";
 
 export default async function StudentTasksPage({searchParams}:{searchParams:Promise<{status?:string}>}){
   const session=await requireStudentSession();
@@ -22,7 +23,7 @@ export default async function StudentTasksPage({searchParams}:{searchParams:Prom
             const submitted=task.attemptStatus==="SUBMITTED";
             return <article className="student-task-row" key={task.id}>
               <div className="assignment-icon">▣</div>
-              <div><span className="assignment-kicker">{task.quizTitle} · {task.itemCount} soal</span><h2>{task.title}</h2><p>{task.closesAt?"Deadline "+new Intl.DateTimeFormat("id-ID",{dateStyle:"medium",timeStyle:"short"}).format(task.closesAt):"Tanpa deadline"}</p></div>
+              <div><span className="assignment-kicker">{task.quizTitle} · {task.itemCount} soal</span><h2>{task.title}</h2><p>{task.closesAt?<LocalDateTime value={task.closesAt} prefix="Deadline "/>:"Tanpa deadline"}</p></div>
               <span className={submitted?"student-task-status complete":"student-task-status"}>{submitted?"Selesai":notOpen?"Belum buka":closed?"Ditutup":task.attemptStatus==="IN_PROGRESS"?"Sedang dikerjakan":"Belum dikerjakan"}</span>
               {submitted
                 ? <Link className="button button-secondary" href={"/student/result?attempt="+task.attemptId}>Lihat Hasil</Link>

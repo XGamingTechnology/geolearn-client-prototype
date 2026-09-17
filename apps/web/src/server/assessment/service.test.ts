@@ -5,7 +5,7 @@ vi.mock("@/server/db", () => ({ query: queryMock, database: vi.fn() }));
 vi.mock("@/server/classes/service", () => ({ assertClassAccess: vi.fn(), listClasses: vi.fn() }));
 vi.mock("@/server/content/service", () => ({ listQuestionBank: vi.fn() }));
 
-import { listStudentAssignments, startOrResumeAttempt } from "./service";
+import { assignmentAvailability, listStudentAssignments, parseAssignmentSchedule, startOrResumeAttempt } from "./service";
 import { AuthorizationError } from "@/server/auth/authorization";
 import type { StudentSession } from "@/server/auth/session";
 
@@ -40,5 +40,27 @@ describe("student assignment isolation and attempts", () => {
     queryMock.mockResolvedValueOnce([{ id: "assignment-1", school_id: "school-2", class_id: "class-1", quiz_version_id: "quiz-version-1", attempt_limit: 1, status: "ACTIVE", opens_at: null, closes_at: null }]);
     await expect(startOrResumeAttempt(session, "assignment-1")).rejects.toBeInstanceOf(AuthorizationError);
     expect(queryMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("assignment schedules",()=>{
+  it("allows an empty schedule",()=>{
+    expect(parseAssignmentSchedule("","")).toEqual({opensAt:null,closesAt:null});
+  });
+
+  it("rejects a close instant equal to or earlier than open",()=>{
+    expect(()=>parseAssignmentSchedule("2026-09-17T03:30:00.000Z","2026-09-17T03:30:00.000Z")).toThrow("Close must be after open");
+    expect(()=>parseAssignmentSchedule("2026-09-17T03:30:00.000Z","2026-09-17T03:29:59.000Z")).toThrow("Close must be after open");
+  });
+
+  it("requires submitted schedule values to be absolute instants",()=>{
+    expect(()=>parseAssignmentSchedule("2026-09-17T10:30","")).toThrow("must include a timezone");
+  });
+
+  it("preserves scheduled and open behavior at time boundaries",()=>{
+    const now=new Date("2026-09-17T03:30:00.000Z");
+    expect(assignmentAvailability({status:"ACTIVE",opensAt:new Date("2026-09-17T03:31:00.000Z"),closesAt:null},now)).toEqual({isScheduled:true,isExpired:false,isOpen:false});
+    expect(assignmentAvailability({status:"ACTIVE",opensAt:now,closesAt:new Date("2026-09-17T04:00:00.000Z")},now)).toEqual({isScheduled:false,isExpired:false,isOpen:true});
+    expect(assignmentAvailability({status:"ACTIVE",opensAt:null,closesAt:new Date("2026-09-17T03:29:59.000Z")},now)).toEqual({isScheduled:false,isExpired:true,isOpen:false});
   });
 });
