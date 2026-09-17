@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- authenticated media preview is dynamic. */
 
-import {useMemo,useState,type FormEvent} from "react";
+import {useState,type FormEvent} from "react";
 import Link from "next/link";
 import {answerIds,configurationSummary,normalizeAnswers,stimulusControls,validateForPublish,type AnswerId,type ResponseType,type StimulusType} from "@/features/questions/builder";
 
@@ -31,7 +31,7 @@ export function QuestionBuilderForm({action,publishAction,datasets,media,initial
   const [errors,setErrors]=useState<string[]>([]);
   const selectedMedia=media.find((item)=>item.id===mediaId); const controls=stimulusControls(stimulus); const filteredMedia=media.filter((item)=>item.mediaType===stimulus.toUpperCase());
   const selectedMediaSource=selectedMedia?.storageKey&&(selectedMedia.storageKey.startsWith("http://")||selectedMedia.storageKey.startsWith("https://")||selectedMedia.storageKey.startsWith("/"))?selectedMedia.storageKey:(selectedMedia?`/api/media/${selectedMedia.id}`:null);
-  const snapshot=useMemo(()=>({stimulusType:stimulus,responseType:response,answers:normalizeAnswers(options),correctAnswer:correct,mediaAssetId:mediaId,selectedMediaType:selectedMedia?.mediaType,sourceDatasetId:source,targetDatasetId:target,requiredGisTool:tool,bufferDistance:distance}),[stimulus,response,options,correct,mediaId,selectedMedia,source,target,tool,distance]);
+  const snapshot={stimulusType:stimulus,responseType:response,answers:normalizeAnswers(options),correctAnswer:correct,mediaAssetId:mediaId,selectedMediaType:selectedMedia?.mediaType,sourceDatasetId:source,targetDatasetId:target,requiredGisTool:tool,bufferDistance:distance};
   function chooseStimulus(value:StimulusType){setStimulus(value);setMediaId("");if(value!=="webgis"){setSource("");setTarget("");setTool("");}}
   function remove(index:number){const next=options.filter((_,i)=>i!==index);setOptions(next);if(answerIds.indexOf(correct as AnswerId)>=next.length)setCorrect("A");}
   function submit(event:FormEvent<HTMLFormElement>){const submitter=(event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement|null;if(submitter?.dataset.intent!=="publish")return;const next=validateForPublish(snapshot);setErrors(next);if(next.length){event.preventDefault();document.querySelector(".builder-errors")?.scrollIntoView({behavior:"smooth",block:"center"});}}
