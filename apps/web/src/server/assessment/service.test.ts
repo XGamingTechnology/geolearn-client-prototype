@@ -5,7 +5,7 @@ vi.mock("@/server/db", () => ({ query: queryMock, database: vi.fn() }));
 vi.mock("@/server/classes/service", () => ({ assertClassAccess: vi.fn(), listClasses: vi.fn() }));
 vi.mock("@/server/content/service", () => ({ listQuestionBank: vi.fn() }));
 
-import { listStudentAssignments, startOrResumeAttempt } from "./service";
+import { assignmentAvailability, listStudentAssignments, parseAssignmentTimestamp, startOrResumeAttempt } from "./service";
 import { AuthorizationError } from "@/server/auth/authorization";
 import type { StudentSession } from "@/server/auth/session";
 
@@ -40,5 +40,21 @@ describe("student assignment isolation and attempts", () => {
     queryMock.mockResolvedValueOnce([{ id: "assignment-1", school_id: "school-2", class_id: "class-1", quiz_version_id: "quiz-version-1", attempt_limit: 1, status: "ACTIVE", opens_at: null, closes_at: null }]);
     await expect(startOrResumeAttempt(session, "assignment-1")).rejects.toBeInstanceOf(AuthorizationError);
     expect(queryMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("assignment scheduling",()=>{
+  const now=new Date("2026-09-17T12:00:00.000Z");
+
+  it("treats schedule boundaries consistently",()=>{
+    expect(assignmentAvailability({status:"ACTIVE",opens_at:now,closes_at:now},now)).toEqual({isOpen:true,isExpired:false,isScheduled:false});
+    expect(assignmentAvailability({status:"ACTIVE",opens_at:new Date("2026-09-17T12:01:00Z"),closes_at:null},now)).toEqual({isOpen:false,isExpired:false,isScheduled:true});
+    expect(assignmentAvailability({status:"CLOSED",opens_at:null,closes_at:null},now)).toEqual({isOpen:false,isExpired:true,isScheduled:false});
+  });
+
+  it("accepts only absolute timestamps from assignment forms",()=>{
+    expect(parseAssignmentTimestamp("2026-09-17T19:00:00.000Z","opens_at")?.toISOString()).toBe("2026-09-17T19:00:00.000Z");
+    expect(parseAssignmentTimestamp("2026-09-17T19:00:00+07:00","opens_at")?.toISOString()).toBe("2026-09-17T12:00:00.000Z");
+    expect(()=>parseAssignmentTimestamp("2026-09-17T19:00","opens_at")).toThrow("absolute timestamp");
   });
 });

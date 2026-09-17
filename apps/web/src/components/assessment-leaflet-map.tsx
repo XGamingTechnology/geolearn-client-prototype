@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl } from "react-leaflet";
 import type { GeoJsonObject } from "geojson";
-import type { PathOptions } from "leaflet";
+import L from "leaflet";
+
+import { assessmentPathStyle, assessmentPointStyle } from "./assessment-map-style";
 
 type MapLayer={
   datasetVersionId:string;
@@ -14,12 +16,6 @@ type MapLayer={
   geojson:GeoJsonObject;
 };
 type Payload={layers:MapLayer[];bbox:[number,number,number,number]|null};
-
-const roleStyles:Record<MapLayer["role"],PathOptions>={
-  SOURCE:{color:"#2563eb",fillColor:"#60a5fa",weight:3,fillOpacity:.25},
-  TARGET:{color:"#0f766e",fillColor:"#2dd4bf",weight:2,fillOpacity:.22},
-  CONTEXT:{color:"#64748b",fillColor:"#cbd5e1",weight:1.5,fillOpacity:.16},
-};
 
 export function AssessmentLeafletMap({
   attemptId,
@@ -62,12 +58,15 @@ export function AssessmentLeafletMap({
           <GeoJSON
             key={layer.datasetVersionId}
             data={layer.geojson}
-            style={{...roleStyles[layer.role],opacity:layer.opacity,fillOpacity:(roleStyles[layer.role].fillOpacity??.2)*layer.opacity}}
+            style={(feature)=>feature?.geometry.type==="Point"||feature?.geometry.type==="MultiPoint"
+              ?assessmentPointStyle(layer.role,layer.opacity)
+              :assessmentPathStyle(layer.role,layer.opacity)}
+            pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(layer.role,layer.opacity))}
           >
             <Tooltip sticky>{layer.title} · {layer.role}</Tooltip>
           </GeoJSON>
         ))}
-        {analysisGeojson&&<GeoJSON data={analysisGeojson} style={{color:"#d97706",fillColor:"#f59e0b",weight:3,dashArray:"6 5",fillOpacity:.25}}><Tooltip sticky>Hasil analisis PostGIS</Tooltip></GeoJSON>}
+        {analysisGeojson&&<GeoJSON data={analysisGeojson} style={{color:"#d97706",fillColor:"#f59e0b",weight:3,dashArray:"6 5",fillOpacity:.25}} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,{radius:7,color:"#d97706",fillColor:"#f59e0b",fillOpacity:.75})}><Tooltip sticky>Hasil analisis PostGIS</Tooltip></GeoJSON>}
       </MapContainer>
       <aside className="runtime-layer-list">
         <strong>DatasetVersion</strong>
