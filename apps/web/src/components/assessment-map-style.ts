@@ -1,4 +1,4 @@
-import type { PathOptions } from "leaflet";
+import type { CircleMarkerOptions, PathOptions } from "leaflet";
 
 import type { QuestionDatasetRole } from "@/server/content/question-datasets";
 
@@ -11,10 +11,25 @@ const roleStyles: Record<QuestionDatasetRole, PathOptions> = {
 export function assessmentPointStyle(
   role: QuestionDatasetRole,
   opacity: number,
-): PathOptions {
+): CircleMarkerOptions {
   return {
     ...roleStyles[role],
+    radius: 7,
     opacity,
     fillOpacity: Math.round(0.75 * opacity * 1_000_000) / 1_000_000,
+  };
+}
+
+export function assessmentPathStyle(
+  role: QuestionDatasetRole,
+  opacity: number,
+): PathOptions {
+  const style = roleStyles[role];
+  const roleFillOpacity = role === "SOURCE" ? 0.25 : role === "TARGET" ? 0.22 : 0.16;
+
+  return {
+    ...style,
+    opacity,
+    fillOpacity: roleFillOpacity * opacity,
   };
 }

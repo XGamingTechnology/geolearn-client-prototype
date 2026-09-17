@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl, useMapEvents } from "react-leaflet";
 import type { Feature, GeoJsonObject, Geometry } from "geojson";
-import type { Layer, PathOptions } from "leaflet";
+import type { Layer } from "leaflet";
+import L from "leaflet";
+
+import { assessmentPathStyle, assessmentPointStyle } from "./assessment-map-style";
 
 type SpatialType="draw-point"|"draw-line"|"draw-polygon"|"feature-select";
 type MapLayer={
@@ -15,12 +18,6 @@ type MapLayer={
   geojson:GeoJsonObject;
 };
 type Payload={layers:MapLayer[];bbox:[number,number,number,number]|null};
-
-const styles:Record<MapLayer["role"],PathOptions>={
-  SOURCE:{color:"#2563eb",fillColor:"#60a5fa",weight:3,fillOpacity:.25},
-  TARGET:{color:"#0f766e",fillColor:"#2dd4bf",weight:2,fillOpacity:.22},
-  CONTEXT:{color:"#64748b",fillColor:"#cbd5e1",weight:1.5,fillOpacity:.16},
-};
 
 function DrawClicks({enabled,onCoordinate}:{enabled:boolean;onCoordinate:(coordinate:[number,number])=>void}){
   useMapEvents({
@@ -140,18 +137,21 @@ export function AssessmentSpatialResponseMap({
               key={item.datasetVersionId+"-"+selected.join(",")}
               data={item.geojson}
               onEachFeature={onEachFeature}
+              pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(item.role,item.opacity))}
               style={(feature)=>{
                 const id=feature?.id==null?"":String(feature.id);
                 if(responseType==="feature-select"&&selected.includes(id)){
                   return {color:"#dc2626",fillColor:"#f87171",weight:4,fillOpacity:.38};
                 }
-                return {...styles[item.role],opacity:item.opacity,fillOpacity:(styles[item.role].fillOpacity??.2)*item.opacity};
+                return feature?.geometry.type==="Point"||feature?.geometry.type==="MultiPoint"
+                  ?assessmentPointStyle(item.role,item.opacity)
+                  :assessmentPathStyle(item.role,item.opacity);
               }}
             >
               <Tooltip sticky>{item.title} · {item.role}</Tooltip>
             </GeoJSON>
           ))}
-          {geometry&&<GeoJSON data={{type:"Feature",properties:{},geometry} as Feature<Geometry>} style={{color:"#dc2626",fillColor:"#f87171",weight:4,fillOpacity:.28}}><Tooltip sticky>Respons siswa</Tooltip></GeoJSON>}
+          {geometry&&<GeoJSON data={{type:"Feature",properties:{},geometry} as Feature<Geometry>} style={{color:"#dc2626",fillColor:"#f87171",weight:4,fillOpacity:.28}} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,{radius:7,color:"#dc2626",fillColor:"#f87171",weight:4,fillOpacity:.75})}><Tooltip sticky>Respons siswa</Tooltip></GeoJSON>}
         </MapContainer>
       </div>
 
