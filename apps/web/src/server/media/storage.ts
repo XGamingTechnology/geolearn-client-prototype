@@ -2,10 +2,11 @@ import "server-only";
 
 import { createReadStream } from "node:fs";
 import { mkdir, open, rm, stat } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { LOCAL_MEDIA_KEY, isInternalMediaKey, isLegacyMediaUrl, mediaDeliveryUrl, resolveMediaPath } from "./storage-core";
 
-export const LOCAL_MEDIA_KEY=/^media\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp|mp4)$/i;
+export {LOCAL_MEDIA_KEY,isInternalMediaKey,isLegacyMediaUrl,mediaDeliveryUrl} from "./storage-core";
 
 export type StoredMedia={key:string;absolutePath:string;size:number};
 export interface MediaStorage {
@@ -17,13 +18,7 @@ export interface MediaStorage {
 
 export class LocalMediaStorage implements MediaStorage {
   constructor(private readonly root=process.env.MEDIA_STORAGE_PATH??"/var/lib/geolearn/media"){}
-  private path(key:string){
-    if(!LOCAL_MEDIA_KEY.test(key)) throw new Error("Invalid media storage key");
-    const target=resolve(this.root,key);
-    const root=resolve(this.root)+sep;
-    if(!target.startsWith(root)) throw new Error("Invalid media storage key");
-    return target;
-  }
+  private path(key:string){return resolveMediaPath(this.root,key);}
   async put(bytes:Uint8Array,extension:string){
     if(!/^(jpg|png|webp|mp4)$/.test(extension)) throw new Error("Invalid media extension");
     const key=`media/${randomUUID()}.${extension}`;
@@ -42,6 +37,7 @@ export class LocalMediaStorage implements MediaStorage {
 }
 
 export const mediaStorage:MediaStorage=new LocalMediaStorage();
-export function isInternalMediaKey(value:string|null):value is string{return Boolean(value&&LOCAL_MEDIA_KEY.test(value));}
-export function isLegacyMediaUrl(value:string|null):value is string{return Boolean(value&&(value.startsWith("https://")||value.startsWith("http://")||(value.startsWith("/")&&!value.startsWith("//"))));}
-export function mediaDeliveryUrl(id:string,key:string|null){return isInternalMediaKey(key)?`/api/media/${id}`:(isLegacyMediaUrl(key)?key:null);}
+void LOCAL_MEDIA_KEY;
+void isInternalMediaKey;
+void isLegacyMediaUrl;
+void mediaDeliveryUrl;
