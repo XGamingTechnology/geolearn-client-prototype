@@ -60,8 +60,12 @@ export function AssessmentRuntimeClient({
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const elapsedByQuestion=useRef<Record<string,number>>({});
-  const enteredAt=useRef(Date.now());
+  const enteredAt=useRef<number|null>(null);
   const question=questions[index];
+
+  useEffect(()=>{
+    enteredAt.current=Date.now();
+  },[]);
 
   useEffect(()=>{
     const warn=(event:BeforeUnloadEvent)=>{
@@ -85,13 +89,17 @@ export function AssessmentRuntimeClient({
   const completedCount=questions.filter((item)=>persisted[item.quizItemId]).length;
   const allPersisted=completedCount===questions.length;
 
+  function elapsedSinceEntry(){
+    return enteredAt.current===null?0:Math.max(0,Date.now()-enteredAt.current);
+  }
+
   function durationMs(){
-    return Math.max(0,Math.round((elapsedByQuestion.current[question.quizItemId]??0)+(Date.now()-enteredAt.current)));
+    return Math.max(0,Math.round((elapsedByQuestion.current[question.quizItemId]??0)+elapsedSinceEntry()));
   }
 
   function navigate(next:number){
     if(spatialDirty[question.quizItemId]&&!window.confirm("Respons spasial belum disimpan. Tinggalkan perubahan ini?"))return;
-    elapsedByQuestion.current[question.quizItemId]=(elapsedByQuestion.current[question.quizItemId]??0)+(Date.now()-enteredAt.current);
+    elapsedByQuestion.current[question.quizItemId]=(elapsedByQuestion.current[question.quizItemId]??0)+elapsedSinceEntry();
     enteredAt.current=Date.now();
     setIndex(next);
   }
