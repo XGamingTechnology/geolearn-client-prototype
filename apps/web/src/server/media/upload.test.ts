@@ -1,4 +1,5 @@
 import {afterEach,describe,expect,it} from "vitest";
+import {mediaAccessDecision} from "./access";
 import {detectMediaMime,validateMediaBytes} from "./validation";
 import {isInternalMediaKey,isLegacyMediaUrl,mediaDeliveryUrl,resolveMediaPath} from "./storage-core";
 
@@ -19,4 +20,24 @@ describe("media storage security and compatibility",()=>{
   it("recognizes internal media keys",()=>{expect(isInternalMediaKey("media/123e4567-e89b-42d3-a456-426614174000.png")).toBe(true);expect(isInternalMediaKey("../bad.png")).toBe(false);});
   it("keeps legacy HTTP and app-relative URLs usable",()=>{expect(isLegacyMediaUrl("https://cdn.example/image.jpg")).toBe(true);expect(isLegacyMediaUrl("/legacy/image.png")).toBe(true);expect(mediaDeliveryUrl("id","http://example.test/video.mp4")).toBe("http://example.test/video.mp4");});
   it("turns internal keys into stable application URLs",()=>expect(mediaDeliveryUrl("asset-1","media/123e4567-e89b-42d3-a456-426614174000.png")).toBe("/api/media/asset-1"));
+});
+
+describe("media access decisions",()=>{
+  const schoolAsset={scope:"SCHOOL",schoolId:"school-a",ownerTeacherId:"teacher-a"};
+  const privateAsset={scope:"PRIVATE",schoolId:"school-a",ownerTeacherId:"teacher-a"};
+  it("allows same-school teachers to school media and denies other schools",()=>{
+    expect(mediaAccessDecision(schoolAsset,{kind:"teacher",schoolId:"school-a",staffUserId:"teacher-b"})).toBe("ALLOW");
+    expect(mediaAccessDecision(schoolAsset,{kind:"teacher",schoolId:"school-b",staffUserId:"teacher-b"})).toBe("DENY");
+  });
+  it("allows only the owner teacher to private media",()=>{
+    expect(mediaAccessDecision(privateAsset,{kind:"teacher",schoolId:"school-a",staffUserId:"teacher-a"})).toBe("ALLOW");
+    expect(mediaAccessDecision(privateAsset,{kind:"teacher",schoolId:"school-a",staffUserId:"teacher-b"})).toBe("DENY");
+  });
+  it("requires an assignment binding before students receive private media",()=>{
+    expect(mediaAccessDecision(privateAsset,{kind:"student",schoolId:"school-a"})).toBe("CHECK_STUDENT_BINDING");
+    expect(mediaAccessDecision(privateAsset,{kind:"student",schoolId:"school-b"})).toBe("DENY");
+  });
+  it("allows system media for authenticated actors",()=>{
+    expect(mediaAccessDecision({scope:"SYSTEM",schoolId:null,ownerTeacherId:null},{kind:"student",schoolId:"school-a"})).toBe("ALLOW");
+  });
 });
