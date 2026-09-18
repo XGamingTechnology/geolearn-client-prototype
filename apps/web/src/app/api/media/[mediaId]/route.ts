@@ -3,24 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentSession } from "@/server/auth/session";
 import { query } from "@/server/db";
 import { mediaAccessDecision } from "@/server/media/access";
+import { parseMediaRange } from "@/server/media/range";
 import { isInternalMediaKey, mediaStorage } from "@/server/media/storage";
 
 type Asset={storageKey:string|null;mimeType:string|null;sizeBytes:number|null;schoolId:string|null;scope:string;ownerTeacherId:string|null};
-
-function parseRange(value:string|null,size:number){
-  if(!value)return null;
-  const match=value.match(/^bytes=(\d*)-(\d*)$/);
-  if(!match||(!match[1]&&!match[2]))return "invalid" as const;
-  if(!match[1]){
-    const suffix=Number(match[2]);
-    if(!Number.isInteger(suffix)||suffix<=0)return "invalid" as const;
-    return {start:Math.max(0,size-suffix),end:size-1};
-  }
-  const start=Number(match[1]);
-  const requestedEnd=match[2]?Number(match[2]):size-1;
-  if(!Number.isInteger(start)||!Number.isInteger(requestedEnd)||start<0||start>=size||requestedEnd<start)return "invalid" as const;
-  return {start,end:Math.min(requestedEnd,size-1)};
-}
 
 export async function GET(request:NextRequest,{params}:{params:Promise<{mediaId:string}>}){
   const session=await currentSession();if(!session)return new NextResponse(null,{status:403});
@@ -48,7 +34,7 @@ export async function GET(request:NextRequest,{params}:{params:Promise<{mediaId:
   if(!isInternalMediaKey(asset.storageKey))return NextResponse.json({error:"File media tidak ditemukan."},{status:404});
   try{
     const initial=await mediaStorage.open(asset.storageKey);
-    const range=parseRange(request.headers.get("range"),initial.size);
+    const range=parseMediaRange(request.headers.get("range"),initial.size);
     if(range==="invalid"){
       initial.stream.destroy();
       return new NextResponse(null,{status:416,headers:{"content-range":`bytes */${initial.size}`,"accept-ranges":"bytes"}});
