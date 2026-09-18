@@ -1,6 +1,7 @@
 import { database, query } from "@/server/db";
 import type { StudentSession, TeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
+import { mediaDeliveryUrl } from "@/server/media/storage";
 
 export type QuestionMediaBinding={
   id:string;
@@ -86,7 +87,7 @@ export async function listQuestionMediaBindings(
   if(question.scope==="SCHOOL"&&question.school_id!==actor.schoolId) throw new AuthorizationError();
   if(question.scope==="PRIVATE"&&question.owner_teacher_id!==actor.staffUserId) throw new AuthorizationError();
 
-  return query<QuestionMediaBinding>(
+  const media=await query<QuestionMediaBinding>(
     `select qma.id,ma.id as "mediaAssetId",ma.title,ma.media_type as "mediaType",
        ma.storage_key as "storageKey",ma.mime_type as "mimeType",qma.role,qma.position,
        qma.alt_text as "altText",qma.caption
@@ -97,6 +98,7 @@ export async function listQuestionMediaBindings(
      order by case qv.status when 'DRAFT' then 0 else 1 end,qv.version_number desc,qma.position`,
     [questionId],
   );
+  return media.map(item=>({...item,storageKey:mediaDeliveryUrl(item.mediaAssetId,item.storageKey)}));
 }
 
 export async function getStudentQuestionMedia(
@@ -115,7 +117,7 @@ export async function getStudentQuestionMedia(
   );
   if(!allowed) throw new AuthorizationError();
 
-  return query<QuestionMediaBinding>(
+  const media=await query<QuestionMediaBinding>(
     `select qma.id,ma.id as "mediaAssetId",ma.title,ma.media_type as "mediaType",
        ma.storage_key as "storageKey",ma.mime_type as "mimeType",qma.role,qma.position,
        qma.alt_text as "altText",qma.caption
@@ -125,4 +127,5 @@ export async function getStudentQuestionMedia(
      order by qma.position`,
     [questionVersionId],
   );
+  return media.map(item=>({...item,storageKey:mediaDeliveryUrl(item.mediaAssetId,item.storageKey)}));
 }
