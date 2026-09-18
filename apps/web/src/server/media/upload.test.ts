@@ -1,5 +1,6 @@
 import {afterEach,describe,expect,it} from "vitest";
 import {mediaAccessDecision} from "./access";
+import {parseMediaRange} from "./range";
 import {detectMediaMime,validateMediaBytes} from "./validation";
 import {isInternalMediaKey,isLegacyMediaUrl,mediaDeliveryUrl,resolveMediaPath} from "./storage-core";
 
@@ -39,5 +40,20 @@ describe("media access decisions",()=>{
   });
   it("allows system media for authenticated actors",()=>{
     expect(mediaAccessDecision({scope:"SYSTEM",schoolId:null,ownerTeacherId:null},{kind:"student",schoolId:"school-a"})).toBe("ALLOW");
+  });
+});
+
+describe("media byte ranges",()=>{
+  it("handles open-ended and bounded ranges",()=>{
+    expect(parseMediaRange("bytes=0-",1000)).toEqual({start:0,end:999});
+    expect(parseMediaRange("bytes=100-199",1000)).toEqual({start:100,end:199});
+    expect(parseMediaRange("bytes=900-2000",1000)).toEqual({start:900,end:999});
+  });
+  it("handles suffix ranges",()=>expect(parseMediaRange("bytes=-200",1000)).toEqual({start:800,end:999}));
+  it("rejects malformed or unsatisfiable ranges",()=>{
+    expect(parseMediaRange("bytes=-",1000)).toBe("invalid");
+    expect(parseMediaRange("bytes=1000-",1000)).toBe("invalid");
+    expect(parseMediaRange("bytes=200-100",1000)).toBe("invalid");
+    expect(parseMediaRange("bytes=0-1,4-5",1000)).toBe("invalid");
   });
 });
