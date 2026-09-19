@@ -140,16 +140,16 @@ export async function getStudentSkillProfiles(session:TeacherSession):Promise<St
   const classIds=await allowedClassIds(session);
   if(!classIds.length)return [];
   const rows=await query<{
-    studentId:string;studentName:string;loginId:string;mode:SpatialMode;score:number;answeredCount:number;correctCount:number;
+    studentId:string;studentName:string;studentSortName:string;loginId:string;mode:SpatialMode;score:number;answeredCount:number;correctCount:number;
   }>(
-    `select distinct s.id as "studentId",s.full_name as "studentName",sc.login_id as "loginId",
+    `select distinct s.id as "studentId",s.full_name as "studentName",lower(s.full_name) as "studentSortName",sc.login_id as "loginId",
        sss.spatial_mode as mode,sss.score::float8 as score,sss.answered_count as "answeredCount",sss.correct_count as "correctCount"
      from spatial_skill_scores sss
      join students s on s.id=sss.student_id and s.school_id=sss.school_id
      join student_credentials sc on sc.student_id=s.id
      join enrollments e on e.student_id=s.id and e.class_id=any($2::uuid[])
      where sss.school_id=$1
-     order by lower(s.full_name),sss.spatial_mode`,
+     order by "studentSortName",mode`,
     [session.schoolId,classIds],
   );
   const grouped=new Map<string,StudentSkillProfile>();
