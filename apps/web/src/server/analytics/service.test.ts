@@ -69,7 +69,7 @@ describe("Spatial Thinking analytics authorization",()=>{
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{count:0}])
       .mockResolvedValueOnce([
-        {studentId:"student-1",studentName:"Alya",loginId:"GL-001",mode:"location",score:80,answeredCount:5,correctCount:4},
+        {studentId:"student-1",studentName:"Alya",studentSortName:"alya",loginId:"GL-001",mode:"location",score:80,answeredCount:5,correctCount:4},
       ]);
 
     const profiles=await getStudentSkillProfiles(session());
@@ -79,5 +79,7 @@ describe("Spatial Thinking analytics authorization",()=>{
       expect.stringContaining("e.class_id=any($2::uuid[])"),
       ["school-1",["class-a"]],
     );
+    expect(queryMock.mock.calls.at(-1)?.[0]).toContain('lower(s.full_name) as "studentSortName"');
+    expect(queryMock.mock.calls.at(-1)?.[0]).toContain('order by "studentSortName",mode');
   });
 });
