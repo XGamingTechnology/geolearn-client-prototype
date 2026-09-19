@@ -48,7 +48,7 @@ export default async function ResultsPage({searchParams}:{searchParams:Promise<{
             <span>{pct(item.averageScore)}</span>
             <span>{secs(item.averageDurationSeconds)}</span>
             <span>{pct(item.gisCompletionRate)}<small>{item.gisCompletedCount}/{item.gisRequiredCount}</small></span>
-            <Link href={"/teacher/results?assignment="+item.assignmentId}>Detail</Link>
+            <Link href={"/teacher/results?assignment="+item.assignmentId+"#assignment-detail"}>Detail</Link>
           </div>)}
         </div>
       </section>
@@ -82,7 +82,7 @@ export default async function ResultsPage({searchParams}:{searchParams:Promise<{
         </div>
       </section>}
 
-      {detail&&<section className="dashboard-panel analytics-section">
+      {detail&&<section id="assignment-detail" className="dashboard-panel analytics-section">
         <div className="panel-heading"><div><p className="eyebrow">Student Attempts</p><h2>{detail.assignment.title}</h2></div><Link href="/teacher/results">Tutup</Link></div>
         <div className="student-table">
           <div className="student-table-head"><span>Student ID</span><span>Nama</span><span>Status</span><span>Skor</span><span>Submitted</span></div>
