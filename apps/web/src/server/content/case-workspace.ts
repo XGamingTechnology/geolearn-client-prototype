@@ -1,4 +1,4 @@
-import { query } from "@/server/db";
+import { database, query } from "@/server/db";
 import { hasStaffPermission } from "@/server/auth/permissions";
 import type { TeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
@@ -124,4 +124,41 @@ export async function addDatasetToCase(session:TeacherSession,caseId:string,data
 export async function removeCaseLayer(session:TeacherSession,caseId:string,layerId:string){
   const item=await requireEditableCase(session,caseId);
   await query("delete from case_version_dataset_layers where id=$1 and case_version_id=$2",[layerId,item.versionId]);
+}
+
+export async function duplicateCaseWorkspace(session:TeacherSession,caseId:string):Promise<string>{
+  const source=await getCaseWorkspace(session,caseId);
+  if(!source||source.versionStatus!=="PUBLISHED"||!session.schoolId) throw new AuthorizationError();
+  const client=await database().connect();
+  try{
+    await client.query("begin");
+    const created=await client.query<{id:string}>(
+      `insert into cases(school_id,owner_teacher_id,scope,title,description,status,forked_from_case_version_id)
+       values($1,$2,'PRIVATE',$3,$4,'ACTIVE',$5) returning id`,
+      [session.schoolId,session.staffUserId,`${source.title} — Salinan`,source.description,source.versionId],
+    );
+    const newId=created.rows[0]?.id;
+    if(!newId) throw new Error("Duplicate failed");
+    const version=await client.query<{id:string}>(
+      `insert into case_versions(case_id,version_number,status,narrative,map_config,stimulus_layout_config,created_by)
+       select $1,1,'DRAFT',narrative,map_config,stimulus_layout_config,$2
+       from case_versions where id=$3 returning id`,
+      [newId,session.staffUserId,source.versionId],
+    );
+    const newVersionId=version.rows[0]?.id;
+    if(!newVersionId) throw new Error("Duplicate version failed");
+    await client.query(
+      `insert into case_version_dataset_layers(case_version_id,dataset_version_id,role,position,visible,opacity,alias,style_json)
+       select $1,dataset_version_id,role,position,visible,opacity,alias,style_json
+       from case_version_dataset_layers where case_version_id=$2`,
+      [newVersionId,source.versionId],
+    );
+    await client.query("commit");
+    return newId;
+  }catch(error){
+    await client.query("rollback");
+    throw error;
+  }finally{
+    client.release();
+  }
 }
