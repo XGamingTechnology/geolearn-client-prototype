@@ -80,7 +80,6 @@ export function GisStudioLeafletMap({
 
   useEffect(()=>{
     let active=true;
-    setLoading(true);
     fetch(`/api/gis/projects/${projectId}/map?refresh=${encodeURIComponent(refreshKey)}`,{cache:"no-store"})
       .then(async(response)=>{
         const body=await response.json();
