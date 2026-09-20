@@ -67,8 +67,55 @@
 .errorBox{padding:9px 10px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:9px;line-height:1.45}
 .helpText{margin:0;color:#64748b;font-size:9px;line-height:1.45}
 
+.layerRow{width:100%;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:8px}
+.layerIdentity{min-width:0}
+.layerIdentity strong,.layerIdentity small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layerIdentity small{margin-top:3px;color:#94a3b8;font-size:8px}
+.styleToggle{
+  min-height:28px;
+  padding:5px 9px;
+  border:1px solid #dbe3ef;
+  border-radius:8px;
+  background:#fff;
+  color:#2563eb;
+  font-size:8px;
+  font-weight:800;
+  cursor:pointer;
+}
+.styleToggle:hover{background:#eff6ff;border-color:#bfdbfe}
+.styleEditor{
+  grid-column:1/-1;
+  width:100%;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+  padding:10px;
+  border-top:1px solid #eef2f7;
+  background:#f8fafc;
+  border-radius:10px;
+}
+.styleEditor label{display:grid;gap:5px;color:#475569;font-size:8px;font-weight:750}
+.styleEditor input[type="color"]{width:100%;height:30px;padding:2px;border:1px solid #cbd5e1;border-radius:7px;background:#fff}
+.styleEditor input[type="range"]{width:100%;accent-color:#2563eb}
+.styleEditor select{width:100%;height:30px;padding:0 7px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#334155;font-size:8px}
+.saveStyleButton{
+  grid-column:1/-1;
+  min-height:32px;
+  border:0;
+  border-radius:8px;
+  background:#2563eb;
+  color:#fff;
+  font-size:9px;
+  font-weight:800;
+  cursor:pointer;
+}
+.saveStyleButton:disabled{opacity:.5;cursor:not-allowed}
+
 @media (max-width:900px){
   .modeGrid{grid-template-columns:1fr}
   .actions{grid-template-columns:1fr}
   .saveButton{grid-column:auto}
+  .styleEditor{grid-template-columns:1fr}
+  .saveStyleButton{grid-column:auto}
 }
