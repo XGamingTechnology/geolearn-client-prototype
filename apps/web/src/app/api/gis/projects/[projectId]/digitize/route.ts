@@ -6,12 +6,12 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{project
   try{
     const actor=await requireTeacherSession();
     const {projectId}=await params;
-    const body=await request.json() as {title?:string;geometry?:unknown};
+    const body=await request.json() as {title?:string;geometry?:unknown;geometries?:unknown};
     const result=await createDigitizedDataset({
       actor,
       projectId,
       title:String(body.title??""),
-      geometry:body.geometry,
+      geometries:body.geometries??body.geometry,
     });
     return NextResponse.json({ok:true,...result});
   }catch(error){
