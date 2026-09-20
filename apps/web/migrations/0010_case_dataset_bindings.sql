@@ -23,12 +23,21 @@ DECLARE
   parent_id uuid;
   parent_status text;
 BEGIN
-  parent_id := COALESCE(NEW.case_version_id, OLD.case_version_id);
+  IF TG_OP = 'DELETE' THEN
+    parent_id := OLD.case_version_id;
+  ELSE
+    parent_id := NEW.case_version_id;
+  END IF;
+
   SELECT status INTO parent_status FROM case_versions WHERE id = parent_id;
   IF parent_status IS DISTINCT FROM 'DRAFT' THEN
     RAISE EXCEPTION 'Published CaseVersion dataset bindings are immutable';
   END IF;
-  RETURN COALESCE(NEW, OLD);
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
