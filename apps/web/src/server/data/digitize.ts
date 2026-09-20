@@ -34,7 +34,7 @@ function normalizeGeometry(value:unknown):DigitizedGeometry{
     if(!Array.isArray(input.coordinates)||input.coordinates.length<2||input.coordinates.length>2000||!input.coordinates.every(validPosition)){
       throw new Error("Line membutuhkan minimal 2 vertex dan maksimal 2000 vertex.");
     }
-    return {type:"LineString",coordinates:input.coordinates.map((p)=>[p[0],p[1]])};
+    return {type:"LineString",coordinates:input.coordinates.map((p)=>[p[0],p[1]] as Position)};
   }
   if(input.type==="Polygon"){
     if(!Array.isArray(input.coordinates)||input.coordinates.length!==1||!Array.isArray(input.coordinates[0])){
