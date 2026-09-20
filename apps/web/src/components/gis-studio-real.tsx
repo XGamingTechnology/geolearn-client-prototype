@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import styles from "./gis-studio-real.module.css";
 
 const GisStudioLeafletMap=dynamic(()=>import("./gis-studio-leaflet-map").then((m)=>m.GisStudioLeafletMap),{ssr:false});
 
@@ -37,6 +38,7 @@ export function GisStudioReal({
   const [activeTool,setActiveTool]=useState<"buffer"|"overlay"|"distance">("buffer");
   const [distance,setDistance]=useState(500);
   const [result,setResult]=useState("");
+  const [digitizeError,setDigitizeError]=useState("");
   const [busy,setBusy]=useState(false);
   const [digitizeMode,setDigitizeMode]=useState<DigitizeMode>(null);
   const [digitizeVertices,setDigitizeVertices]=useState<DigitizeVertex[]>([]);
@@ -45,6 +47,7 @@ export function GisStudioReal({
   const available=useMemo(()=>datasets.filter((d)=>!layers.some((l)=>l.datasetId===d.id)),[datasets,layers]);
   const minVertices=digitizeMode==="point"?1:digitizeMode==="line"?2:digitizeMode==="polygon"?3:0;
   const canSaveDigitize=Boolean(digitizeMode&&digitizeTitle.trim()&&digitizeVertices.length>=minVertices);
+  const modeLabel=digitizeMode==="point"?"Point":digitizeMode==="line"?"Line":digitizeMode==="polygon"?"Polygon":"";
 
   useEffect(()=>{
     if(!autoDatasetId||autoAddedRef.current||layers.some((layer)=>layer.datasetId===autoDatasetId))return;
@@ -97,12 +100,14 @@ export function GisStudioReal({
   function beginDigitize(mode:Exclude<DigitizeMode,null>){
     setDigitizeMode(mode);
     setDigitizeVertices([]);
+    setDigitizeError("");
     setDigitizeTitle(mode==="point"?"Titik baru":mode==="line"?"Garis baru":"Wilayah baru");
     setResult(`Mode digitize ${mode} aktif. Klik peta untuk menambah vertex.`);
   }
 
   function addDigitizeVertex(vertex:DigitizeVertex){
     if(!digitizeMode)return;
+    setDigitizeError("");
     setDigitizeVertices((current)=>digitizeMode==="point"?[vertex]:current.length>=2000?current:[...current,vertex]);
   }
 
@@ -110,6 +115,7 @@ export function GisStudioReal({
     setDigitizeMode(null);
     setDigitizeVertices([]);
     setDigitizeTitle("");
+    setDigitizeError("");
     setResult("");
   }
 
@@ -121,18 +127,26 @@ export function GisStudioReal({
 
   async function saveDigitize(){
     if(!canSaveDigitize||!digitizeMode)return;
-    setBusy(true);setResult("Menyimpan geometry ke PostGIS…");
-    const response=await fetch(`/api/gis/projects/${projectId}/digitize`,{
-      method:"POST",
-      headers:{"content-type":"application/json"},
-      body:JSON.stringify({title:digitizeTitle,geometry:digitizeGeometry()}),
-    });
-    const payload=await response.json();
-    setBusy(false);
-    if(!response.ok){setResult(payload.error??"Digitize gagal disimpan.");return;}
-    setDigitizeMode(null);setDigitizeVertices([]);setDigitizeTitle("");
-    setResult("Layer digitize tersimpan sebagai DatasetVersion dan ditambahkan ke project.");
-    router.refresh();
+    setBusy(true);setDigitizeError("");setResult("Menyimpan geometry ke PostGIS…");
+    try{
+      const response=await fetch(`/api/gis/projects/${projectId}/digitize`,{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({title:digitizeTitle,geometry:digitizeGeometry()}),
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok){
+        const message=typeof payload.error==="string"?payload.error:"Digitize gagal disimpan.";
+        setDigitizeError(message);
+        setResult(message);
+        return;
+      }
+      setDigitizeMode(null);setDigitizeVertices([]);setDigitizeTitle("");
+      setResult("Layer digitize tersimpan sebagai DatasetVersion dan ditambahkan ke project.");
+      router.refresh();
+    }finally{
+      setBusy(false);
+    }
   }
 
   return (
@@ -153,25 +167,32 @@ export function GisStudioReal({
             <button className="add-layer-button" disabled={busy||!selectedDataset} onClick={addLayer} type="button">+ Add Layer</button>
           </div>
 
-          <div className="gis-digitize-panel">
-            <strong>+ Buat Layer</strong>
-            <small>Digitize langsung di peta, lalu simpan sebagai dataset reusable.</small>
-            <div className="gis-digitize-modes">
-              <button type="button" className={digitizeMode==="point"?"active":""} onClick={()=>beginDigitize("point")}>Point</button>
-              <button type="button" className={digitizeMode==="line"?"active":""} onClick={()=>beginDigitize("line")}>Line</button>
-              <button type="button" className={digitizeMode==="polygon"?"active":""} onClick={()=>beginDigitize("polygon")}>Polygon</button>
+          <section className={styles.digitizePanel}>
+            <div className={styles.digitizeHeader}>
+              <div className={styles.digitizeTitle}><span className={styles.digitizeBadge}>✦</span><span>Buat Layer Baru</span></div>
+              <p className={styles.digitizeDescription}>Gambar langsung di peta. Setelah disimpan, geometry menjadi dataset reusable di Data Bank.</p>
             </div>
-            {digitizeMode&&<div className="gis-digitize-editor">
-              <label>Nama layer<input value={digitizeTitle} maxLength={220} onChange={(e)=>setDigitizeTitle(e.target.value)}/></label>
-              <span>{digitizeVertices.length} vertex · minimum {minVertices}</span>
-              <div className="gis-digitize-actions">
-                <button type="button" disabled={!digitizeVertices.length||busy} onClick={()=>setDigitizeVertices((current)=>current.slice(0,-1))}>Undo vertex</button>
-                <button type="button" disabled={!digitizeVertices.length||busy} onClick={()=>setDigitizeVertices([])}>Reset</button>
-                <button type="button" disabled={busy} onClick={cancelDigitize}>Batal</button>
-                <button className="button" type="button" disabled={!canSaveDigitize||busy} onClick={saveDigitize}>{busy?"Saving…":"Simpan Layer"}</button>
+            <div className={styles.modeGrid}>
+              {(["point","line","polygon"] as const).map((mode)=><button
+                type="button"
+                key={mode}
+                className={`${styles.modeButton} ${digitizeMode===mode?styles.modeActive:""}`}
+                onClick={()=>beginDigitize(mode)}
+              >{mode==="point"?"Point":mode==="line"?"Line":"Polygon"}</button>)}
+            </div>
+            {digitizeMode&&<div className={styles.editor}>
+              <label className={styles.field}>Nama layer<input className={styles.input} value={digitizeTitle} maxLength={220} onChange={(e)=>setDigitizeTitle(e.target.value)}/></label>
+              <div className={styles.vertexMeta}><span>{modeLabel} aktif</span><strong>{digitizeVertices.length} vertex · min {minVertices}</strong></div>
+              <p className={styles.helpText}>Klik peta untuk menambah vertex. Titik terakhir diberi label agar posisi drawing mudah dilacak.</p>
+              {digitizeError&&<div className={styles.errorBox}>{digitizeError}</div>}
+              <div className={styles.actions}>
+                <button className={styles.secondaryButton} type="button" disabled={!digitizeVertices.length||busy} onClick={()=>setDigitizeVertices((current)=>current.slice(0,-1))}>Undo vertex</button>
+                <button className={styles.secondaryButton} type="button" disabled={!digitizeVertices.length||busy} onClick={()=>setDigitizeVertices([])}>Reset</button>
+                <button className={`${styles.secondaryButton} ${styles.cancelButton}`} type="button" disabled={busy} onClick={cancelDigitize}>Batal</button>
+                <button className={`button ${styles.saveButton}`} type="button" disabled={!canSaveDigitize||busy} onClick={saveDigitize}>{busy?"Menyimpan…":"Simpan Layer"}</button>
               </div>
             </div>}
-          </div>
+          </section>
 
           <div className="gis-layer-list">
             {layers.map((layer)=>(

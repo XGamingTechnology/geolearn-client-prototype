@@ -1,0 +1,74 @@
+.digitizePanel{
+  display:grid;
+  gap:12px;
+  margin:14px 0;
+  padding:14px;
+  border:1px solid #dbe3ef;
+  border-radius:16px;
+  background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+  box-shadow:0 6px 18px rgba(15,23,42,.04);
+}
+
+.digitizeHeader{display:grid;gap:4px}
+.digitizeTitle{display:flex;align-items:center;gap:8px;color:#0f172a;font-size:13px;font-weight:800}
+.digitizeBadge{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:#eff6ff;color:#2563eb;font-size:11px;font-weight:800}
+.digitizeDescription{margin:0;color:#64748b;font-size:10px;line-height:1.5}
+
+.modeGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.modeButton{
+  min-height:38px;
+  padding:8px 6px;
+  border:1px solid #dbe3ef;
+  border-radius:10px;
+  background:#fff;
+  color:#475569;
+  font-size:10px;
+  font-weight:750;
+  cursor:pointer;
+}
+.modeButton:hover{border-color:#93c5fd;background:#f8fbff;color:#1d4ed8}
+.modeActive{border-color:#2563eb;background:#eff6ff;color:#1d4ed8;box-shadow:0 0 0 2px rgba(37,99,235,.08)}
+
+.editor{display:grid;gap:10px;padding-top:2px}
+.field{display:grid;gap:6px;color:#334155;font-size:10px;font-weight:750}
+.input{
+  width:100%;
+  min-width:0;
+  height:40px;
+  padding:0 11px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  color:#0f172a;
+  outline:none;
+}
+.input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+
+.vertexMeta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:10px;background:#f1f5f9;color:#475569;font-size:9px}
+.vertexMeta strong{color:#0f172a;font-size:10px}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.secondaryButton{
+  min-height:36px;
+  padding:7px 8px;
+  border:1px solid #dbe3ef;
+  border-radius:9px;
+  background:#fff;
+  color:#475569;
+  font-size:9px;
+  font-weight:750;
+  cursor:pointer;
+}
+.secondaryButton:hover:not(:disabled){border-color:#bfdbfe;background:#f8fbff;color:#1d4ed8}
+.secondaryButton:disabled{opacity:.45;cursor:not-allowed}
+.cancelButton{color:#b45309}
+.saveButton{grid-column:1/-1;width:100%;min-height:40px;border-radius:10px;box-shadow:none}
+
+.errorBox{padding:9px 10px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:9px;line-height:1.45}
+.helpText{margin:0;color:#64748b;font-size:9px;line-height:1.45}
+
+@media (max-width:900px){
+  .modeGrid{grid-template-columns:1fr}
+  .actions{grid-template-columns:1fr}
+  .saveButton{grid-column:auto}
+}
