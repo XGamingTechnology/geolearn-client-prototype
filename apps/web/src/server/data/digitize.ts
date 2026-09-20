@@ -87,10 +87,12 @@ export async function createDigitizedDataset(input:{
     const datasetId=created.rows[0]?.id;
     if(!datasetId)throw new Error("Dataset gagal dibuat.");
 
+    // Keep the version DRAFT until every mutable field (including bbox) is finalized.
+    // Published DatasetVersions are protected by the immutable-version trigger.
     const version=await client.query<{id:string}>(
       `insert into dataset_versions(dataset_id,version_number,format,srid,geometry_type,feature_count,
-        schema_json,default_style_json,processing_status,status,created_by,published_at)
-       values($1,1,'GeoJSON',4326,$2,1,'{}'::jsonb,'{}'::jsonb,'READY','PUBLISHED',$3,now()) returning id`,
+        schema_json,default_style_json,processing_status,status,created_by)
+       values($1,1,'GeoJSON',4326,$2,1,'{}'::jsonb,'{}'::jsonb,'READY','DRAFT',$3) returning id`,
       [datasetId,geometry.type,input.actor.staffUserId],
     );
     const datasetVersionId=version.rows[0]?.id;
@@ -110,6 +112,11 @@ export async function createDigitizedDataset(input:{
     await client.query("update dataset_versions set bbox=$2::jsonb where id=$1",[
       datasetVersionId,JSON.stringify(extent.rows[0]?.bbox??null),
     ]);
+
+    await client.query(
+      "update dataset_versions set status='PUBLISHED',published_at=now() where id=$1 and status='DRAFT'",
+      [datasetVersionId],
+    );
 
     const position=await client.query<{next:number}>(
       "select coalesce(max(position),0)+1 as next from gis_project_layers where project_id=$1",
