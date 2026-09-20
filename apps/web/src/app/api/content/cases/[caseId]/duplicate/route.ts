@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
-import { duplicateCase } from "@/server/content/service";
+import { duplicateCaseWorkspace } from "@/server/content/case-workspace";
 
-export async function POST(request:NextRequest,{params}:{params:Promise<{caseId:string}>}){
+function seeOther(path:string){return new Response(null,{status:303,headers:{Location:path}});}
+
+export async function POST(_request:Request,{params}:{params:Promise<{caseId:string}>}){
   const {caseId}=await params;
   try{
     const actor=await requireTeacherSession();
-    const newId=await duplicateCase(actor,caseId);
-    return NextResponse.redirect(new URL("/teacher/cases/"+newId,request.url),303);
+    const newId=await duplicateCaseWorkspace(actor,caseId);
+    return seeOther(`/teacher/cases/${newId}`);
   }catch{
-    return NextResponse.redirect(new URL("/teacher/cases/"+caseId+"?status=error",request.url),303);
+    return seeOther(`/teacher/cases/${caseId}?status=error`);
   }
 }
