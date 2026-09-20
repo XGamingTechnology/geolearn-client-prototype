@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireTeacherSession } from "@/server/auth/session";
 import { listDatasets } from "@/server/data/service";
+import styles from "./data-upload.module.css";
 
 function accent(type:string|null){return type==="Point"||type==="MultiPoint"?"point":type?.includes("Line")?"river":type?.includes("Polygon")?"polygon":"raster";}
 
@@ -17,15 +18,30 @@ export default async function DataPage({searchParams}:{searchParams:Promise<{sta
       </header>
       {status==="error"&&<p className="account-alert error">{message||"Upload dataset gagal. Periksa format dan isi file."}</p>}
 
-      <details className="class-create-panel">
-        <summary>+ Upload Dataset</summary>
-        <form action="/api/data/datasets" method="post" encType="multipart/form-data" className="dataset-upload-form">
-          <label>Judul<input name="title" maxLength={220} placeholder="Sekolah Pekanbaru"/></label>
-          <label>Scope<select name="scope" defaultValue="PRIVATE"><option value="PRIVATE">My Data</option><option value="SCHOOL">School Data</option></select></label>
-          <label>Deskripsi<input name="description" placeholder="Keterangan dataset"/></label>
-          <label>File dataset<input name="file" type="file" accept=".geojson,.json,.kml,.kmz,.zip,application/geo+json,application/json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/zip" required/></label>
-          <p className="form-help">Didukung: GeoJSON/JSON, KML, KMZ, dan ESRI Shapefile dalam ZIP. ZIP Shapefile wajib berisi satu layer lengkap .shp + .shx + .dbf + .prj. Maksimal 20 MB dan 5000 feature.</p>
-          <button className="button" type="submit">Upload & Publish Version</button>
+      <details className={styles.uploadCard}>
+        <summary className={styles.uploadSummary}>Upload Dataset</summary>
+        <form action="/api/data/datasets" method="post" encType="multipart/form-data" className={styles.form}>
+          <label className={styles.field}>Judul
+            <input className={styles.input} name="title" maxLength={220} placeholder="Sekolah Pekanbaru"/>
+          </label>
+          <label className={styles.field}>Scope
+            <select className={styles.select} name="scope" defaultValue="PRIVATE"><option value="PRIVATE">My Data</option><option value="SCHOOL">School Data</option></select>
+          </label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>Deskripsi
+            <input className={styles.input} name="description" placeholder="Keterangan singkat dataset"/>
+          </label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>File dataset
+            <input className={styles.file} name="file" type="file" accept=".geojson,.json,.kml,.kmz,.zip,application/geo+json,application/json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/zip" required/>
+          </label>
+
+          <div className={styles.formatGrid} aria-label="Supported dataset formats">
+            <div className={styles.formatItem}><strong>GeoJSON</strong>.geojson / .json</div>
+            <div className={styles.formatItem}><strong>KML</strong>.kml</div>
+            <div className={styles.formatItem}><strong>KMZ</strong>.kmz</div>
+            <div className={styles.formatItem}><strong>Shapefile</strong>ZIP: .shp + .shx + .dbf + .prj</div>
+          </div>
+          <p className={styles.help}>Maksimal 20 MB dan 5000 feature. Geometry 3D dari KML/KMZ akan dinormalisasi menjadi geometry 2D EPSG:4326 untuk penyimpanan PostGIS GeoLearn.</p>
+          <div className={styles.actions}><button className={`button ${styles.submit}`} type="submit">Upload & Publish</button></div>
         </form>
       </details>
 
