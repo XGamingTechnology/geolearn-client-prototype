@@ -75,7 +75,7 @@ export async function persistImportedVector(input:{
       const sourceFeatureId=feature.id!==undefined?String(feature.id):String(++index);
       await client.query(
         `insert into dataset_features(dataset_version_id,source_feature_id,geom,properties)
-         values($1,$2,ST_SetSRID(ST_GeomFromGeoJSON($3),4326),$4::jsonb)`,
+         values($1,$2,ST_Force2D(ST_SetSRID(ST_GeomFromGeoJSON($3),4326)),$4::jsonb)`,
         [versionId,sourceFeatureId,geometryJson,properties],
       );
     }
