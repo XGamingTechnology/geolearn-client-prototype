@@ -50,17 +50,29 @@ function normalizeGeometry(value:unknown):DigitizedGeometry{
   throw new Error("Tipe geometry harus Point, LineString, atau Polygon.");
 }
 
+function normalizeGeometries(value:unknown):DigitizedGeometry[]{
+  const raw=Array.isArray(value)?value:[value];
+  if(raw.length===0)throw new Error("Minimal satu geometry harus dibuat.");
+  if(raw.length>2000)throw new Error("Maksimal 2000 feature dalam satu layer digitize.");
+  const geometries=raw.map(normalizeGeometry);
+  const geometryType=geometries[0]?.type;
+  if(!geometryType||!geometries.every((geometry)=>geometry.type===geometryType)){
+    throw new Error("Satu layer digitize hanya boleh berisi satu tipe geometry.");
+  }
+  return geometries;
+}
+
 export async function createDigitizedDataset(input:{
   actor:TeacherSession;
   projectId:string;
   title:string;
-  geometry:unknown;
+  geometries:unknown;
 }):Promise<{datasetId:string;datasetVersionId:string;layerId:string}>{
   const title=input.title.trim();
   if(!title||title.length>220)throw new Error("Judul layer wajib diisi dan maksimal 220 karakter.");
   if(!input.actor.schoolId)throw new AuthorizationError();
-  const geometry=normalizeGeometry(input.geometry);
-  const geometryJson=JSON.stringify(geometry);
+  const geometries=normalizeGeometries(input.geometries);
+  const geometryType=geometries[0].type;
 
   const client=await database().connect();
   try{
@@ -72,12 +84,15 @@ export async function createDigitizedDataset(input:{
     );
     if(!project.rows[0])throw new AuthorizationError();
 
-    const validity=await client.query<{valid:boolean;empty:boolean}>(
-      `select ST_IsValid(g) as valid,ST_IsEmpty(g) as empty
-       from (select ST_SetSRID(ST_GeomFromGeoJSON($1),4326) as g) x`,
-      [geometryJson],
-    );
-    if(!validity.rows[0]?.valid||validity.rows[0]?.empty)throw new Error("Geometry tidak valid. Periksa bentuk yang digambar.");
+    for(const geometry of geometries){
+      const geometryJson=JSON.stringify(geometry);
+      const validity=await client.query<{valid:boolean;empty:boolean}>(
+        `select ST_IsValid(g) as valid,ST_IsEmpty(g) as empty
+         from (select ST_SetSRID(ST_GeomFromGeoJSON($1),4326) as g) x`,
+        [geometryJson],
+      );
+      if(!validity.rows[0]?.valid||validity.rows[0]?.empty)throw new Error("Geometry tidak valid. Periksa bentuk yang digambar.");
+    }
 
     const created=await client.query<{id:string}>(
       `insert into datasets(school_id,owner_teacher_id,scope,title,description,data_kind,source_type,status)
@@ -87,22 +102,23 @@ export async function createDigitizedDataset(input:{
     const datasetId=created.rows[0]?.id;
     if(!datasetId)throw new Error("Dataset gagal dibuat.");
 
-    // Keep the version DRAFT until every mutable field (including bbox) is finalized.
-    // Published DatasetVersions are protected by the immutable-version trigger.
     const version=await client.query<{id:string}>(
       `insert into dataset_versions(dataset_id,version_number,format,srid,geometry_type,feature_count,
         schema_json,default_style_json,processing_status,status,created_by)
-       values($1,1,'GeoJSON',4326,$2,1,'{}'::jsonb,'{}'::jsonb,'READY','DRAFT',$3) returning id`,
-      [datasetId,geometry.type,input.actor.staffUserId],
+       values($1,1,'GeoJSON',4326,$2,$3,'{}'::jsonb,'{}'::jsonb,'READY','DRAFT',$4) returning id`,
+      [datasetId,geometryType,geometries.length,input.actor.staffUserId],
     );
     const datasetVersionId=version.rows[0]?.id;
     if(!datasetVersionId)throw new Error("DatasetVersion gagal dibuat.");
 
-    await client.query(
-      `insert into dataset_features(dataset_version_id,source_feature_id,geom,properties)
-       values($1,'1',ST_SetSRID(ST_GeomFromGeoJSON($2),4326),$3::jsonb)`,
-      [datasetVersionId,geometryJson,JSON.stringify({source:"GIS Studio digitize"})],
-    );
+    for(let index=0;index<geometries.length;index+=1){
+      const geometryJson=JSON.stringify(geometries[index]);
+      await client.query(
+        `insert into dataset_features(dataset_version_id,source_feature_id,geom,properties)
+         values($1,$2,ST_SetSRID(ST_GeomFromGeoJSON($3),4326),$4::jsonb)`,
+        [datasetVersionId,String(index+1),geometryJson,JSON.stringify({source:"GIS Studio digitize"})],
+      );
+    }
 
     const extent=await client.query<{bbox:unknown}>(
       `select jsonb_build_array(ST_XMin(ext),ST_YMin(ext),ST_XMax(ext),ST_YMax(ext)) as bbox
