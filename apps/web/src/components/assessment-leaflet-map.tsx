@@ -16,6 +16,7 @@ type MapLayer={
   opacity:number;
   geojson:GeoJsonObject;
 };
+type AnalysisLayer={toolId:string;title:string;geojson:GeoJsonObject|null};
 type Payload={layers:MapLayer[];bbox:[number,number,number,number]|null};
 
 function FitToData({bbox}:{bbox:Payload["bbox"]}){
@@ -36,18 +37,36 @@ function bindSafePopup(feature:Feature<Geometry>,layer:Layer){
   layer.bindPopup(content);
 }
 
+function analysisStyle(toolId:string):L.PathOptions{
+  if(toolId==="buffer")return {color:"#d97706",fillColor:"#f59e0b",weight:3,dashArray:"7 5",fillOpacity:.22};
+  if(toolId==="overlay")return {color:"#7c3aed",fillColor:"#8b5cf6",weight:4,fillOpacity:.38};
+  return {color:"#db2777",weight:4,dashArray:"10 6",fillOpacity:.08};
+}
+
+function analysisPointStyle(toolId:string){
+  const style=analysisStyle(toolId);
+  return {radius:8,color:String(style.color),fillColor:String(style.fillColor??style.color),fillOpacity:.85,weight:3};
+}
+
+function analysisColor(toolId:string){
+  if(toolId==="buffer")return "#d97706";
+  if(toolId==="overlay")return "#7c3aed";
+  return "#db2777";
+}
+
 export function AssessmentLeafletMap({
   attemptId,
   questionVersionId,
-  analysisGeojson,
+  analyses,
 }:{
   attemptId:string;
   questionVersionId:string;
-  analysisGeojson:GeoJsonObject|null;
+  analyses:AnalysisLayer[];
 }){
   const [payload,setPayload]=useState<Payload|null>(null);
   const [error,setError]=useState("");
   const [visibility,setVisibility]=useState<Record<string,boolean>>({});
+  const [analysisVisibility,setAnalysisVisibility]=useState<Record<string,boolean>>({});
 
   useEffect(()=>{
     let active=true;
@@ -88,12 +107,16 @@ export function AssessmentLeafletMap({
             <Tooltip sticky>{layer.title} · {layer.role}</Tooltip>
           </GeoJSON>
         ))}
-        {analysisGeojson&&<GeoJSON data={analysisGeojson} style={{color:"#d97706",fillColor:"#f59e0b",weight:3,dashArray:"6 5",fillOpacity:.25}} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,{radius:7,color:"#d97706",fillColor:"#f59e0b",fillOpacity:.75})}><Tooltip sticky>Hasil analisis PostGIS</Tooltip></GeoJSON>}
+        {analyses.filter((analysis)=>analysis.geojson&&(analysisVisibility[analysis.toolId]??true)).map((analysis)=>(
+          <GeoJSON key={analysis.toolId} data={analysis.geojson!} style={analysisStyle(analysis.toolId)} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,analysisPointStyle(analysis.toolId))} onEachFeature={bindSafePopup}>
+            <Tooltip sticky>{analysis.title} · hasil PostGIS</Tooltip>
+          </GeoJSON>
+        ))}
       </MapContainer>
       <aside className="runtime-layer-list">
-        <strong>DatasetVersion</strong>
+        <strong>Layer Peta</strong>
         {payload.layers.map((layer)=><label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}</small></label>)}
-        {analysisGeojson&&<span><i className="runtime-layer-dot analysis"/>Hasil analisis<small>POSTGIS</small></span>}
+        {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
       </aside>
     </div>
   );
