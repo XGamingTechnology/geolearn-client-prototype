@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
-import { createQuestionDraft } from "@/server/content/service";
+import { createQuestionDraft, type ContentScope } from "@/server/content/service";
+import { attachQuestionToGroup, resolveQuestionGroupForCreate } from "@/server/content/question-groups";
 import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 import { publicRedirectUrl } from "@/server/http/public-url";
@@ -13,6 +14,7 @@ function answers(form:FormData){return (["A","B","C","D","E"] as const).map(id=>
 function failureReason(error:unknown){
   if(error instanceof AuthorizationError)return "permission";
   const message=error instanceof Error?error.message:"";
+  if(/stimulus set|group|scope soal|stimulus soal/i.test(message))return "group";
   if(/dataset|binding|version/i.test(message))return "dataset";
   return "save";
 }
@@ -50,25 +52,37 @@ function datasetBindings(form:FormData):Array<{datasetId:string;role:QuestionDat
     return {datasetId,role};
   });
 }
+function contentScope(value:string):ContentScope{
+  if(value!=="SYSTEM"&&value!=="SCHOOL"&&value!=="PRIVATE")throw new Error("Scope tidak valid.");
+  return value;
+}
 
 export async function POST(request:NextRequest){
+  const groupId=String(request.nextUrl.searchParams.get("groupId")??"").trim();
   try{
     const actor=await requireTeacherSession();
     const form=await request.formData();
     const correct=String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E";
     const stimulus=String(form.get("stimulusType")??"text");
+    const scope=contentScope(String(form.get("scope")??"PRIVATE"));
+    if(groupId){
+      const group=await resolveQuestionGroupForCreate(actor,groupId,scope);
+      if(!group||group.stimulusType!==stimulus)throw new Error("Stimulus soal harus sama dengan Stimulus Set.");
+    }
     const bindings=stimulus==="webgis"?datasetBindings(form):[];
     const id=await createQuestionDraft({
-      actor,title:String(form.get("title")??""),subject:String(form.get("subject")??""),topic:String(form.get("topic")??""),scope:String(form.get("scope")??"PRIVATE"),
+      actor,title:String(form.get("title")??""),subject:String(form.get("subject")??""),topic:String(form.get("topic")??""),scope,
       spatialMode:String(form.get("spatialMode")??"location"),difficulty:String(form.get("difficulty")??"Sedang"),prompt:String(form.get("prompt")??""),stimulusType:stimulus,
       answers:answers(form),correctAnswer:correct,responseType:String(form.get("responseType")??"multiple-choice"),feedbackCorrect:String(form.get("feedbackCorrect")??""),feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
       activityConfig:activityConfig(form),validationConfig:spatialValidationConfig(form),
     });
+    if(groupId)await attachQuestionToGroup({actor,questionId:id,groupId,questionScope:scope,stimulusType:stimulus});
     await replaceQuestionDraftDatasetBindings(actor,id,bindings);
     await replaceQuestionDraftMediaBindings(actor,id,stimulus==="image"||stimulus==="video"?[{mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")}]:[]);
     return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/"+id),303);
   }catch(error){
     console.error("Question draft creation failed",error);
-    return NextResponse.redirect(publicRedirectUrl(request,`/teacher/questions/new?status=error&reason=${failureReason(error)}`),303);
+    const groupQuery=groupId?`&groupId=${encodeURIComponent(groupId)}`:"";
+    return NextResponse.redirect(publicRedirectUrl(request,`/teacher/questions/new?status=error&reason=${failureReason(error)}${groupQuery}`),303);
   }
 }
