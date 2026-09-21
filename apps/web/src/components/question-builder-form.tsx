@@ -3,21 +3,46 @@
 
 import {useState,type FormEvent} from "react";
 import Link from "next/link";
-import {answerIds,configurationSummary,normalizeAnswers,stimulusControls,validateForPublish,type AnswerId,type ResponseType,type StimulusType} from "@/features/questions/builder";
+import {
+  answerIds,configurationSummary,normalizeAnswers,stimulusControls,validateForPublish,
+  type AnswerId,type DatasetRole,type DatasetSelection,type ResponseType,type StimulusType,
+} from "@/features/questions/builder";
 
 type Dataset={id:string;title:string;geometryType?:string|null};
 type Media={id:string;title:string;mediaType:"IMAGE"|"VIDEO"|"DOCUMENT"|"ILLUSTRATION";mimeType:string|null;storageKey:string|null};
-export type QuestionBuilderInitial={title?:string;subject?:string;topic?:string;scope?:string;spatialMode?:string;difficulty?:string;prompt?:string;stimulusType?:string;responseType?:string;answers?:Array<{id:string;label:string}>;correctAnswer?:string;requiredGisTool?:string;bufferDistance?:number;sourceDatasetId?:string;targetDatasetId?:string;stimulusMediaId?:string;mediaAltText?:string;mediaCaption?:string;spatialValidationMethod?:string;maxDistanceMeters?:number;minOverlapRatio?:number;feedbackCorrect?:string;feedbackIncorrect?:string};
+export type QuestionBuilderInitial={
+  title?:string;subject?:string;topic?:string;scope?:string;spatialMode?:string;difficulty?:string;prompt?:string;stimulusType?:string;responseType?:string;
+  answers?:Array<{id:string;label:string}>;correctAnswer?:string;bufferDistance?:number;
+  datasetBindings?:DatasetSelection[];allowedGisTools?:string[];requiredGisTools?:string[];
+  requiredGisTool?:string;sourceDatasetId?:string;targetDatasetId?:string;
+  stimulusMediaId?:string;mediaAltText?:string;mediaCaption?:string;spatialValidationMethod?:string;maxDistanceMeters?:number;minOverlapRatio?:number;
+  feedbackCorrect?:string;feedbackIncorrect?:string;
+};
 const modes=["location","condition","influence","region","hierarchy","analogy","pattern","association"];
+const difficulties=["Mudah","Sedang","Sulit"] as const;
+const gisTools=[
+  {id:"buffer",label:"Buffer",description:"Membuat zona jarak dari SOURCE layer."},
+  {id:"overlay",label:"Overlay",description:"Mencari irisan SOURCE dan TARGET."},
+  {id:"distance",label:"Distance",description:"Menghitung jarak minimum SOURCE ke TARGET."},
+] as const;
 const help:Record<string,string>={
   "Spatial Mode":"Cara berpikir spasial yang dilatih oleh soal ini.",Stimulus:"Bentuk informasi yang dilihat siswa sebelum menjawab.",
-  "SOURCE Dataset":"Layer utama yang dianalisis siswa, misalnya sungai, jalan, atau zona bahaya.","TARGET Dataset":"Layer pembanding atau objek sasaran, misalnya sekolah atau permukiman.",
-  "Required GIS Tool":"Aktivitas GIS yang wajib diselesaikan siswa.","Buffer Distance":"Jarak area Buffer dalam meter.",Buffer:"Membuat area dalam jarak tertentu dari feature menggunakan PostGIS.",
+  "Dataset Layers":"Pilih semua layer yang dibutuhkan. SOURCE/TARGET dipakai analisis PostGIS; layer tambahan dapat menjadi CONTEXT.",
+  "GIS Tools":"Aktifkan satu atau beberapa tool. Tandai Wajib jika tool harus diselesaikan sebelum siswa dapat menjawab.",
+  "Buffer Distance":"Jarak area Buffer dalam meter.",Buffer:"Membuat area dalam jarak tertentu dari feature menggunakan PostGIS.",
   "Multiple Choice":"Siswa memilih satu jawaban dari pilihan yang tersedia.","Spatial Response":"Siswa menggambar atau memilih objek langsung pada peta.","Correct Answer":"Pilihan yang dinilai benar secara otomatis.",
   "Alt Text":"Deskripsi singkat media untuk pengguna pembaca layar.",Caption:"Keterangan tambahan yang tampil bersama media.","Publish Immutable Version":"Setelah dipublish, versi ini terkunci. Perubahan berikutnya harus dibuat sebagai versi baru.",
 };
 function Help({term}:{term:string}){return <span className="context-help" tabIndex={0} role="button" aria-label={`Bantuan: ${term}`}><span aria-hidden="true">i</span><span role="tooltip">{help[term]}</span></span>}
 function Label({children,helpTerm}:{children:React.ReactNode;helpTerm?:string}){return <span className="field-label">{children}{helpTerm&&<Help term={helpTerm}/>}</span>}
+
+function seededBindings(initial:QuestionBuilderInitial):DatasetSelection[]{
+  if(initial.datasetBindings?.length)return initial.datasetBindings;
+  const bindings:DatasetSelection[]=[];
+  if(initial.sourceDatasetId)bindings.push({datasetId:initial.sourceDatasetId,role:"SOURCE"});
+  if(initial.targetDatasetId)bindings.push({datasetId:initial.targetDatasetId,role:"TARGET"});
+  return bindings;
+}
 
 export function QuestionBuilderForm({action,publishAction,datasets,media,initial={},isNew=false}:{action:string;publishAction?:string;datasets:Dataset[];media:Media[];initial?:QuestionBuilderInitial;isNew?:boolean}){
   const [stimulus,setStimulus]=useState<StimulusType>((["text","image","video","webgis"].includes(initial.stimulusType??"")?initial.stimulusType:"text") as StimulusType);
@@ -26,21 +51,49 @@ export function QuestionBuilderForm({action,publishAction,datasets,media,initial
   const [options,setOptions]=useState<string[]>(seeded.length>=2?seeded.slice(0,5):["",""]);
   const [correct,setCorrect]=useState(initial.correctAnswer??"A");
   const [mediaId,setMediaId]=useState(initial.stimulusMediaId??"");
-  const [source,setSource]=useState(initial.sourceDatasetId??""); const [target,setTarget]=useState(initial.targetDatasetId??"");
-  const [tool,setTool]=useState(initial.requiredGisTool??""); const [distance,setDistance]=useState(initial.bufferDistance??500);
+  const [bindings,setBindings]=useState<DatasetSelection[]>(()=>seededBindings(initial));
+  const initialAllowed=initial.allowedGisTools?.length?initial.allowedGisTools:(initial.requiredGisTool?[initial.requiredGisTool]:initial.requiredGisTools??[]);
+  const initialRequired=initial.requiredGisTools?.length?initial.requiredGisTools:(initial.requiredGisTool?[initial.requiredGisTool]:[]);
+  const [allowedTools,setAllowedTools]=useState<string[]>(Array.from(new Set(initialAllowed)));
+  const [requiredTools,setRequiredTools]=useState<string[]>(Array.from(new Set(initialRequired)));
+  const [distance,setDistance]=useState(initial.bufferDistance??500);
   const [errors,setErrors]=useState<string[]>([]);
   const selectedMedia=media.find((item)=>item.id===mediaId); const controls=stimulusControls(stimulus); const filteredMedia=media.filter((item)=>item.mediaType===stimulus.toUpperCase());
   const selectedMediaSource=selectedMedia?.storageKey&&(selectedMedia.storageKey.startsWith("http://")||selectedMedia.storageKey.startsWith("https://")||selectedMedia.storageKey.startsWith("/"))?selectedMedia.storageKey:(selectedMedia?`/api/media/${selectedMedia.id}`:null);
-  const snapshot={stimulusType:stimulus,responseType:response,answers:normalizeAnswers(options),correctAnswer:correct,mediaAssetId:mediaId,selectedMediaType:selectedMedia?.mediaType,sourceDatasetId:source,targetDatasetId:target,requiredGisTool:tool,bufferDistance:distance};
-  function chooseStimulus(value:StimulusType){setStimulus(value);setMediaId("");if(value!=="webgis"){setSource("");setTarget("");setTool("");}}
+  const snapshot={stimulusType:stimulus,responseType:response,answers:normalizeAnswers(options),correctAnswer:correct,mediaAssetId:mediaId,selectedMediaType:selectedMedia?.mediaType,datasetBindings:bindings,allowedGisTools:allowedTools,requiredGisTools:requiredTools,bufferDistance:distance};
+
+  function chooseStimulus(value:StimulusType){setStimulus(value);setMediaId("");if(value!=="webgis"){setBindings([]);setAllowedTools([]);setRequiredTools([]);}}
   function remove(index:number){const next=options.filter((_,i)=>i!==index);setOptions(next);if(answerIds.indexOf(correct as AnswerId)>=next.length)setCorrect("A");}
+  function toggleDataset(datasetId:string,checked:boolean){
+    setBindings((current)=>checked?[...current,{datasetId,role:current.some((item)=>item.role==="SOURCE")?"CONTEXT":"SOURCE"}]:current.filter((item)=>item.datasetId!==datasetId));
+  }
+  function setDatasetRole(datasetId:string,role:DatasetRole){setBindings((current)=>current.map((item)=>item.datasetId===datasetId?{...item,role}:item));}
+  function toggleTool(tool:string,checked:boolean){
+    setAllowedTools((current)=>checked?Array.from(new Set([...current,tool])):current.filter((item)=>item!==tool));
+    if(!checked)setRequiredTools((current)=>current.filter((item)=>item!==tool));
+  }
+  function toggleRequired(tool:string,checked:boolean){
+    setRequiredTools((current)=>checked?Array.from(new Set([...current,tool])):current.filter((item)=>item!==tool));
+    if(checked)setAllowedTools((current)=>Array.from(new Set([...current,tool])));
+  }
   function submit(event:FormEvent<HTMLFormElement>){const submitter=(event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement|null;if(submitter?.dataset.intent!=="publish")return;const next=validateForPublish(snapshot);setErrors(next);if(next.length){event.preventDefault();document.querySelector(".builder-errors")?.scrollIntoView({behavior:"smooth",block:"center"});}}
+
   return <form action={action} method="post" className="real-question-form" onSubmit={submit}>
-    <section className="dashboard-panel"><p className="eyebrow">1 · Informasi</p><div className="builder-two-col"><label><Label>Judul</Label><input name="title" required maxLength={220} defaultValue={initial.title}/></label>{isNew?<label><Label>Scope</Label><select name="scope" defaultValue={initial.scope??"PRIVATE"}><option value="PRIVATE">My Bank</option><option value="SCHOOL">School Bank</option></select></label>:<label><Label>Subject</Label><input name="subject" defaultValue={initial.subject}/></label>}</div><div className="builder-two-col">{isNew&&<label><Label>Subject</Label><input name="subject" defaultValue={initial.subject??"Geografi"}/></label>}<label><Label>Topik</Label><input name="topic" defaultValue={initial.topic}/></label></div><div className="builder-two-col"><label><Label helpTerm="Spatial Mode">Spatial Mode</Label><select name="spatialMode" defaultValue={initial.spatialMode??"influence"}>{modes.map(m=><option key={m}>{m}</option>)}</select></label><label><Label>Difficulty</Label><input name="difficulty" defaultValue={initial.difficulty??"Sedang"}/></label></div></section>
+    <section className="dashboard-panel"><p className="eyebrow">1 · Informasi</p><div className="builder-two-col"><label><Label>Judul</Label><input name="title" required maxLength={220} defaultValue={initial.title}/></label>{isNew?<label><Label>Scope</Label><select name="scope" defaultValue={initial.scope??"PRIVATE"}><option value="PRIVATE">My Bank</option><option value="SCHOOL">School Bank</option></select></label>:<label><Label>Subject</Label><input name="subject" defaultValue={initial.subject}/></label>}</div><div className="builder-two-col">{isNew&&<label><Label>Subject</Label><input name="subject" defaultValue={initial.subject??"Geografi"}/></label>}<label><Label>Topik</Label><input name="topic" defaultValue={initial.topic}/></label></div><div className="builder-two-col"><label><Label helpTerm="Spatial Mode">Spatial Mode</Label><select name="spatialMode" defaultValue={initial.spatialMode??"influence"}>{modes.map(m=><option key={m}>{m}</option>)}</select></label><fieldset className="decision-grid"><legend><Label>Tingkat Kesulitan</Label></legend>{difficulties.map((difficulty)=><label key={difficulty} className={(initial.difficulty??"Sedang").toLowerCase()===difficulty.toLowerCase()?"decision-card selected":"decision-card"}><input type="radio" name="difficulty" value={difficulty} defaultChecked={(initial.difficulty??"Sedang").toLowerCase()===difficulty.toLowerCase()}/><strong>{difficulty}</strong></label>)}</fieldset></div></section>
+
     <section className="dashboard-panel"><p className="eyebrow">2 · Stimulus</p><fieldset className="decision-grid"><legend><Label helpTerm="Stimulus">Stimulus</Label></legend>{([['text','Text'],['image','Image'],['video','Video'],['webgis','WebGIS']] as const).map(([value,label])=><label key={value} className={stimulus===value?"decision-card selected":"decision-card"}><input type="radio" name="stimulusType" value={value} checked={stimulus===value} onChange={()=>chooseStimulus(value)}/><strong>{label}</strong></label>)}</fieldset>
       {controls.media&&<div className="conditional-fields"><label><Label>MediaAsset {stimulus.toUpperCase()}</Label><select name="stimulusMediaId" value={mediaId} onChange={e=>setMediaId(e.target.value)}><option value="">Pilih media…</option>{filteredMedia.map(m=><option value={m.id} key={m.id}>{m.title}</option>)}</select></label>{selectedMedia&&<div className="selected-asset"><strong>{selectedMedia.title}</strong><span>{selectedMedia.mediaType} · {selectedMedia.mimeType??"tipe file belum tersedia"}</span>{selectedMedia.mediaType==="IMAGE"?<img src={selectedMediaSource!} alt="Pratinjau media terpilih"/>:<video src={selectedMediaSource!} controls preload="metadata"/>}</div>}<div className="builder-two-col"><label><Label helpTerm="Alt Text">Alt Text</Label><input name="mediaAltText" defaultValue={initial.mediaAltText}/></label><label><Label helpTerm="Caption">Caption</Label><input name="mediaCaption" defaultValue={initial.mediaCaption}/></label></div></div>}
-      {stimulus==="webgis"&&<div className="conditional-fields"><p className="form-note">Pilih layer dan aktivitas GIS yang akan digunakan siswa.</p><div className="builder-two-col"><label><Label helpTerm="SOURCE Dataset">SOURCE Dataset</Label><select name="sourceDatasetId" value={source} onChange={e=>setSource(e.target.value)}><option value="">Pilih layer…</option>{datasets.map(d=><option value={d.id} key={d.id}>{d.title} · {d.geometryType??"Geometry"}</option>)}</select></label><label><Label helpTerm="TARGET Dataset">TARGET Dataset</Label><select name="targetDatasetId" value={target} onChange={e=>setTarget(e.target.value)}><option value="">Tidak ada</option>{datasets.map(d=><option value={d.id} key={d.id}>{d.title} · {d.geometryType??"Geometry"}</option>)}</select></label></div><div className="builder-two-col"><label><Label helpTerm="Required GIS Tool">Required GIS Tool</Label><select name="requiredGisTool" value={tool} onChange={e=>setTool(e.target.value)}><option value="">None</option><option value="buffer">Buffer</option><option value="overlay">Overlay</option><option value="distance">Distance</option></select>{tool==="buffer"&&<small className="form-note">{help.Buffer}</small>}</label>{tool==="buffer"&&<label><Label helpTerm="Buffer Distance">Buffer Distance (m)</Label><input name="bufferDistance" type="number" min={1} max={100000} value={distance} onChange={e=>setDistance(Number(e.target.value))}/></label>}</div></div>}
+
+      {stimulus==="webgis"&&<div className="conditional-fields">
+        <input type="hidden" name="datasetBindingsJson" value={JSON.stringify(bindings)}/>
+        <div><Label helpTerm="Dataset Layers">Dataset Layers</Label><p className="form-note">Pilih sebanyak layer yang dibutuhkan. Tetapkan satu SOURCE, maksimal satu TARGET, dan layer tambahan sebagai CONTEXT.</p></div>
+        <div className="dynamic-options">{datasets.map((dataset)=>{const binding=bindings.find((item)=>item.datasetId===dataset.id);return <div className="dynamic-option" key={dataset.id}><input type="checkbox" checked={Boolean(binding)} onChange={(event)=>toggleDataset(dataset.id,event.target.checked)} aria-label={`Pilih ${dataset.title}`}/><div><strong>{dataset.title}</strong><small className="form-note">{dataset.geometryType??"Geometry"}</small></div>{binding&&<select aria-label={`Role ${dataset.title}`} value={binding.role} onChange={(event)=>setDatasetRole(dataset.id,event.target.value as DatasetRole)}><option value="SOURCE">SOURCE</option><option value="TARGET">TARGET</option><option value="CONTEXT">CONTEXT</option></select>}</div>})}</div>
+        <div><Label helpTerm="GIS Tools">GIS Tools</Label><p className="form-note">Aktifkan beberapa tool sekaligus. Centang Wajib hanya untuk aktivitas yang harus selesai sebelum siswa menjawab.</p></div>
+        <div className="decision-grid">{gisTools.map((tool)=>{const enabled=allowedTools.includes(tool.id);const required=requiredTools.includes(tool.id);return <div className={enabled?"decision-card selected":"decision-card"} key={tool.id}><label><input type="checkbox" name="allowedGisTool" value={tool.id} checked={enabled} onChange={(event)=>toggleTool(tool.id,event.target.checked)}/><strong>{tool.label}</strong></label><small>{tool.description}</small>{enabled&&<label><input type="checkbox" name="requiredGisTool" value={tool.id} checked={required} onChange={(event)=>toggleRequired(tool.id,event.target.checked)}/> Wajib</label>}</div>})}</div>
+        {allowedTools.includes("buffer")&&<label><Label helpTerm="Buffer Distance">Buffer Distance (m)</Label><input name="bufferDistance" type="number" min={1} max={100000} value={distance} onChange={e=>setDistance(Number(e.target.value))}/><small className="form-note">{help.Buffer}</small></label>}
+      </div>}
     </section>
+
     <section className="dashboard-panel"><p className="eyebrow">3 · Prompt & Answer Mode</p><label><Label>Prompt</Label><textarea name="prompt" required rows={5} defaultValue={initial.prompt}/></label><fieldset className="decision-grid"><legend>Answer Mode</legend><label className={response==="multiple-choice"?"decision-card selected":"decision-card"}><input type="radio" name="responseType" value="multiple-choice" checked={response==="multiple-choice"} onChange={()=>setResponse("multiple-choice")}/><strong>Multiple Choice</strong><Help term="Multiple Choice"/></label><label className={response!=="multiple-choice"?"decision-card selected":"decision-card"}><input type="radio" name="answerMode" value="spatial-response" checked={response!=="multiple-choice"} onChange={()=>setResponse("draw-point")}/><strong>Spatial Response</strong><Help term="Spatial Response"/></label></fieldset>
       {response==="multiple-choice"?<div className="conditional-fields"><p className="form-note">Tambahkan 2–5 pilihan. Hanya pilihan yang terisi akan tampil ke siswa.</p><div className="dynamic-options">{options.map((value,index)=><div key={index} className="dynamic-option"><b>{answerIds[index]}</b><input name={`answer_${answerIds[index]}`} value={value} aria-label={`Pilihan ${answerIds[index]}`} onChange={e=>setOptions(options.map((x,i)=>i===index?e.target.value:x))}/><button type="button" onClick={()=>remove(index)} disabled={options.length<=2} aria-label={`Hapus pilihan ${answerIds[index]}`}>Hapus</button></div>)}</div>{options.length<5&&<button className="button button-secondary add-option" type="button" onClick={()=>setOptions([...options,""])}>+ Tambah pilihan</button>}<label><Label helpTerm="Correct Answer">Correct Answer</Label><select name="correctAnswer" value={correct} onChange={e=>setCorrect(e.target.value)}>{options.map((_,i)=><option value={answerIds[i]} key={answerIds[i]}>{answerIds[i]}</option>)}</select></label></div>:<div className="conditional-fields"><label><Label>Spatial Response</Label><select name="responseType" value={response} onChange={e=>setResponse(e.target.value as ResponseType)}><option value="draw-point">Draw Point</option><option value="draw-line">Draw Line</option><option value="draw-polygon">Draw Polygon</option><option value="feature-select">Select Map Feature</option></select></label><div className="builder-two-col"><label>Spatial Validation<select name="spatialValidationMethod" defaultValue={initial.spatialValidationMethod??"manual-review"}><option value="manual-review">Manual Review</option><option value="geometry-distance">Geometry Distance</option><option value="geometry-overlap">Geometry Overlap</option><option value="selected-feature-rule">Selected Feature Rule</option></select></label><label>Max Distance (m)<input name="maxDistanceMeters" type="number" min={0} defaultValue={initial.maxDistanceMeters??100}/></label></div><label>Min Overlap Ratio (0–1)<input name="minOverlapRatio" type="number" min={0} max={1} step={.05} defaultValue={initial.minOverlapRatio??.5}/></label></div>}
     </section>
