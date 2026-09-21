@@ -15,6 +15,12 @@ export type QuestionGroupOption={
   ownerTeacherId:string|null;
 };
 
+export type QuestionGroupCard=QuestionGroupOption&{
+  questionCount:number;
+  publishedCount:number;
+  draftCount:number;
+};
+
 function validateScope(value:string):ContentScope{
   if(value!=="SYSTEM"&&value!=="SCHOOL"&&value!=="PRIVATE")throw new Error("Scope tidak valid.");
   return value;
@@ -40,6 +46,27 @@ export async function listQuestionGroups(session:TeacherSession):Promise<Questio
        or (scope='PRIVATE' and owner_teacher_id=$2)
      )
      order by lower(title),created_at desc`,
+    [session.schoolId,session.staffUserId],
+  );
+}
+
+export async function listQuestionGroupCards(session:TeacherSession):Promise<QuestionGroupCard[]>{
+  if(!session.schoolId&&session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
+  return query<QuestionGroupCard>(
+    `select g.id,g.title,g.description,g.subject,g.topic,g.stimulus_type as "stimulusType",g.scope,
+       g.owner_teacher_id as "ownerTeacherId",
+       count(distinct q.id)::int as "questionCount",
+       count(distinct q.id) filter(where exists(select 1 from question_versions pv where pv.question_id=q.id and pv.status='PUBLISHED'))::int as "publishedCount",
+       count(distinct q.id) filter(where exists(select 1 from question_versions dv where dv.question_id=q.id and dv.status='DRAFT'))::int as "draftCount"
+     from question_groups g
+     left join questions q on q.question_group_id=g.id and q.status='ACTIVE'
+     where g.status='ACTIVE' and (
+       g.scope='SYSTEM'
+       or (g.scope='SCHOOL' and g.school_id=$1)
+       or (g.scope='PRIVATE' and g.owner_teacher_id=$2)
+     )
+     group by g.id
+     order by lower(g.title),g.created_at desc`,
     [session.schoolId,session.staffUserId],
   );
 }
@@ -87,4 +114,22 @@ export async function resolveQuestionGroupForCreate(session:TeacherSession,group
     if(row.schoolId!==session.schoolId)throw new AuthorizationError();
   }else if(row.ownerTeacherId!==session.staffUserId)throw new AuthorizationError();
   return row;
+}
+
+export async function attachQuestionToGroup(input:{
+  actor:TeacherSession;
+  questionId:string;
+  groupId:string;
+  questionScope:ContentScope;
+  stimulusType:string;
+}){
+  const group=await resolveQuestionGroupForCreate(input.actor,input.groupId,input.questionScope);
+  if(!group)return;
+  if(group.stimulusType!==input.stimulusType)throw new Error("Stimulus soal harus sama dengan Stimulus Set.");
+  const result=await query<{id:string}>(
+    `update questions set question_group_id=$2,updated_at=now()
+     where id=$1 and status='ACTIVE' returning id`,
+    [input.questionId,input.groupId],
+  );
+  if(!result[0])throw new Error("Soal gagal ditambahkan ke Stimulus Set.");
 }
