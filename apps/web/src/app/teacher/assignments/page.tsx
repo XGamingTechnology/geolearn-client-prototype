@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { requireTeacherSession } from "@/server/auth/session";
 import { listClasses } from "@/server/classes/service";
-import { listPublishedQuestionOptions, listPublishedQuizOptions, listTeacherAssignments } from "@/server/assessment/service";
+import { listPublishedQuizOptions, listTeacherAssignments } from "@/server/assessment/service";
+import { listQuizQuestionOptions } from "@/server/assessment/quiz-authoring";
 import { AssignmentScheduleFields } from "@/components/assignment-schedule-fields";
+import { QuizQuestionSelector } from "@/components/quiz-question-selector";
 import { LocalDateTime } from "@/components/local-date-time";
 
 export default async function AssignmentsPage({searchParams}:{searchParams:Promise<{status?:string}>}){
@@ -10,7 +12,7 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
   const [assignments,classes,questions,quizzes,{status}]=await Promise.all([
     listTeacherAssignments(session),
     listClasses(session),
-    listPublishedQuestionOptions(session),
+    listQuizQuestionOptions(session),
     listPublishedQuizOptions(session),
     searchParams,
   ]);
@@ -24,7 +26,7 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
 
       {status==="quiz-created"&&<p className="account-alert">QuizVersion immutable berhasil dibuat.</p>}
       {status==="assignment-created"&&<p className="account-alert">Assignment berhasil dipublish ke kelas.</p>}
-      {status==="error"&&<p className="account-alert error">Operasi assessment gagal. Periksa QuizVersion, kelas, dan jadwal.</p>}
+      {status==="error"&&<p className="account-alert error">Operasi assessment gagal. Periksa pilihan soal, QuizVersion, kelas, dan jadwal.</p>}
 
       <section className="assessment-authoring-grid">
         <details className="dashboard-panel assessment-create-panel">
@@ -32,10 +34,7 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
           <form action="/api/assessment/quizzes" method="post" className="assessment-create-form">
             <label>Judul Quiz<input name="title" required maxLength={220} placeholder="Spatial Thinking XI-A"/></label>
             <label>Deskripsi<textarea name="description" rows={3}/></label>
-            <fieldset><legend>Pilih published QuestionVersion</legend>
-              {questions.map((q)=><label className="assessment-check" key={q.questionVersionId}><input type="checkbox" name="questionVersionIds" value={q.questionVersionId}/><span><strong>{q.title}</strong><small>v{q.versionNumber} · {q.spatialMode} · {q.stimulusType??"text"}</small></span></label>)}
-              {!questions.length&&<p>Belum ada QuestionVersion published.</p>}
-            </fieldset>
+            <QuizQuestionSelector questions={questions}/>
             <button className="button" disabled={!questions.length} type="submit">Publish QuizVersion</button>
           </form>
         </details>
