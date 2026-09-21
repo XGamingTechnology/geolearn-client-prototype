@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { createQuestionDraft } from "@/server/content/service";
-import { replaceQuestionDraftDatasetBindings } from "@/server/content/question-datasets";
+import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 import { publicRedirectUrl } from "@/server/http/public-url";
+
+const supportedTools=new Set(["buffer","overlay","distance"]);
+const supportedRoles=new Set<QuestionDatasetRole>(["SOURCE","TARGET","CONTEXT"]);
 
 function answers(form:FormData){return (["A","B","C","D","E"] as const).map(id=>({id,label:String(form.get("answer_"+id)??"").trim()})).filter(answer=>answer.label);}
 
@@ -23,10 +26,29 @@ function spatialValidationConfig(form:FormData){
 
 function activityConfig(form:FormData){
   const stimulus=String(form.get("stimulusType")??"text");
-  const tool=String(form.get("requiredGisTool")??"").trim();
-  if(stimulus!=="webgis"||!tool)return {};
+  if(stimulus!=="webgis")return {};
+  const tools=form.getAll("allowedGisTool").map(String).filter((tool)=>supportedTools.has(tool));
+  const required=form.getAll("requiredGisTool").map(String).filter((tool)=>supportedTools.has(tool)&&tools.includes(tool));
   const distance=Number(form.get("bufferDistance")??500);
-  return {tools:[tool],requiredActions:[{tool,parameters:tool==="buffer"?{distanceMeters:Number.isFinite(distance)&&distance>0?distance:500}:{}}]};
+  const distanceMeters=Number.isFinite(distance)&&distance>0?Math.min(distance,100000):500;
+  return {
+    tools:Array.from(new Set(tools)),
+    requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),
+    toolParameters:tools.includes("buffer")?{buffer:{distanceMeters}}:{},
+  };
+}
+
+function datasetBindings(form:FormData):Array<{datasetId:string;role:QuestionDatasetRole}>{
+  const raw=String(form.get("datasetBindingsJson")??"[]");
+  const value=JSON.parse(raw) as unknown;
+  if(!Array.isArray(value)||value.length>50)throw new Error("Dataset bindings tidak valid.");
+  return value.map((item)=>{
+    if(!item||typeof item!=="object")throw new Error("Dataset bindings tidak valid.");
+    const datasetId=String((item as {datasetId?:unknown}).datasetId??"").trim();
+    const role=String((item as {role?:unknown}).role??"") as QuestionDatasetRole;
+    if(!datasetId||!supportedRoles.has(role))throw new Error("Dataset bindings tidak valid.");
+    return {datasetId,role};
+  });
 }
 
 export async function POST(request:NextRequest){
@@ -34,6 +56,7 @@ export async function POST(request:NextRequest){
     const actor=await requireTeacherSession();
     const form=await request.formData();
     const correct=String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E";
+    const stimulus=String(form.get("stimulusType")??"text");
     const id=await createQuestionDraft({
       actor,
       title:String(form.get("title")??""),
@@ -41,9 +64,9 @@ export async function POST(request:NextRequest){
       topic:String(form.get("topic")??""),
       scope:String(form.get("scope")??"PRIVATE"),
       spatialMode:String(form.get("spatialMode")??"location"),
-      difficulty:String(form.get("difficulty")??""),
+      difficulty:String(form.get("difficulty")??"Sedang"),
       prompt:String(form.get("prompt")??""),
-      stimulusType:String(form.get("stimulusType")??"text"),
+      stimulusType:stimulus,
       answers:answers(form),
       correctAnswer:correct,
       responseType:String(form.get("responseType")??"multiple-choice"),
@@ -52,11 +75,7 @@ export async function POST(request:NextRequest){
       activityConfig:activityConfig(form),
       validationConfig:spatialValidationConfig(form),
     });
-    const stimulus=String(form.get("stimulusType")??"text");
-    await replaceQuestionDraftDatasetBindings(actor,id,stimulus==="webgis"?[
-      {datasetId:String(form.get("sourceDatasetId")??""),role:"SOURCE"},
-      {datasetId:String(form.get("targetDatasetId")??""),role:"TARGET"},
-    ]:[]);
+    await replaceQuestionDraftDatasetBindings(actor,id,stimulus==="webgis"?datasetBindings(form):[]);
     await replaceQuestionDraftMediaBindings(actor,id,stimulus==="image"||stimulus==="video"?[
       {mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")},
     ]:[]);

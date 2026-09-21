@@ -21,10 +21,15 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const maxDistanceMeters=Number((item.validationConfig as {maxDistanceMeters?:number}|null)?.maxDistanceMeters??100);
   const minOverlapRatio=Number((item.validationConfig as {minOverlapRatio?:number}|null)?.minOverlapRatio??0.5);
   const isDraft=item.versionStatus==="DRAFT";
-  const requiredActions=Array.isArray(item.activityConfig?.requiredActions)?item.activityConfig.requiredActions:[];
-  const firstRequired=(requiredActions[0]??{}) as {tool?:string;parameters?:{distanceMeters?:number}};
-  const sourceDatasetId=bindings.find((binding)=>binding.role==="SOURCE")?.datasetId??"";
-  const targetDatasetId=bindings.find((binding)=>binding.role==="TARGET")?.datasetId??"";
+  const activity=item.activityConfig??{};
+  const requiredActions=Array.isArray(activity.requiredActions)?activity.requiredActions:[];
+  const requiredGisTools=requiredActions.map((action)=>action&&typeof action==="object"&&typeof (action as {tool?:unknown}).tool==="string"?(action as {tool:string}).tool:null).filter((tool):tool is string=>Boolean(tool));
+  const configuredTools=Array.isArray(activity.tools)?activity.tools.filter((tool):tool is string=>typeof tool==="string"):[];
+  const allowedGisTools=Array.from(new Set([...configuredTools,...requiredGisTools]));
+  const bufferAction=requiredActions.find((action)=>action&&typeof action==="object"&&(action as {tool?:unknown}).tool==="buffer") as {parameters?:{distanceMeters?:number}}|undefined;
+  const toolParameters:{buffer?:{distanceMeters?:number}}=activity.toolParameters&&typeof activity.toolParameters==="object"?activity.toolParameters as {buffer?:{distanceMeters?:number}}:{};
+  const bufferDistance=bufferAction?.parameters?.distanceMeters??toolParameters.buffer?.distanceMeters??500;
+  const datasetBindings=bindings.map((binding)=>({datasetId:binding.datasetId,role:binding.role}));
   const stimulusMedia=mediaBindings.find((binding)=>binding.role==="STIMULUS");
 
   return (
@@ -32,7 +37,7 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
       <div className="breadcrumb"><Link href="/teacher/questions">Bank Soal</Link><span>/</span><strong>{item.title}</strong></div>
       <header className="catalog-header">
         <div><p className="eyebrow">Question Version</p><h1>{item.title}</h1><p>{item.scope} · {item.versionNumber?"v"+item.versionNumber:"-"} · {item.versionStatus}</p></div>
-        <span className={item.versionStatus==="PUBLISHED"?"status-pill":"status-pill"}>{item.versionStatus}</span>
+        <span className="status-pill">{item.versionStatus}</span>
       </header>
       {status==="updated"&&<p className="account-alert">Draft berhasil disimpan.</p>}
       {status==="published"&&<p className="account-alert">Version berhasil dipublish dan sekarang immutable.</p>}
@@ -40,7 +45,13 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
       {status==="error"&&<p className="account-alert error">Operasi gagal.</p>}
 
       {isDraft ? (
-        <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets.filter(d=>d.versionStatus==="PUBLISHED"&&d.dataKind==="VECTOR")} media={media} initial={{title:item.title,subject:item.subject??"",topic:item.topic??"",spatialMode:item.spatialMode??"location",difficulty:item.difficulty??"",prompt:item.prompt??"",stimulusType:item.stimulusType??"text",responseType:item.responseConfig?.type??"multiple-choice",answers,correctAnswer:key,requiredGisTool:firstRequired.tool,bufferDistance:firstRequired.parameters?.distanceMeters,sourceDatasetId,targetDatasetId,stimulusMediaId:stimulusMedia?.mediaAssetId,mediaAltText:stimulusMedia?.altText??"",mediaCaption:stimulusMedia?.caption??"",spatialValidationMethod,maxDistanceMeters,minOverlapRatio,feedbackCorrect:item.feedbackConfig?.correct??"",feedbackIncorrect:item.feedbackConfig?.incorrect??""}}/>
+        <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets.filter(d=>d.versionStatus==="PUBLISHED"&&d.dataKind==="VECTOR")} media={media} initial={{
+          title:item.title,subject:item.subject??"",topic:item.topic??"",spatialMode:item.spatialMode??"location",difficulty:item.difficulty??"Sedang",prompt:item.prompt??"",
+          stimulusType:item.stimulusType??"text",responseType:item.responseConfig?.type??"multiple-choice",answers,correctAnswer:key,
+          datasetBindings,allowedGisTools,requiredGisTools,bufferDistance,
+          stimulusMediaId:stimulusMedia?.mediaAssetId,mediaAltText:stimulusMedia?.altText??"",mediaCaption:stimulusMedia?.caption??"",
+          spatialValidationMethod,maxDistanceMeters,minOverlapRatio,feedbackCorrect:item.feedbackConfig?.correct??"",feedbackIncorrect:item.feedbackConfig?.incorrect??""
+        }}/>
       ) : (
         <section className="published-question-view">
           <article className="dashboard-panel"><p className="eyebrow">Published Snapshot</p><h2>{item.prompt}</h2><div className="question-tags"><span>{item.spatialMode}</span><span>{item.stimulusType}</span><span>{item.responseType}</span></div><div className="published-answer-list">{answers.map((a)=><div key={a.id}><b>{a.id}</b><span>{a.label}</span>{a.id===key&&<em>Correct</em>}</div>)}</div></article>
