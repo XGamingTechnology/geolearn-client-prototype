@@ -12,8 +12,10 @@ type Params={
 function hrefWith(params:Params,patch:Partial<Params>){
   const next={...params,...patch};
   const query=new URLSearchParams();
-  for(const [key,value] of Object.entries(next))if(value)query.set(key,value);
-  return `/teacher/questions${query.size?`?${query.toString()}`:""}`;
+  const keys:Array<keyof Params>=["q","stimulus","mode","response","difficulty","versionStatus","scope","page"];
+  for(const key of keys){const value=next[key];if(value)query.set(key,value);}
+  const text=query.toString();
+  return `/teacher/questions${text?`?${text}`:""}`;
 }
 
 export default async function QuestionsPage({searchParams}:{searchParams:Promise<Params>}) {
