@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { GeoJSON, MapContainer, TileLayer, Tooltip, ZoomControl, useMap } from "react-leaflet";
-import type { Feature, GeoJsonObject, Geometry, PathOptions } from "geojson";
+import type { Feature, GeoJsonObject, Geometry } from "geojson";
 import type { Layer } from "leaflet";
 import L from "leaflet";
 
@@ -46,6 +46,12 @@ function analysisStyle(toolId:string):L.PathOptions{
 function analysisPointStyle(toolId:string){
   const style=analysisStyle(toolId);
   return {radius:8,color:String(style.color),fillColor:String(style.fillColor??style.color),fillOpacity:.85,weight:3};
+}
+
+function analysisColor(toolId:string){
+  if(toolId==="buffer")return "#d97706";
+  if(toolId==="overlay")return "#7c3aed";
+  return "#db2777";
 }
 
 export function AssessmentLeafletMap({
@@ -110,7 +116,7 @@ export function AssessmentLeafletMap({
       <aside className="runtime-layer-list">
         <strong>Layer Peta</strong>
         {payload.layers.map((layer)=><label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}</small></label>)}
-        {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className={"runtime-layer-dot analysis "+analysis.toolId}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
+        {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
       </aside>
     </div>
   );
