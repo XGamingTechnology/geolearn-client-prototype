@@ -36,6 +36,11 @@ function requiredTools(config:Record<string,unknown>):string[]{
   return actions.map((action)=>action&&typeof action==="object"&&typeof (action as {tool?:unknown}).tool==="string"?(action as {tool:string}).tool:null).filter((x):x is string=>Boolean(x));
 }
 
+function allowedTools(config:Record<string,unknown>):string[]{
+  const configured=Array.isArray(config.tools)?config.tools.filter((tool):tool is string=>typeof tool==="string"):[];
+  return Array.from(new Set([...configured,...requiredTools(config)]));
+}
+
 export function AssessmentRuntimeClient({
   attemptId,questions,savedResponses,initialCompletedTools,initialSpatialResponses,
 }:{
@@ -63,14 +68,9 @@ export function AssessmentRuntimeClient({
   const enteredAt=useRef<number|null>(null);
   const question=questions[index];
 
+  useEffect(()=>{enteredAt.current=Date.now();},[]);
   useEffect(()=>{
-    enteredAt.current=Date.now();
-  },[]);
-
-  useEffect(()=>{
-    const warn=(event:BeforeUnloadEvent)=>{
-      if(Object.values(spatialDirty).some(Boolean)){event.preventDefault();event.returnValue="";}
-    };
+    const warn=(event:BeforeUnloadEvent)=>{if(Object.values(spatialDirty).some(Boolean)){event.preventDefault();event.returnValue="";}};
     window.addEventListener("beforeunload",warn);
     return()=>window.removeEventListener("beforeunload",warn);
   },[spatialDirty]);
@@ -78,6 +78,7 @@ export function AssessmentRuntimeClient({
   if(!question)return <div className="empty-state"><strong>Tidak ada soal pada QuizVersion ini.</strong></div>;
 
   const required=requiredTools(question.activityConfig);
+  const allowed=allowedTools(question.activityConfig);
   const done=new Set(completedTools[question.questionVersionId]??[]);
   const requiredComplete=required.every((tool)=>done.has(tool));
   const options=(question.responseConfig.answers??[]).filter((option)=>option.label.trim());
@@ -89,19 +90,12 @@ export function AssessmentRuntimeClient({
   const completedCount=questions.filter((item)=>persisted[item.quizItemId]).length;
   const allPersisted=completedCount===questions.length;
 
-  function elapsedSinceEntry(){
-    return enteredAt.current===null?0:Math.max(0,Date.now()-enteredAt.current);
-  }
-
-  function durationMs(){
-    return Math.max(0,Math.round((elapsedByQuestion.current[question.quizItemId]??0)+elapsedSinceEntry()));
-  }
-
+  function elapsedSinceEntry(){return enteredAt.current===null?0:Math.max(0,Date.now()-enteredAt.current);}
+  function durationMs(){return Math.max(0,Math.round((elapsedByQuestion.current[question.quizItemId]??0)+elapsedSinceEntry()));}
   function navigate(next:number){
     if(spatialDirty[question.quizItemId]&&!window.confirm("Respons spasial belum disimpan. Tinggalkan perubahan ini?"))return;
     elapsedByQuestion.current[question.quizItemId]=(elapsedByQuestion.current[question.quizItemId]??0)+elapsedSinceEntry();
-    enteredAt.current=Date.now();
-    setIndex(next);
+    enteredAt.current=Date.now();setIndex(next);
   }
 
   async function runTool(tool:string){
@@ -112,17 +106,14 @@ export function AssessmentRuntimeClient({
       });
       const body=await response.json();
       if(!response.ok)throw new Error(body.error??"Analisis PostGIS gagal.");
-      setCompletedTools((current)=>({
-        ...current,
-        [question.questionVersionId]:Array.from(new Set([...(current[question.questionVersionId]??[]),tool])),
-      }));
+      setCompletedTools((current)=>({...current,[question.questionVersionId]:Array.from(new Set([...(current[question.questionVersionId]??[]),tool]))}));
       if(body.geojson)setAnalysisGeojson((current)=>({...current,[question.questionVersionId]:body.geojson as GeoJsonObject}));
       const summary=tool==="buffer"
         ? `Buffer ${body.distanceMeters} m · ${body.featureCount} feature`
         : tool==="overlay"
           ? `Overlay · ${body.intersectionCount} intersection`
           : body.distanceMeters==null?"Distance · tidak ada pasangan feature":`Distance minimum · ${Math.round(body.distanceMeters)} m`;
-      setToolSummary((current)=>({...current,[question.questionVersionId]:summary}));
+      setToolSummary((current)=>({...current,[question.questionVersionId+":"+tool]:summary}));
     }catch(e){setError(e instanceof Error?e.message:"Analisis PostGIS gagal.");}
     finally{setBusy(false);}
   }
@@ -132,8 +123,7 @@ export function AssessmentRuntimeClient({
     setBusy(true);setError("");
     try{
       const response=await fetch(`/api/assessment/attempts/${attemptId}/responses`,{
-        method:"POST",headers:{"content-type":"application/json"},
-        body:JSON.stringify({quizItemId:question.quizItemId,answer:selected,durationMs:durationMs()}),
+        method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({quizItemId:question.quizItemId,answer:selected,durationMs:durationMs()}),
       });
       const body=await response.json();
       if(!response.ok)throw new Error(body.error??"Jawaban gagal disimpan.");
@@ -148,54 +138,35 @@ export function AssessmentRuntimeClient({
     <section className="assessment-runtime-grid">
       <article className="assessment-question-panel">
         <div className="question-meta"><span>{question.spatialMode} · {stimulusType}</span><code>Q{question.position}</code></div>
-        <h2>{question.title}</h2>
-        <p>{question.prompt}</p>
+        <h2>{question.title}</h2><p>{question.prompt}</p>
 
         {required.length>0&&<div className="required-action">
           <span className={requiredComplete?"status complete":"status"}/>
-          <div><strong>{requiredComplete?"Aktivitas GIS selesai":"Aktivitas GIS wajib"}</strong><small>{toolSummary[question.questionVersionId]??required.join(", ")}</small></div>
+          <div><strong>{requiredComplete?"Aktivitas GIS wajib selesai":"Aktivitas GIS wajib"}</strong><small>{required.join(", ")}</small></div>
         </div>}
 
-        {stimulusType==="webgis"&&
-          <AssessmentLeafletMap
-            attemptId={attemptId}
-            questionVersionId={question.questionVersionId}
-            analysisGeojson={analysisGeojson[question.questionVersionId]??null}
-          />}
-
+        {stimulusType==="webgis"&&<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} analysisGeojson={analysisGeojson[question.questionVersionId]??null}/>}        
         {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
         {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
 
-        {required.length>0&&<div className="runtime-tool-row">{required.map((tool)=><button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button">{done.has(tool)?"✓ ":""}{tool} · PostGIS</button>)}</div>}
+        {allowed.length>0&&<div className="runtime-tool-row">{allowed.map((tool)=>{
+          const isRequired=required.includes(tool);const summary=toolSummary[question.questionVersionId+":"+tool];
+          return <button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button" title={summary??(isRequired?"Wajib":"Opsional")}>{done.has(tool)?"✓ ":""}{tool} · PostGIS {isRequired?"(wajib)":"(opsional)"}</button>;
+        })}</div>}
 
         {!isSpatialResponse&&<fieldset disabled={!requiredComplete||busy}>
           <legend>Jawaban</legend>
-          {options.map((option)=><label className={"answer "+(selected===option.id?"selected":"")} key={option.id}><input type="radio" name={"answer-"+question.quizItemId} checked={selected===option.id} onChange={()=>{
-            setAnswers((current)=>({...current,[question.quizItemId]:option.id}));
-            setPersisted((current)=>({...current,[question.quizItemId]:false}));
-            setFeedback((current)=>({...current,[question.quizItemId]:""}));
-          }}/><b>{option.id}</b>{option.label}</label>)}
+          {options.map((option)=><label className={"answer "+(selected===option.id?"selected":"")} key={option.id}><input type="radio" name={"answer-"+question.quizItemId} checked={selected===option.id} onChange={()=>{setAnswers((current)=>({...current,[question.quizItemId]:option.id}));setPersisted((current)=>({...current,[question.quizItemId]:false}));setFeedback((current)=>({...current,[question.quizItemId]:""}));}}/><b>{option.id}</b>{option.label}</label>)}
         </fieldset>}
 
-        {isSpatialResponse&&requiredComplete&&
-          <AssessmentSpatialResponseMap key={question.quizItemId}
-            attemptId={attemptId}
-            questionVersionId={question.questionVersionId}
-            quizItemId={question.quizItemId}
-            responseType={responseType as "draw-point"|"draw-line"|"draw-polygon"|"feature-select"}
-            initialGeometry={(savedSpatial?.geometry as never)??null}
-            initialSelectedFeatureIds={savedSpatial?.selectedFeatureIds??[]}
-            durationMs={durationMs}
-            onDirtyChange={(dirty)=>{
-              setSpatialDirty((current)=>({...current,[question.quizItemId]:dirty}));
-              if(dirty)setPersisted((current)=>({...current,[question.quizItemId]:false}));
-            }}
-            onSaved={(value)=>{
-              setSpatialResponses((current)=>({...current,[question.quizItemId]:value}));
-              setSpatialDirty((current)=>({...current,[question.quizItemId]:false}));
-              setPersisted((current)=>({...current,[question.quizItemId]:true}));
-            }}
-          />}
+        {isSpatialResponse&&requiredComplete&&<AssessmentSpatialResponseMap key={question.quizItemId}
+          attemptId={attemptId} questionVersionId={question.questionVersionId} quizItemId={question.quizItemId}
+          responseType={responseType as "draw-point"|"draw-line"|"draw-polygon"|"feature-select"}
+          initialGeometry={(savedSpatial?.geometry as never)??null} initialSelectedFeatureIds={savedSpatial?.selectedFeatureIds??[]}
+          durationMs={durationMs}
+          onDirtyChange={(dirty)=>{setSpatialDirty((current)=>({...current,[question.quizItemId]:dirty}));if(dirty)setPersisted((current)=>({...current,[question.quizItemId]:false}));}}
+          onSaved={(value)=>{setSpatialResponses((current)=>({...current,[question.quizItemId]:value}));setSpatialDirty((current)=>({...current,[question.quizItemId]:false}));setPersisted((current)=>({...current,[question.quizItemId]:true}));}}
+        />}
         {isSpatialResponse&&!requiredComplete&&<div className="runtime-media-shell">Selesaikan aktivitas GIS wajib sebelum menyimpan respons spasial.</div>}
 
         {feedback[question.quizItemId]&&<div className="answer-result correct"><strong>Jawaban tersimpan</strong><p>{feedback[question.quizItemId]}</p></div>}
