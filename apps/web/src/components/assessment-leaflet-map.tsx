@@ -7,6 +7,7 @@ import type {Layer} from "leaflet";
 import L from "leaflet";
 
 import {assessmentPathStyle,assessmentPointStyle} from "./assessment-map-style";
+import {AssessmentAttributeTable,featuresOf,type SelectedMapFeature} from "./assessment-attribute-table";
 import styles from "./assessment-map-navigation.module.css";
 
 type MapLayer={
@@ -33,6 +34,21 @@ function NavigateToTarget({target}:{target:NavTarget}){
   useEffect(()=>{
     if(target)map.flyTo([target.lat,target.lon],Math.max(map.getZoom(),14),{duration:.8});
   },[map,target]);
+  return null;
+}
+
+function NavigateToFeature({selected,layers}:{selected:SelectedMapFeature;layers:MapLayer[]}){
+  const map=useMap();
+  useEffect(()=>{
+    if(!selected)return;
+    const layer=layers.find((item)=>item.datasetVersionId===selected.layerId);
+    if(!layer)return;
+    const feature=featuresOf(layer.geojson)[selected.featureIndex];
+    if(!feature)return;
+    const featureLayer=L.geoJSON(feature);
+    const bounds=featureLayer.getBounds();
+    if(bounds.isValid())map.fitBounds(bounds.pad(.35),{maxZoom:16,padding:[36,36]});
+  },[layers,map,selected]);
   return null;
 }
 
@@ -97,6 +113,9 @@ export function AssessmentLeafletMap({
   const [target,setTarget]=useState<NavTarget>(null);
   const [pickMode,setPickMode]=useState(false);
   const [readout,setReadout]=useState<{lat:number;lon:number}|null>(null);
+  const [attributeOpen,setAttributeOpen]=useState(false);
+  const [attributeLayerId,setAttributeLayerId]=useState("");
+  const [selectedFeature,setSelectedFeature]=useState<SelectedMapFeature>(null);
 
   useEffect(()=>{
     let active=true;
@@ -104,7 +123,11 @@ export function AssessmentLeafletMap({
       .then(async(response)=>{
         const body=await response.json();
         if(!response.ok)throw new Error(body.error??"Peta tidak tersedia");
-        if(active)setPayload(body as Payload);
+        if(active){
+          const next=body as Payload;
+          setPayload(next);
+          setAttributeLayerId((current)=>current||next.layers[0]?.datasetVersionId||"");
+        }
       })
       .catch((reason)=>{if(active)setError(reason instanceof Error?reason.message:"Peta tidak tersedia");});
     return()=>{active=false;};
@@ -174,11 +197,33 @@ export function AssessmentLeafletMap({
           <ZoomControl position="bottomright"/>
           <FitToData bbox={payload.bbox}/>
           <NavigateToTarget target={target}/>
+          <NavigateToFeature selected={selectedFeature} layers={payload.layers}/>
           <CoordinatePicker enabled={pickMode} onPick={pickCoordinate} onReadout={(lat,lon)=>setReadout({lat,lon})}/>
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
-          {payload.layers.filter((layer)=>(visibility[layer.datasetVersionId]??layer.visible)).map((layer)=>(
-            <GeoJSON key={layer.datasetVersionId} data={layer.geojson} style={(feature)=>feature?.geometry.type==="Point"||feature?.geometry.type==="MultiPoint"?assessmentPointStyle(layer.role,layer.opacity):assessmentPathStyle(layer.role,layer.opacity)} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(layer.role,layer.opacity))} onEachFeature={bindSafePopup}><Tooltip sticky>{layer.title} · {layer.role}</Tooltip></GeoJSON>
-          ))}
+          {payload.layers.filter((layer)=>(visibility[layer.datasetVersionId]??layer.visible)).map((layer)=>{
+            let featureIndex=-1;
+            return <GeoJSON
+              key={`${layer.datasetVersionId}-${selectedFeature?.layerId??"none"}-${selectedFeature?.featureIndex??-1}`}
+              data={layer.geojson}
+              style={(feature)=>{
+                featureIndex+=1;
+                const selected=selectedFeature?.layerId===layer.datasetVersionId&&selectedFeature.featureIndex===featureIndex;
+                const base=feature?.geometry.type==="Point"||feature?.geometry.type==="MultiPoint"?assessmentPointStyle(layer.role,layer.opacity):assessmentPathStyle(layer.role,layer.opacity);
+                return selected?{...base,color:"#0f172a",weight:5,fillOpacity:Math.max(Number(base.fillOpacity??0),.65)}:base;
+              }}
+              pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(layer.role,layer.opacity))}
+              onEachFeature={(feature,leafletLayer)=>{
+                const index=featuresOf(layer.geojson).indexOf(feature as Feature<Geometry>);
+                bindSafePopup(feature as Feature<Geometry>,leafletLayer);
+                leafletLayer.on("click",()=>{
+                  if(index<0)return;
+                  setAttributeLayerId(layer.datasetVersionId);
+                  setSelectedFeature({layerId:layer.datasetVersionId,featureIndex:index});
+                  setAttributeOpen(true);
+                });
+              }}
+            ><Tooltip sticky>{layer.title} · {layer.role}</Tooltip></GeoJSON>;
+          })}
           {analyses.filter((analysis)=>analysis.geojson&&(analysisVisibility[analysis.toolId]??true)).map((analysis)=>(
             <GeoJSON key={analysis.toolId} data={analysis.geojson!} style={analysisStyle(analysis.toolId)} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,analysisPointStyle(analysis.toolId))} onEachFeature={bindSafePopup}><Tooltip sticky>{analysis.title} · hasil PostGIS</Tooltip></GeoJSON>
           ))}
@@ -190,7 +235,16 @@ export function AssessmentLeafletMap({
           {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
         </aside>
       </div>
-      <p className={styles.note}>Pencarian dan koordinat hanya membantu navigasi peta. Fitur ini tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
+      <AssessmentAttributeTable
+        layers={payload.layers}
+        open={attributeOpen}
+        onOpenChange={setAttributeOpen}
+        activeLayerId={attributeLayerId}
+        onActiveLayerChange={(layerId)=>{setAttributeLayerId(layerId);setSelectedFeature(null);}}
+        selected={selectedFeature}
+        onSelect={(value)=>{setSelectedFeature(value);setVisibility((current)=>({...current,[value.layerId]:true}));}}
+      />
+      <p className={styles.note}>Pencarian, koordinat, dan Attribute Table hanya membantu navigasi/inspeksi peta. Fitur ini tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
     </div>
   );
 }
