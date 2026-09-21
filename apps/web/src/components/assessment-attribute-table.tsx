@@ -64,10 +64,6 @@ export function AssessmentAttributeTable({
 
   const activeLayer=layers.find((layer)=>layer.datasetVersionId===activeLayerId)??layers[0]??null;
 
-  useEffect(()=>{
-    if(!activeLayer&&layers[0])onActiveLayerChange(layers[0].datasetVersionId);
-  },[activeLayer,layers,onActiveLayerChange]);
-
   const rows=useMemo<Row[]>(()=>{
     if(!activeLayer)return [];
     return featuresOf(activeLayer.geojson).map((feature,featureIndex)=>({
@@ -97,15 +93,17 @@ export function AssessmentAttributeTable({
   const safePage=Math.min(page,totalPages);
   const pageRows=filteredRows.slice((safePage-1)*PAGE_SIZE,safePage*PAGE_SIZE);
 
-  useEffect(()=>{setPage(1);},[activeLayerId,query,sortField,sortDirection]);
-
   useEffect(()=>{
     if(!selected||selected.layerId!==activeLayer?.datasetVersionId)return;
     const index=filteredRows.findIndex((row)=>row.featureIndex===selected.featureIndex);
-    if(index>=0)setPage(Math.floor(index/PAGE_SIZE)+1);
+    if(index<0)return;
+    const targetPage=Math.floor(index/PAGE_SIZE)+1;
+    const frame=requestAnimationFrame(()=>setPage(targetPage));
+    return()=>cancelAnimationFrame(frame);
   },[activeLayer?.datasetVersionId,filteredRows,selected]);
 
   function toggleSort(field:string){
+    setPage(1);
     if(sortField===field)setSortDirection((current)=>current==="asc"?"desc":"asc");
     else{setSortField(field);setSortDirection("asc");}
   }
@@ -118,8 +116,8 @@ export function AssessmentAttributeTable({
     </button>
     {open&&<div className={styles.panel}>
       <div className={styles.controls}>
-        <label>Layer<select value={activeLayer?.datasetVersionId??""} onChange={(event)=>onActiveLayerChange(event.target.value)}>{layers.map((layer)=><option value={layer.datasetVersionId} key={layer.datasetVersionId}>{layer.title} · {layer.role}</option>)}</select></label>
-        <label>Cari atribut<input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Cari nama, kelas, nilai…"/></label>
+        <label>Layer<select value={activeLayer?.datasetVersionId??""} onChange={(event)=>{setPage(1);onActiveLayerChange(event.target.value);}}>{layers.map((layer)=><option value={layer.datasetVersionId} key={layer.datasetVersionId}>{layer.title} · {layer.role}</option>)}</select></label>
+        <label>Cari atribut<input value={query} onChange={(event)=>{setPage(1);setQuery(event.target.value);}} placeholder="Cari nama, kelas, nilai…"/></label>
         <div className={styles.summary}><strong>{filteredRows.length}</strong><span>dari {rows.length} feature</span></div>
       </div>
       <div className={styles.tableScroller}>
