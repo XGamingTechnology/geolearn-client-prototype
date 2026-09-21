@@ -27,7 +27,7 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const configuredTools=Array.isArray(activity.tools)?activity.tools.filter((tool):tool is string=>typeof tool==="string"):[];
   const allowedGisTools=Array.from(new Set([...configuredTools,...requiredGisTools]));
   const bufferAction=requiredActions.find((action)=>action&&typeof action==="object"&&(action as {tool?:unknown}).tool==="buffer") as {parameters?:{distanceMeters?:number}}|undefined;
-  const toolParameters=activity.toolParameters&&typeof activity.toolParameters==="object"?activity.toolParameters as {buffer?:{distanceMeters?:number}}:{};
+  const toolParameters:{buffer?:{distanceMeters?:number}}=activity.toolParameters&&typeof activity.toolParameters==="object"?activity.toolParameters as {buffer?:{distanceMeters?:number}}:{};
   const bufferDistance=bufferAction?.parameters?.distanceMeters??toolParameters.buffer?.distanceMeters??500;
   const datasetBindings=bindings.map((binding)=>({datasetId:binding.datasetId,role:binding.role}));
   const stimulusMedia=mediaBindings.find((binding)=>binding.role==="STIMULUS");
