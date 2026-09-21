@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { requireTeacherSession } from "@/server/auth/session";
 import { listQuestionBankPage } from "@/server/content/question-bank";
+import { listQuestionGroups } from "@/server/content/question-groups";
 import { QuestionBankLifecycleAction } from "@/components/question-bank-actions";
 import styles from "./question-bank.module.css";
 
 type Params={
   status?:string;message?:string;q?:string;stimulus?:string;mode?:string;response?:string;
-  difficulty?:string;versionStatus?:string;scope?:string;lifecycle?:string;page?:string;
+  difficulty?:string;versionStatus?:string;scope?:string;lifecycle?:string;groupId?:string;page?:string;
 };
 
 function hrefWith(params:Params,patch:Partial<Params>){
   const next={...params,...patch};
   const query=new URLSearchParams();
-  const keys:Array<keyof Params>=["q","stimulus","mode","response","difficulty","versionStatus","scope","lifecycle","page"];
+  const keys:Array<keyof Params>=["q","stimulus","mode","response","difficulty","versionStatus","scope","lifecycle","groupId","page"];
   for(const key of keys){const value=next[key];if(value)query.set(key,value);}
   const text=query.toString();
   return `/teacher/questions${text?`?${text}`:""}`;
@@ -23,17 +24,20 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
   const params=await searchParams;
   const page=Number(params.page??1);
   const lifecycle=params.lifecycle==="ARCHIVED"?"ARCHIVED":"ACTIVE";
-  const result=await listQuestionBankPage(session,{
-    search:params.q,stimulus:params.stimulus,mode:params.mode,response:params.response,
-    difficulty:params.difficulty,status:params.versionStatus,scope:params.scope,lifecycle,page,
-  });
-  const activeFilters=[params.q,params.stimulus,params.mode,params.response,params.difficulty,params.versionStatus,params.scope].filter(Boolean).length;
+  const [result,groups]=await Promise.all([
+    listQuestionBankPage(session,{
+      search:params.q,stimulus:params.stimulus,mode:params.mode,response:params.response,
+      difficulty:params.difficulty,status:params.versionStatus,scope:params.scope,lifecycle,groupId:params.groupId,page,
+    }),
+    listQuestionGroups(session),
+  ]);
+  const activeFilters=[params.q,params.stimulus,params.mode,params.response,params.difficulty,params.versionStatus,params.scope,params.groupId].filter(Boolean).length;
 
   return (
     <main className="dashboard catalog-page">
       <header className="catalog-header">
-        <div><p className="eyebrow">Content Bank</p><h1>Bank Soal</h1><p>Cari, filter, kelola draft, dan arsipkan soal published tanpa merusak QuizVersion/Attempt lama.</p></div>
-        <Link className="button" href="/teacher/questions/new">+ Soal Baru</Link>
+        <div><p className="eyebrow">Content Bank</p><h1>Bank Soal</h1><p>Cari soal standalone atau berdasarkan Stimulus Set, lalu kelola draft/published tanpa merusak QuizVersion dan Attempt lama.</p></div>
+        <div className="row-actions"><Link className="button button-secondary" href="/teacher/questions/groups">Stimulus Set</Link><Link className="button" href="/teacher/questions/new">+ Soal Standalone</Link></div>
       </header>
 
       {params.status==="deleted"&&<p className="account-alert success">Draft berhasil dihapus.</p>}
@@ -49,11 +53,12 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
       <form className={styles.filterPanel} method="get">
         {lifecycle==="ARCHIVED"&&<input type="hidden" name="lifecycle" value="ARCHIVED"/>}
         <div className={styles.searchRow}>
-          <label><span>Cari soal</span><input defaultValue={params.q??""} name="q" placeholder="Judul, topic, subject, atau prompt…"/></label>
+          <label><span>Cari soal / stimulus</span><input defaultValue={params.q??""} name="q" placeholder="Judul soal, Stimulus Set, topic, subject, atau prompt…"/></label>
           <button className="button" type="submit">Terapkan Filter</button>
           {activeFilters>0&&<Link className="button button-secondary" href={lifecycle==="ARCHIVED"?"/teacher/questions?lifecycle=ARCHIVED":"/teacher/questions"}>Reset ({activeFilters})</Link>}
         </div>
         <div className={styles.filterGrid}>
+          <label><span>Stimulus Set</span><select defaultValue={params.groupId??""} name="groupId"><option value="">Semua</option>{groups.map((group)=><option key={group.id} value={group.id}>{group.title}</option>)}</select></label>
           <label><span>Stimulus</span><select defaultValue={params.stimulus??""} name="stimulus"><option value="">Semua</option><option value="text">Text</option><option value="image">Image</option><option value="video">Video</option><option value="webgis">WebGIS</option></select></label>
           <label><span>Spatial Thinking</span><select defaultValue={params.mode??""} name="mode"><option value="">Semua</option><option value="location">Location</option><option value="condition">Condition</option><option value="influence">Influence</option><option value="region">Region</option><option value="hierarchy">Hierarchy</option><option value="analogy">Analogy</option><option value="pattern">Pattern</option><option value="association">Association</option></select></label>
           <label><span>Response</span><select defaultValue={params.response??""} name="response"><option value="">Semua</option><option value="multiple-choice">Multiple Choice</option><option value="draw-point">Draw Point</option><option value="draw-line">Draw Line</option><option value="draw-polygon">Draw Polygon</option><option value="feature-select">Select Feature</option></select></label>
@@ -70,7 +75,7 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
           <article className="question-bank-row" key={q.id}>
             <div className="question-thumb">{q.stimulusType==="webgis"?"◎":q.stimulusType==="video"?"▶":q.stimulusType==="image"?"▣":"T"}</div>
             <div className="question-main">
-              <div className="question-tags"><span>{q.spatialMode??"-"}</span><span>{q.stimulusType??"-"}</span><span>{q.responseType??"-"}</span></div>
+              <div className="question-tags">{q.groupTitle&&<span>Set: {q.groupTitle}</span>}<span>{q.spatialMode??"-"}</span><span>{q.stimulusType??"-"}</span><span>{q.responseType??"-"}</span></div>
               <h2>{q.title}</h2>
               <p>{q.difficulty??"-"} · {q.scope} · {q.versionNumber?"v"+q.versionNumber:"-"}{q.topic?` · ${q.topic}`:""}</p>
               {q.prompt&&<small className={styles.promptPreview}>{q.prompt}</small>}
@@ -78,6 +83,7 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
             <div className="question-status"><span className={q.versionStatus==="PUBLISHED"?"publish":"draft"}>{q.versionStatus??"DRAFT"}</span></div>
             <div className={styles.actions}>
               {lifecycle==="ACTIVE"&&<Link className="question-action" href={"/teacher/questions/"+q.id}>Open</Link>}
+              {lifecycle==="ACTIVE"&&q.groupId&&<Link className="question-action" href={`/teacher/questions/new?groupId=${q.groupId}`}>+ Same Set</Link>}
               {lifecycle==="ACTIVE"&&q.versionStatus==="PUBLISHED"&&<form action={"/api/content/questions/"+q.id+"/duplicate"} method="post"><button className="question-action" type="submit">Duplicate</button></form>}
               {lifecycle==="ACTIVE"&&q.versionStatus==="DRAFT"&&!q.hasPublished&&<QuestionBankLifecycleAction action={`/api/content/questions/${q.id}/delete`} label="Delete" confirmText={`Hapus draft “${q.title}” secara permanen? Tindakan ini tidak dapat dibatalkan.`} tone="danger"/>}
               {lifecycle==="ACTIVE"&&q.hasPublished&&<QuestionBankLifecycleAction action={`/api/content/questions/${q.id}/archive`} label="Archive" confirmText={`Arsipkan “${q.title}”? Soal tidak lagi muncul di Bank Soal aktif, tetapi versi published tetap dipertahankan untuk Quiz/Attempt lama.`}/>}            

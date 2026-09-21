@@ -13,6 +13,7 @@ export type QuestionBankFilter={
   status?:string;
   scope?:string;
   lifecycle?:string;
+  groupId?:string;
   page?:number;
 };
 
@@ -33,6 +34,9 @@ export type QuestionBankRow={
   stimulusType:string|null;
   responseType:string|null;
   hasPublished:boolean;
+  groupId:string|null;
+  groupTitle:string|null;
+  groupStimulusType:string|null;
 };
 
 export type QuestionBankPage={
@@ -76,16 +80,19 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
   };
 
   const search=clean(filter.search,160);
-  if(search)add((p)=>`(q.title ilike ${p} or coalesce(q.subject,'') ilike ${p} or coalesce(q.topic,'') ilike ${p} or coalesce(qv.prompt,'') ilike ${p})`,`%${search}%`);
+  if(search)add((p)=>`(q.title ilike ${p} or coalesce(q.subject,'') ilike ${p} or coalesce(q.topic,'') ilike ${p} or coalesce(qv.prompt,'') ilike ${p} or coalesce(g.title,'') ilike ${p} or coalesce(g.description,'') ilike ${p})`,`%${search}%`);
   if(filter.stimulus&&stimulusValues.has(filter.stimulus))add((p)=>`lower(coalesce(qv.stimulus_config->>'type',''))=lower(${p})`,filter.stimulus);
   if(filter.mode&&modeValues.has(filter.mode))add((p)=>`lower(coalesce(qv.spatial_mode::text,''))=lower(${p})`,filter.mode);
   if(filter.response&&responseValues.has(filter.response))add((p)=>`lower(coalesce(qv.response_config->>'type',''))=lower(${p})`,filter.response);
   if(filter.difficulty&&difficultyValues.has(filter.difficulty))add((p)=>`lower(coalesce(qv.difficulty,''))=lower(${p})`,filter.difficulty);
   if(filter.scope&&scopeValues.has(filter.scope))add((p)=>`q.scope=${p}`,filter.scope);
+  const groupId=clean(filter.groupId,60);
+  if(groupId)add((p)=>`q.question_group_id=${p}::uuid`,groupId);
 
   const versionOrder=versionStatus?"x.version_number desc":"case x.status when 'DRAFT' then 0 else 1 end,x.version_number desc";
   const fromSql=`
     from questions q
+    left join question_groups g on g.id=q.question_group_id
     left join lateral (
       select * from question_versions x
       where x.question_id=q.id ${versionStatusClause}
@@ -110,9 +117,10 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
         qv.difficulty,qv.prompt,qv.status as "versionStatus",
         qv.stimulus_config->>'type' as "stimulusType",
         qv.response_config->>'type' as "responseType",
-        exists(select 1 from question_versions published where published.question_id=q.id and published.status='PUBLISHED') as "hasPublished"
+        exists(select 1 from question_versions published where published.question_id=q.id and published.status='PUBLISHED') as "hasPublished",
+        g.id as "groupId",g.title as "groupTitle",g.stimulus_type as "groupStimulusType"
        ${fromSql}
-       order by q.updated_at desc,q.id
+       order by coalesce(lower(g.title),''),q.updated_at desc,q.id
        limit ${limitPlaceholder} offset ${offsetPlaceholder}`,
       listValues,
     );
