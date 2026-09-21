@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { GeoJsonObject } from "geojson";
 import { AssessmentMediaRenderer } from "@/components/assessment-media-renderer";
+import styles from "./assessment-runtime-results.module.css";
 
 const AssessmentSpatialResponseMap=dynamic(
   ()=>import("./assessment-spatial-response-map").then((module)=>module.AssessmentSpatialResponseMap),
@@ -31,6 +32,14 @@ type Question={
   feedbackConfig:{correct?:string;incorrect?:string};
 };
 
+type GisAnalysisResult={
+  toolId:string;
+  title:string;
+  metric:string;
+  description:string;
+  geojson:GeoJsonObject|null;
+};
+
 function requiredTools(config:Record<string,unknown>):string[]{
   const actions=Array.isArray(config.requiredActions)?config.requiredActions:[];
   return actions.map((action)=>action&&typeof action==="object"&&typeof (action as {tool?:unknown}).tool==="string"?(action as {tool:string}).tool:null).filter((x):x is string=>Boolean(x));
@@ -39,6 +48,31 @@ function requiredTools(config:Record<string,unknown>):string[]{
 function allowedTools(config:Record<string,unknown>):string[]{
   const configured=Array.isArray(config.tools)?config.tools.filter((tool):tool is string=>typeof tool==="string"):[];
   return Array.from(new Set([...configured,...requiredTools(config)]));
+}
+
+function formatDistance(value:number){
+  if(value>=1000)return `${(value/1000).toFixed(value>=10000?1:2)} km`;
+  return `${Math.round(value)} m`;
+}
+
+function resultFromResponse(toolId:string,body:Record<string,unknown>):GisAnalysisResult{
+  const geojson=body.geojson&&typeof body.geojson==="object"?body.geojson as GeoJsonObject:null;
+  if(toolId==="buffer"){
+    const distance=Number(body.distanceMeters??0);
+    const count=Number(body.featureCount??0);
+    return {toolId,title:"Buffer",metric:`${formatDistance(distance)} · ${count} feature`,description:`Zona buffer ${formatDistance(distance)} dibuat di sekitar seluruh feature pada layer SOURCE.`,geojson};
+  }
+  if(toolId==="overlay"){
+    const count=Number(body.intersectionCount??0);
+    return {toolId,title:"Overlay",metric:`${count} irisan`,description:count===0?"Tidak ditemukan area/feature SOURCE dan TARGET yang saling beririsan.":`Ditemukan ${count} irisan antara layer SOURCE dan TARGET.`,geojson};
+  }
+  const distance=body.distanceMeters==null?null:Number(body.distanceMeters);
+  const sourceId=body.sourceFeatureId==null?null:String(body.sourceFeatureId);
+  const targetId=body.targetFeatureId==null?null:String(body.targetFeatureId);
+  return {
+    toolId,title:"Distance",metric:distance==null?"Tidak ada pasangan feature":formatDistance(distance),
+    description:distance==null?"Jarak minimum tidak dapat dihitung karena pasangan SOURCE–TARGET tidak tersedia.":`Jarak minimum SOURCE ke TARGET${sourceId&&targetId?` adalah dari feature ${sourceId} ke ${targetId}`:""}.`,geojson,
+  };
 }
 
 export function AssessmentRuntimeClient({
@@ -59,8 +93,7 @@ export function AssessmentRuntimeClient({
   ].map((key)=>[key,true])));
   const [spatialDirty,setSpatialDirty]=useState<Record<string,boolean>>({});
   const [spatialResponses,setSpatialResponses]=useState(initialSpatialResponses);
-  const [analysisGeojson,setAnalysisGeojson]=useState<Record<string,GeoJsonObject|null>>({});
-  const [toolSummary,setToolSummary]=useState<Record<string,string>>({});
+  const [analysisResults,setAnalysisResults]=useState<Record<string,Record<string,GisAnalysisResult>>>({});
   const [feedback,setFeedback]=useState<Record<string,string>>(()=>Object.fromEntries(Object.entries(savedResponses).map(([quizItemId,value])=>[quizItemId,value.isCorrect===true?"Jawaban sebelumnya benar.":"Jawaban sebelumnya tersimpan."])));
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
@@ -89,6 +122,7 @@ export function AssessmentRuntimeClient({
   const savedSpatial=spatialResponses[question.quizItemId];
   const completedCount=questions.filter((item)=>persisted[item.quizItemId]).length;
   const allPersisted=completedCount===questions.length;
+  const currentResults=analysisResults[question.questionVersionId]??{};
 
   function elapsedSinceEntry(){return enteredAt.current===null?0:Math.max(0,Date.now()-enteredAt.current);}
   function durationMs(){return Math.max(0,Math.round((elapsedByQuestion.current[question.quizItemId]??0)+elapsedSinceEntry()));}
@@ -104,16 +138,11 @@ export function AssessmentRuntimeClient({
       const response=await fetch(`/api/assessment/attempts/${attemptId}/questions/${question.questionVersionId}/gis/execute`,{
         method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({toolId:tool}),
       });
-      const body=await response.json();
-      if(!response.ok)throw new Error(body.error??"Analisis PostGIS gagal.");
+      const body=await response.json() as Record<string,unknown>;
+      if(!response.ok)throw new Error(typeof body.error==="string"?body.error:"Analisis PostGIS gagal.");
       setCompletedTools((current)=>({...current,[question.questionVersionId]:Array.from(new Set([...(current[question.questionVersionId]??[]),tool]))}));
-      if(body.geojson)setAnalysisGeojson((current)=>({...current,[question.questionVersionId]:body.geojson as GeoJsonObject}));
-      const summary=tool==="buffer"
-        ? `Buffer ${body.distanceMeters} m · ${body.featureCount} feature`
-        : tool==="overlay"
-          ? `Overlay · ${body.intersectionCount} intersection`
-          : body.distanceMeters==null?"Distance · tidak ada pasangan feature":`Distance minimum · ${Math.round(body.distanceMeters)} m`;
-      setToolSummary((current)=>({...current,[question.questionVersionId+":"+tool]:summary}));
+      const result=resultFromResponse(tool,body);
+      setAnalysisResults((current)=>({...current,[question.questionVersionId]:{...(current[question.questionVersionId]??{}),[tool]:result}}));
     }catch(e){setError(e instanceof Error?e.message:"Analisis PostGIS gagal.");}
     finally{setBusy(false);}
   }
@@ -145,14 +174,22 @@ export function AssessmentRuntimeClient({
           <div><strong>{requiredComplete?"Aktivitas GIS wajib selesai":"Aktivitas GIS wajib"}</strong><small>{required.join(", ")}</small></div>
         </div>}
 
-        {stimulusType==="webgis"&&<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} analysisGeojson={analysisGeojson[question.questionVersionId]??null}/>}        
+        {stimulusType==="webgis"&&<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} analyses={Object.values(currentResults).map((result)=>({toolId:result.toolId,title:result.title,geojson:result.geojson}))}/>}        
         {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
         {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
 
-        {allowed.length>0&&<div className="runtime-tool-row">{allowed.map((tool)=>{
-          const isRequired=required.includes(tool);const summary=toolSummary[question.questionVersionId+":"+tool];
-          return <button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button" title={summary??(isRequired?"Wajib":"Opsional")}>{done.has(tool)?"✓ ":""}{tool} · PostGIS {isRequired?"(wajib)":"(opsional)"}</button>;
-        })}</div>}
+        {allowed.length>0&&<>
+          <div className="runtime-tool-row">{allowed.map((tool)=>{
+            const isRequired=required.includes(tool);const result=currentResults[tool];
+            return <button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button" title={result?.description??(isRequired?"Wajib":"Opsional")}>{done.has(tool)?"✓ ":""}{tool} · PostGIS {isRequired?"(wajib)":"(opsional)"}</button>;
+          })}</div>
+          <section className={styles.resultsPanel} aria-live="polite">
+            <div className={styles.resultsHeading}><div><strong>Hasil Analisis GIS</strong><span>Hasil setiap fungsi ditampilkan terpisah dan tetap terlihat di peta.</span></div><small>{Object.keys(currentResults).length}/{allowed.length} tool dijalankan</small></div>
+            {Object.keys(currentResults).length===0
+              ? <div className={styles.emptyResult}>Jalankan Buffer, Overlay, atau Distance untuk melihat hasil analisis di sini.</div>
+              : <div className={styles.resultGrid}>{allowed.filter((tool)=>currentResults[tool]).map((tool)=>{const result=currentResults[tool];return <article className={styles.resultCard} data-tool={tool} key={tool}><div className={styles.resultCardTop}><span>{result.title}</span><em>SELESAI</em></div><strong className={styles.resultMetric}>{result.metric}</strong><p>{result.description}</p><small>{result.geojson?"Geometri hasil ditampilkan sebagai layer di peta.":"Hasil berupa nilai/summary tanpa geometri peta."}</small></article>;})}</div>}
+          </section>
+        </>}
 
         {!isSpatialResponse&&<fieldset disabled={!requiredComplete||busy}>
           <legend>Jawaban</legend>
