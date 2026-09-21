@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect,useMemo,useState} from "react";
-import type {Feature,GeoJsonObject,Geometry} from "geojson";
+import type {Feature,FeatureCollection,GeoJsonObject,Geometry} from "geojson";
 import styles from "./assessment-attribute-table.module.css";
 
 export type AttributeMapLayer={
@@ -23,8 +23,14 @@ function isScalar(value:unknown):value is Scalar{
 }
 
 export function featuresOf(geojson:GeoJsonObject):Feature<Geometry>[] {
-  if(geojson.type==="FeatureCollection")return geojson.features.filter((feature):feature is Feature<Geometry>=>feature.geometry!==null) as Feature<Geometry>[];
-  if(geojson.type==="Feature"&&geojson.geometry)return [geojson as Feature<Geometry>];
+  if(geojson.type==="FeatureCollection"){
+    const collection=geojson as FeatureCollection<Geometry>;
+    return collection.features.filter((feature):feature is Feature<Geometry>=>feature.geometry!==null);
+  }
+  if(geojson.type==="Feature"){
+    const feature=geojson as Feature<Geometry>;
+    return feature.geometry?[feature]:[];
+  }
   return [];
 }
 
