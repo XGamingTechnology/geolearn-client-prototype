@@ -12,6 +12,7 @@ export type QuestionBankFilter={
   difficulty?:string;
   status?:string;
   scope?:string;
+  lifecycle?:string;
   page?:number;
 };
 
@@ -21,6 +22,7 @@ export type QuestionBankRow={
   subject:string|null;
   topic:string|null;
   scope:"SYSTEM"|"SCHOOL"|"PRIVATE";
+  questionStatus:"ACTIVE"|"ARCHIVED";
   ownerTeacherId:string|null;
   versionId:string|null;
   versionNumber:number|null;
@@ -48,6 +50,7 @@ const modeValues=new Set(["location","condition","influence","region","hierarchy
 const difficultyValues=new Set(["Mudah","Sedang","Sulit"]);
 const statusValues=new Set(["DRAFT","PUBLISHED"]);
 const scopeValues=new Set(["SYSTEM","SCHOOL","PRIVATE"]);
+const lifecycleValues=new Set(["ACTIVE","ARCHIVED"]);
 
 function clean(value:string|undefined,max=120){return (value??"").trim().slice(0,max);}
 
@@ -55,11 +58,18 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
   if(!session.schoolId&&session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
 
   const requestedPage=Number.isFinite(filter.page)?Math.max(1,Math.floor(filter.page??1)):1;
+  const lifecycle=filter.lifecycle&&lifecycleValues.has(filter.lifecycle)?filter.lifecycle:"ACTIVE";
+  const versionStatus=filter.status&&statusValues.has(filter.status)?filter.status:"";
   const values:Array<string|number|null>=[session.schoolId,session.staffUserId];
   const conditions=[
-    "q.status='ACTIVE'",
+    `q.status='${lifecycle}'`,
     `(q.scope='SYSTEM' or (q.scope='SCHOOL' and q.school_id=$1) or (q.scope='PRIVATE' and q.owner_teacher_id=$2))`,
   ];
+  let versionStatusClause="";
+  if(versionStatus){
+    values.push(versionStatus);
+    versionStatusClause=`and x.status=$${values.length}`;
+  }
   const add=(sql:(placeholder:string)=>string,value:string|number)=>{
     values.push(value);
     conditions.push(sql(`$${values.length}`));
@@ -67,22 +77,23 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
 
   const search=clean(filter.search,160);
   if(search)add((p)=>`(q.title ilike ${p} or coalesce(q.subject,'') ilike ${p} or coalesce(q.topic,'') ilike ${p} or coalesce(qv.prompt,'') ilike ${p})`,`%${search}%`);
-  if(filter.stimulus&&stimulusValues.has(filter.stimulus))add((p)=>`qv.stimulus_config->>'type'=${p}`,filter.stimulus);
-  if(filter.mode&&modeValues.has(filter.mode))add((p)=>`qv.spatial_mode=${p}`,filter.mode);
-  if(filter.response&&responseValues.has(filter.response))add((p)=>`qv.response_config->>'type'=${p}`,filter.response);
-  if(filter.difficulty&&difficultyValues.has(filter.difficulty))add((p)=>`qv.difficulty=${p}`,filter.difficulty);
-  if(filter.status&&statusValues.has(filter.status))add((p)=>`qv.status=${p}`,filter.status);
+  if(filter.stimulus&&stimulusValues.has(filter.stimulus))add((p)=>`lower(coalesce(qv.stimulus_config->>'type',''))=lower(${p})`,filter.stimulus);
+  if(filter.mode&&modeValues.has(filter.mode))add((p)=>`lower(coalesce(qv.spatial_mode::text,''))=lower(${p})`,filter.mode);
+  if(filter.response&&responseValues.has(filter.response))add((p)=>`lower(coalesce(qv.response_config->>'type',''))=lower(${p})`,filter.response);
+  if(filter.difficulty&&difficultyValues.has(filter.difficulty))add((p)=>`lower(coalesce(qv.difficulty,''))=lower(${p})`,filter.difficulty);
   if(filter.scope&&scopeValues.has(filter.scope))add((p)=>`q.scope=${p}`,filter.scope);
 
+  const versionOrder=versionStatus?"x.version_number desc":"case x.status when 'DRAFT' then 0 else 1 end,x.version_number desc";
   const fromSql=`
     from questions q
     left join lateral (
       select * from question_versions x
-      where x.question_id=q.id
-      order by case x.status when 'DRAFT' then 0 else 1 end,x.version_number desc
+      where x.question_id=q.id ${versionStatusClause}
+      order by ${versionOrder}
       limit 1
     ) qv on true
-    where ${conditions.join(" and ")}`;
+    where ${conditions.join(" and ")}
+      ${versionStatus?"and qv.id is not null":""}`;
 
   const client=await database().connect();
   try{
@@ -94,7 +105,7 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
     const limitPlaceholder=`$${values.length+1}`;
     const offsetPlaceholder=`$${values.length+2}`;
     const listResult=await client.query<QuestionBankRow>(
-      `select q.id,q.title,q.subject,q.topic,q.scope,q.owner_teacher_id as "ownerTeacherId",
+      `select q.id,q.title,q.subject,q.topic,q.scope,q.status as "questionStatus",q.owner_teacher_id as "ownerTeacherId",
         qv.id as "versionId",qv.version_number as "versionNumber",qv.spatial_mode as "spatialMode",
         qv.difficulty,qv.prompt,qv.status as "versionStatus",
         qv.stimulus_config->>'type' as "stimulusType",
@@ -109,12 +120,12 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
   }finally{client.release();}
 }
 
-async function assertManageQuestion(session:TeacherSession,questionId:string){
-  const [row]=await query<{id:string;schoolId:string|null;ownerTeacherId:string|null;scope:"SYSTEM"|"SCHOOL"|"PRIVATE";status:string}>(
+async function assertManageQuestion(session:TeacherSession,questionId:string,expectedStatus:"ACTIVE"|"ARCHIVED"){
+  const [row]=await query<{id:string;schoolId:string|null;ownerTeacherId:string|null;scope:"SYSTEM"|"SCHOOL"|"PRIVATE";status:"ACTIVE"|"ARCHIVED"}>(
     `select id,school_id as "schoolId",owner_teacher_id as "ownerTeacherId",scope,status from questions where id=$1`,
     [questionId],
   );
-  if(!row||row.status!=="ACTIVE")throw new Error("Question tidak tersedia.");
+  if(!row||row.status!==expectedStatus)throw new Error(expectedStatus==="ACTIVE"?"Question aktif tidak tersedia.":"Question arsip tidak tersedia.");
   if(row.scope==="SYSTEM"){
     if(session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
   }else if(row.scope==="SCHOOL"){
@@ -126,7 +137,7 @@ async function assertManageQuestion(session:TeacherSession,questionId:string){
 }
 
 export async function deleteDraftQuestion(session:TeacherSession,questionId:string){
-  await assertManageQuestion(session,questionId);
+  await assertManageQuestion(session,questionId,"ACTIVE");
   const [state]=await query<{publishedCount:number;draftCount:number}>(
     `select count(*) filter(where status='PUBLISHED')::int as "publishedCount",
             count(*) filter(where status='DRAFT')::int as "draftCount"
@@ -139,11 +150,21 @@ export async function deleteDraftQuestion(session:TeacherSession,questionId:stri
 }
 
 export async function archivePublishedQuestion(session:TeacherSession,questionId:string){
-  await assertManageQuestion(session,questionId);
+  await assertManageQuestion(session,questionId,"ACTIVE");
   const [state]=await query<{publishedCount:number}>(
     `select count(*) filter(where status='PUBLISHED')::int as "publishedCount" from question_versions where question_id=$1`,
     [questionId],
   );
   if((state?.publishedCount??0)===0)throw new Error("Draft yang belum dipublish sebaiknya dihapus, bukan diarsipkan.");
   await query("update questions set status='ARCHIVED',updated_at=now() where id=$1 and status='ACTIVE'",[questionId]);
+}
+
+export async function restoreArchivedQuestion(session:TeacherSession,questionId:string){
+  await assertManageQuestion(session,questionId,"ARCHIVED");
+  const [state]=await query<{publishedCount:number}>(
+    `select count(*) filter(where status='PUBLISHED')::int as "publishedCount" from question_versions where question_id=$1`,
+    [questionId],
+  );
+  if((state?.publishedCount??0)===0)throw new Error("Arsip tidak mempunyai QuestionVersion published yang dapat dipulihkan.");
+  await query("update questions set status='ACTIVE',updated_at=now() where id=$1 and status='ARCHIVED'",[questionId]);
 }
