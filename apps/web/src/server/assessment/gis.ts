@@ -60,25 +60,29 @@ export async function getAssessmentMapPayload(session:StudentSession,attemptId:s
   const ctx=await context(session,attemptId,questionVersionId);
   const layers=[];
   for(const layer of ctx.layers){
-    layers.push({
-      ...layer,
-      geojson:await featureCollection(layer.datasetVersionId),
-    });
+    layers.push({...layer,geojson:await featureCollection(layer.datasetVersionId)});
   }
   const boxes=ctx.layers.map((layer)=>layer.bbox).filter((bbox):bbox is [number,number,number,number]=>Array.isArray(bbox)&&bbox.length===4);
   const bbox=boxes.length?[Math.min(...boxes.map((x)=>x[0])),Math.min(...boxes.map((x)=>x[1])),Math.max(...boxes.map((x)=>x[2])),Math.max(...boxes.map((x)=>x[3]))]:null;
   return {layers,bbox};
 }
 
-function requiredAction(config:Record<string,unknown>,toolId:string){
-  const actions=Array.isArray(config.requiredActions)?config.requiredActions:[];
-  return actions.find((action)=>action&&typeof action==="object"&&(action as {tool?:unknown}).tool===toolId) as {tool:string;parameters?:Record<string,unknown>}|undefined;
+function requiredActions(config:Record<string,unknown>){
+  return Array.isArray(config.requiredActions)?config.requiredActions.filter((action)=>action&&typeof action==="object") as Array<{tool?:string;parameters?:Record<string,unknown>}>:[];
 }
 
-async function record(
-  attemptId:string,questionVersionId:string,toolId:string,
-  parameters:Record<string,unknown>,result:Record<string,unknown>,
-){
+function toolConfiguration(config:Record<string,unknown>,toolId:string){
+  const required=requiredActions(config).find((action)=>action.tool===toolId);
+  const configuredTools=Array.isArray(config.tools)?config.tools.filter((tool):tool is string=>typeof tool==="string"):[];
+  const legacyRequired=requiredActions(config).map((action)=>action.tool).filter((tool):tool is string=>Boolean(tool));
+  const allowed=new Set([...configuredTools,...legacyRequired]);
+  if(!allowed.has(toolId))return null;
+  const toolParameters=config.toolParameters&&typeof config.toolParameters==="object"?(config.toolParameters as Record<string,unknown>)[toolId]:undefined;
+  const optionalParameters=toolParameters&&typeof toolParameters==="object"?toolParameters as Record<string,unknown>:{};
+  return {required:Boolean(required),parameters:required?.parameters??optionalParameters};
+}
+
+async function record(attemptId:string,questionVersionId:string,toolId:string,parameters:Record<string,unknown>,result:Record<string,unknown>){
   await query(
     `insert into gis_activities(attempt_id,question_version_id,tool_id,action_type,parameters_json,result_summary_json)
      values($1,$2,$3,$4,$5::jsonb,$6::jsonb)`,
@@ -86,21 +90,16 @@ async function record(
   );
 }
 
-export async function executeAssessmentGisTool(
-  session:StudentSession,
-  attemptId:string,
-  questionVersionId:string,
-  toolId:string,
-){
+export async function executeAssessmentGisTool(session:StudentSession,attemptId:string,questionVersionId:string,toolId:string){
   const ctx=await context(session,attemptId,questionVersionId);
-  const action=requiredAction(ctx.activityConfig,toolId);
-  if(!action) throw new Error("Tool is not required by this QuestionVersion");
+  const tool=toolConfiguration(ctx.activityConfig,toolId);
+  if(!tool) throw new Error("Tool is not allowed by this QuestionVersion");
   const source=ctx.layers.find((layer)=>layer.role==="SOURCE");
   const target=ctx.layers.find((layer)=>layer.role==="TARGET");
   if(!source) throw new Error("SOURCE DatasetVersion is not bound");
 
   if(toolId==="buffer"){
-    const configured=Number(action.parameters?.distanceMeters??500);
+    const configured=Number(tool.parameters?.distanceMeters??500);
     const distanceMeters=Number.isFinite(configured)&&configured>0&&configured<=100000?configured:500;
     const [row]=await query<{geojson:unknown;featureCount:number}>(
       `select jsonb_build_object('type','FeatureCollection','features',
