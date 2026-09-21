@@ -141,14 +141,36 @@ export async function executeAssessmentGisTool(session:StudentSession,attemptId:
 
   if(toolId==="distance"){
     if(!target) throw new Error("TARGET DatasetVersion is required for Distance");
-    const [row]=await query<{distanceMeters:number|null}>(
-      `select min(ST_Distance(a.geom::geography,b.geom::geography))::float8 as "distanceMeters"
+    const [row]=await query<{distanceMeters:number|null;sourceFeatureId:string|null;targetFeatureId:string|null;geojson:unknown}>(
+      `select
+         ST_Distance(a.geom::geography,b.geom::geography)::float8 as "distanceMeters",
+         coalesce(a.source_feature_id,a.id::text) as "sourceFeatureId",
+         coalesce(b.source_feature_id,b.id::text) as "targetFeatureId",
+         jsonb_build_object('type','FeatureCollection','features',jsonb_build_array(
+           jsonb_build_object(
+             'type','Feature',
+             'geometry',ST_AsGeoJSON(ST_ShortestLine(a.geom,b.geom))::jsonb,
+             'properties',jsonb_build_object(
+               '_analysis','distance',
+               'sourceId',coalesce(a.source_feature_id,a.id::text),
+               'targetId',coalesce(b.source_feature_id,b.id::text),
+               'distanceMeters',ST_Distance(a.geom::geography,b.geom::geography)
+             )
+           )
+         )) as geojson
        from dataset_features a cross join dataset_features b
-       where a.dataset_version_id=$1 and b.dataset_version_id=$2`,
+       where a.dataset_version_id=$1 and b.dataset_version_id=$2
+       order by ST_Distance(a.geom::geography,b.geom::geography)
+       limit 1`,
       [source.datasetVersionId,target.datasetVersionId],
     );
-    const result={distanceMeters:row?.distanceMeters??null};
-    await record(attemptId,questionVersionId,toolId,{sourceVersionId:source.datasetVersionId,targetVersionId:target.datasetVersionId},result);
+    const result={
+      distanceMeters:row?.distanceMeters??null,
+      sourceFeatureId:row?.sourceFeatureId??null,
+      targetFeatureId:row?.targetFeatureId??null,
+      geojson:row?.geojson??null,
+    };
+    await record(attemptId,questionVersionId,toolId,{sourceVersionId:source.datasetVersionId,targetVersionId:target.datasetVersionId},{distanceMeters:result.distanceMeters,sourceFeatureId:result.sourceFeatureId,targetFeatureId:result.targetFeatureId});
     return result;
   }
 
