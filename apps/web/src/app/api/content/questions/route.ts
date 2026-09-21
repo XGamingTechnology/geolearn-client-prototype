@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
+import { AuthorizationError } from "@/server/auth/authorization";
 import { createQuestionDraft } from "@/server/content/service";
 import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
@@ -9,7 +10,12 @@ const supportedTools=new Set(["buffer","overlay","distance"]);
 const supportedRoles=new Set<QuestionDatasetRole>(["SOURCE","TARGET","CONTEXT"]);
 
 function answers(form:FormData){return (["A","B","C","D","E"] as const).map(id=>({id,label:String(form.get("answer_"+id)??"").trim()})).filter(answer=>answer.label);}
-
+function failureReason(error:unknown){
+  if(error instanceof AuthorizationError)return "permission";
+  const message=error instanceof Error?error.message:"";
+  if(/dataset|binding|version/i.test(message))return "dataset";
+  return "save";
+}
 function spatialValidationConfig(form:FormData){
   const method=String(form.get("spatialValidationMethod")??"manual-review");
   if(method==="geometry-distance"){
@@ -23,7 +29,6 @@ function spatialValidationConfig(form:FormData){
   }
   return {method:"manual-review"};
 }
-
 function activityConfig(form:FormData){
   const stimulus=String(form.get("stimulusType")??"text");
   if(stimulus!=="webgis")return {};
@@ -31,13 +36,8 @@ function activityConfig(form:FormData){
   const required=form.getAll("requiredGisTool").map(String).filter((tool)=>supportedTools.has(tool)&&tools.includes(tool));
   const distance=Number(form.get("bufferDistance")??500);
   const distanceMeters=Number.isFinite(distance)&&distance>0?Math.min(distance,100000):500;
-  return {
-    tools:Array.from(new Set(tools)),
-    requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),
-    toolParameters:tools.includes("buffer")?{buffer:{distanceMeters}}:{},
-  };
+  return {tools:Array.from(new Set(tools)),requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),toolParameters:tools.includes("buffer")?{buffer:{distanceMeters}}:{}};
 }
-
 function datasetBindings(form:FormData):Array<{datasetId:string;role:QuestionDatasetRole}>{
   const raw=String(form.get("datasetBindingsJson")??"[]");
   const value=JSON.parse(raw) as unknown;
@@ -57,30 +57,18 @@ export async function POST(request:NextRequest){
     const form=await request.formData();
     const correct=String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E";
     const stimulus=String(form.get("stimulusType")??"text");
+    const bindings=stimulus==="webgis"?datasetBindings(form):[];
     const id=await createQuestionDraft({
-      actor,
-      title:String(form.get("title")??""),
-      subject:String(form.get("subject")??""),
-      topic:String(form.get("topic")??""),
-      scope:String(form.get("scope")??"PRIVATE"),
-      spatialMode:String(form.get("spatialMode")??"location"),
-      difficulty:String(form.get("difficulty")??"Sedang"),
-      prompt:String(form.get("prompt")??""),
-      stimulusType:stimulus,
-      answers:answers(form),
-      correctAnswer:correct,
-      responseType:String(form.get("responseType")??"multiple-choice"),
-      feedbackCorrect:String(form.get("feedbackCorrect")??""),
-      feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
-      activityConfig:activityConfig(form),
-      validationConfig:spatialValidationConfig(form),
+      actor,title:String(form.get("title")??""),subject:String(form.get("subject")??""),topic:String(form.get("topic")??""),scope:String(form.get("scope")??"PRIVATE"),
+      spatialMode:String(form.get("spatialMode")??"location"),difficulty:String(form.get("difficulty")??"Sedang"),prompt:String(form.get("prompt")??""),stimulusType:stimulus,
+      answers:answers(form),correctAnswer:correct,responseType:String(form.get("responseType")??"multiple-choice"),feedbackCorrect:String(form.get("feedbackCorrect")??""),feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
+      activityConfig:activityConfig(form),validationConfig:spatialValidationConfig(form),
     });
-    await replaceQuestionDraftDatasetBindings(actor,id,stimulus==="webgis"?datasetBindings(form):[]);
-    await replaceQuestionDraftMediaBindings(actor,id,stimulus==="image"||stimulus==="video"?[
-      {mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")},
-    ]:[]);
+    await replaceQuestionDraftDatasetBindings(actor,id,bindings);
+    await replaceQuestionDraftMediaBindings(actor,id,stimulus==="image"||stimulus==="video"?[{mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")}]:[]);
     return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/"+id),303);
-  }catch{
-    return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/new?status=error"),303);
+  }catch(error){
+    console.error("Question draft creation failed",error);
+    return NextResponse.redirect(publicRedirectUrl(request,`/teacher/questions/new?status=error&reason=${failureReason(error)}`),303);
   }
 }
