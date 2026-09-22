@@ -6,10 +6,10 @@ import Link from "next/link";
 import styles from "./question-builder-form.module.css";
 import {
   answerIds,configurationSummary,normalizeAnswers,stimulusControls,validateForPublish,
-  type AnswerId,type DatasetRole,type DatasetSelection,type ResponseType,type StimulusType,
+  type AnswerId,type DatasetLabelConfig,type DatasetRole,type DatasetSelection,type ResponseType,type StimulusType,
 } from "@/features/questions/builder";
 
-type Dataset={id:string;title:string;geometryType?:string|null};
+type Dataset={id:string;title:string;geometryType?:string|null;fields?:string[]};
 type Media={id:string;title:string;mediaType:"IMAGE"|"VIDEO"|"DOCUMENT"|"ILLUSTRATION";mimeType:string|null;storageKey:string|null};
 export type QuestionBuilderInitial={
   title?:string;subject?:string;topic?:string;scope?:string;spatialMode?:string;difficulty?:string;prompt?:string;stimulusType?:string;responseType?:string;
@@ -31,6 +31,7 @@ const help:Record<string,string>={
   "Dataset Layers":"Pilih layer yang diperlukan. Satu SOURCE untuk analisis utama, maksimal satu TARGET untuk pembanding, sisanya CONTEXT.",
   "GIS Tools":"Aktifkan beberapa tool. Wajib berarti tool harus selesai sebelum siswa dapat menjawab.",
   "Buffer Distance":"Jarak area Buffer dalam meter.",Buffer:"Membuat area dalam jarak tertentu dari feature menggunakan PostGIS.",
+  "Feature Labels":"Tampilkan nilai atribut tertentu sebagai label permanen di peta siswa. Min zoom membantu mencegah peta terlalu penuh teks.",
   "Multiple Choice":"Siswa memilih satu jawaban dari pilihan yang tersedia.","Spatial Response":"Siswa menggambar atau memilih objek langsung pada peta.","Correct Answer":"Pilihan yang dinilai benar secara otomatis.",
   "Alt Text":"Deskripsi singkat media untuk pengguna pembaca layar.",Caption:"Keterangan tambahan yang tampil bersama media.","Publish Immutable Version":"Setelah dipublish, versi ini terkunci. Perubahan berikutnya harus dibuat sebagai versi baru.",
 };
@@ -79,6 +80,9 @@ export function QuestionBuilderForm({action,publishAction,datasets,media,initial
       return item;
     }));
   }
+  function setDatasetLabel(datasetId:string,patch:Partial<DatasetLabelConfig>){
+    setBindings((current)=>current.map((item)=>item.datasetId===datasetId?{...item,label:{enabled:item.label?.enabled??false,field:item.label?.field??null,minZoom:item.label?.minZoom??11,...patch}}:item));
+  }
   function toggleTool(tool:string,checked:boolean){
     setAllowedTools((current)=>checked?Array.from(new Set([...current,tool])):current.filter((item)=>item!==tool));
     if(!checked)setRequiredTools((current)=>current.filter((item)=>item!==tool));
@@ -98,10 +102,25 @@ export function QuestionBuilderForm({action,publishAction,datasets,media,initial
       {stimulus==="webgis"&&<div className="conditional-fields">
         <input type="hidden" name="datasetBindingsJson" value={JSON.stringify(bindings)}/>
         <div className={styles.datasetBlock}>
-          <div className={styles.datasetHeader}><div><span className={styles.sectionTitle}><Label helpTerm="Dataset Layers">Dataset Layers</Label></span><p className={styles.hint}>Tambahkan layer yang dibutuhkan, lalu tentukan perannya. Role SOURCE/TARGET dibuat unik otomatis.</p></div><span className={styles.datasetCount}>{bindings.length} layer</span></div>
-          <div className={styles.selectedLayers}>{selectedDatasets.length===0?<div className={styles.emptySelection}>Belum ada layer. Tambahkan dataset dari daftar di bawah.</div>:selectedDatasets.map(({binding,dataset})=><div className={styles.selectedLayer} key={binding.datasetId}><div className={styles.layerInfo}><strong>{dataset!.title}</strong><span>{dataset!.geometryType??"Geometry"}</span></div><select className={styles.roleSelect} aria-label={`Role ${dataset!.title}`} value={binding.role} onChange={(event)=>setDatasetRole(binding.datasetId,event.target.value as DatasetRole)}><option value="SOURCE">SOURCE</option><option value="TARGET">TARGET</option><option value="CONTEXT">CONTEXT</option></select><button className={styles.removeLayer} type="button" onClick={()=>removeDataset(binding.datasetId)}>Hapus</button></div>)}</div>
+          <div className={styles.datasetHeader}><div><span className={styles.sectionTitle}><Label helpTerm="Dataset Layers">Dataset Layers</Label></span><p className={styles.hint}>Tambahkan layer yang dibutuhkan, tentukan perannya, lalu atur label bila atribut perlu tampil langsung pada peta siswa.</p></div><span className={styles.datasetCount}>{bindings.length} layer</span></div>
+          <div className={styles.selectedLayers}>{selectedDatasets.length===0?<div className={styles.emptySelection}>Belum ada layer. Tambahkan dataset dari daftar di bawah.</div>:selectedDatasets.map(({binding,dataset})=>{
+            const labelEnabled=binding.label?.enabled===true;
+            const fields=dataset!.fields??[];
+            return <div className={styles.selectedLayer} key={binding.datasetId}>
+              <div className={styles.layerInfo}><strong>{dataset!.title}</strong><span>{dataset!.geometryType??"Geometry"} · {fields.length} field</span></div>
+              <select className={styles.roleSelect} aria-label={`Role ${dataset!.title}`} value={binding.role} onChange={(event)=>setDatasetRole(binding.datasetId,event.target.value as DatasetRole)}><option value="SOURCE">SOURCE</option><option value="TARGET">TARGET</option><option value="CONTEXT">CONTEXT</option></select>
+              <button className={styles.removeLayer} type="button" onClick={()=>removeDataset(binding.datasetId)}>Hapus</button>
+              <div className={styles.labelControls}>
+                <label className={styles.labelToggle}><input type="checkbox" checked={labelEnabled} disabled={!fields.length} onChange={(event)=>setDatasetLabel(binding.datasetId,{enabled:event.target.checked,field:event.target.checked?(binding.label?.field||fields[0]||null):binding.label?.field})}/><span><strong><Label helpTerm="Feature Labels">Label feature</Label></strong><small>{fields.length?"Tampilkan atribut sebagai teks di peta":"Dataset belum memiliki field atribut"}</small></span></label>
+                {labelEnabled&&<div className={styles.labelOptions}>
+                  <label>Field<select value={binding.label?.field??""} onChange={(event)=>setDatasetLabel(binding.datasetId,{field:event.target.value})}><option value="">Pilih field…</option>{fields.map((field)=><option value={field} key={field}>{field}</option>)}</select></label>
+                  <label>Min zoom<input type="number" min={0} max={22} value={binding.label?.minZoom??11} onChange={(event)=>setDatasetLabel(binding.datasetId,{minZoom:Number(event.target.value)})}/></label>
+                </div>}
+              </div>
+            </div>;
+          })}</div>
           <div className={styles.datasetSearch}><input type="search" placeholder="Cari dataset…" value={datasetSearch} onChange={(event)=>setDatasetSearch(event.target.value)}/><span className={styles.hint}>{availableDatasets.length} tersedia</span></div>
-          <div className={styles.availableList}>{availableDatasets.slice(0,20).map((dataset)=><div className={styles.availableItem} key={dataset.id}><div><strong>{dataset.title}</strong><span>{dataset.geometryType??"Geometry"}</span></div><button className={styles.addLayer} type="button" onClick={()=>addDataset(dataset.id)}>+ Tambah</button></div>)}{availableDatasets.length===0&&<div className={styles.noResults}>Tidak ada dataset lain yang cocok.</div>}</div>
+          <div className={styles.availableList}>{availableDatasets.slice(0,20).map((dataset)=><div className={styles.availableItem} key={dataset.id}><div><strong>{dataset.title}</strong><span>{dataset.geometryType??"Geometry"} · {(dataset.fields??[]).length} field</span></div><button className={styles.addLayer} type="button" onClick={()=>addDataset(dataset.id)}>+ Tambah</button></div>)}{availableDatasets.length===0&&<div className={styles.noResults}>Tidak ada dataset lain yang cocok.</div>}</div>
         </div>
 
         <div className={styles.toolSection}><div><span className={styles.sectionTitle}><Label helpTerm="GIS Tools">GIS Tools</Label></span><p className={styles.hint}>Aktifkan tool yang boleh digunakan siswa. Pilih “Wajib” hanya untuk tool yang menjadi syarat sebelum menjawab.</p></div>{needsTarget&&!hasTarget&&<div className={styles.warning}>Overlay atau Distance membutuhkan satu layer dengan role TARGET.</div>}<div className={styles.toolGrid}>{gisTools.map((tool)=>{const enabled=allowedTools.includes(tool.id);const required=requiredTools.includes(tool.id);return <div className={`${styles.toolCard} ${enabled?styles.toolCardEnabled:""}`} key={tool.id}><label className={styles.toolMain}><input type="checkbox" name="allowedGisTool" value={tool.id} checked={enabled} onChange={(event)=>toggleTool(tool.id,event.target.checked)}/><span className={styles.toolText}><strong>{tool.label}</strong><span>{tool.description}</span></span></label>{enabled&&<label className={styles.requiredToggle}><input type="checkbox" name="requiredGisTool" value={tool.id} checked={required} onChange={(event)=>toggleRequired(tool.id,event.target.checked)}/> Jadikan wajib</label>}</div>})}</div>{allowedTools.includes("buffer")&&<label className={styles.bufferField}><Label helpTerm="Buffer Distance">Buffer Distance (m)</Label><input name="bufferDistance" type="number" min={1} max={100000} value={distance} onChange={e=>setDistance(Number(e.target.value))}/><small className="form-note">{help.Buffer}</small></label>}</div>
