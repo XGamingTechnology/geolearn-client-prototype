@@ -4,7 +4,7 @@ import { AuthorizationError } from "@/server/auth/authorization";
 
 type BoundLayer={
   datasetVersionId:string;title:string;role:"SOURCE"|"TARGET"|"CONTEXT";position:number;
-  visible:boolean;opacity:number;bbox:[number,number,number,number]|null;
+  visible:boolean;opacity:number;bbox:[number,number,number,number]|null;style:Record<string,unknown>;
 };
 type AttemptQuestionContext={
   activityConfig:Record<string,unknown>;
@@ -30,7 +30,7 @@ async function context(session:StudentSession,attemptId:string,questionVersionId
 
   const layers=await query<BoundLayer>(
     `select qdl.dataset_version_id as "datasetVersionId",d.title,qdl.role,qdl.position,qdl.visible,
-       qdl.opacity::float8 as opacity,
+       qdl.opacity::float8 as opacity,coalesce(qdl.style_json,'{}'::jsonb) as style,
        case when jsonb_typeof(dv.bbox)='array' then array[
          (dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8
        ] else null end as bbox
