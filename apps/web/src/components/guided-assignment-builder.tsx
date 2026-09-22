@@ -60,7 +60,14 @@ export function GuidedAssignmentBuilder({questions,classes}:{questions:QuizQuest
   const canPublish=canContinue&&classId.length>0;
   const selectedClass=classes.find(item=>item.id===classId);
 
-  return <form action="/api/assessment/guided-assignment" method="post" className="assessment-create-form">
+  return <form
+    action="/api/assessment/guided-assignment"
+    method="post"
+    className="assessment-create-form"
+    onSubmit={(event)=>{if(!canPublish)event.preventDefault();}}
+  >
+    <input type="hidden" name="title" value={title}/>
+    <input type="hidden" name="instructions" value={instructions}/>
     {selected.map(id=><input key={id} type="hidden" name="questionVersionIds" value={id}/>)}
     <input type="hidden" name="opensAt" value={toUtc(opensAt)}/>
     <input type="hidden" name="closesAt" value={toUtc(closesAt)}/>
@@ -72,8 +79,8 @@ export function GuidedAssignmentBuilder({questions,classes}:{questions:QuizQuest
 
     {step===1&&<>
       <div className="builder-two-col">
-        <label>Judul Penugasan<input name="title" required maxLength={220} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Analisis Pengaruh Sungai"/></label>
-        <label>Instruksi<textarea name="instructions" rows={3} value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Petunjuk singkat untuk siswa…"/></label>
+        <label>Judul Penugasan<input required maxLength={220} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Analisis Pengaruh Sungai"/></label>
+        <label>Instruksi<textarea rows={3} value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Petunjuk singkat untuk siswa…"/></label>
       </div>
       <label>Cari soal<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Judul, set, spatial mode, stimulus…"/></label>
       <div className="account-alert"><strong>{selected.length} soal dipilih</strong><span> · pilihan konkret ini akan dibekukan otomatis ke QuizVersion.</span></div>
