@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherSession } from "@/server/auth/session";
 import { updateQuestionDraft } from "@/server/content/service";
-import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole } from "@/server/content/question-datasets";
+import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole, type QuestionDatasetSelection } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 import { publicRedirectUrl } from "@/server/http/public-url";
 
@@ -38,16 +38,22 @@ function activityConfig(form:FormData){
   };
 }
 
-function datasetBindings(form:FormData):Array<{datasetId:string;role:QuestionDatasetRole}>{
+function datasetBindings(form:FormData):QuestionDatasetSelection[]{
   const raw=String(form.get("datasetBindingsJson")??"[]");
   const value=JSON.parse(raw) as unknown;
   if(!Array.isArray(value)||value.length>50)throw new Error("Dataset bindings tidak valid.");
   return value.map((item)=>{
     if(!item||typeof item!=="object")throw new Error("Dataset bindings tidak valid.");
-    const datasetId=String((item as {datasetId?:unknown}).datasetId??"").trim();
-    const role=String((item as {role?:unknown}).role??"") as QuestionDatasetRole;
+    const source=item as {datasetId?:unknown;role?:unknown;label?:unknown};
+    const datasetId=String(source.datasetId??"").trim();
+    const role=String(source.role??"") as QuestionDatasetRole;
     if(!datasetId||!supportedRoles.has(role))throw new Error("Dataset bindings tidak valid.");
-    return {datasetId,role};
+    let label:QuestionDatasetSelection["label"];
+    if(source.label&&typeof source.label==="object"){
+      const rawLabel=source.label as {enabled?:unknown;field?:unknown;minZoom?:unknown};
+      label={enabled:rawLabel.enabled===true,field:typeof rawLabel.field==="string"?rawLabel.field:null,minZoom:Number(rawLabel.minZoom??11)};
+    }
+    return {datasetId,role,label};
   });
 }
 
@@ -79,7 +85,8 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{questio
       {mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")},
     ]:[]);
     return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/"+questionId+"?status=updated"),303);
-  }catch{
+  }catch(error){
+    console.error("Question draft update failed",error);
     return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/"+questionId+"?status=error"),303);
   }
 }
