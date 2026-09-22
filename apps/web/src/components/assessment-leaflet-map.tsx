@@ -18,14 +18,16 @@ type MapLayer={
   visible:boolean;
   opacity:number;
   bbox:Bbox|null;
+  style:Record<string,unknown>;
   geojson:GeoJsonObject;
 };
 type AnalysisLayer={toolId:string;title:string;geojson:GeoJsonObject|null};
 type Payload={layers:MapLayer[];bbox:Bbox|null};
 type SearchResult={id:string;label:string;lat:number;lon:number;type:string|null};
 type NavTarget={lat:number;lon:number;label:string}|null;
+type LabelPresentation={field:string|null;minZoom:number;mode:"configured"|"auto"|"off"};
 
-const LABEL_MIN_ZOOM=11;
+const DEFAULT_LABEL_MIN_ZOOM=11;
 const LABEL_FIELD_PRIORITY=["name","nama","title","label","school_name","nama_sekolah","zone","zona","region","wilayah"];
 
 function fitMapToBbox(map:L.Map,bbox:Bbox){
@@ -118,6 +120,21 @@ function detectedLabelField(geojson:GeoJsonObject):string|null{
   return null;
 }
 
+function labelPresentation(layer:MapLayer):LabelPresentation{
+  if(Object.prototype.hasOwnProperty.call(layer.style??{},"label")){
+    const raw=(layer.style as {label?:unknown}).label;
+    if(!raw||typeof raw!=="object")return {field:null,minZoom:DEFAULT_LABEL_MIN_ZOOM,mode:"off"};
+    const label=raw as {enabled?:unknown;field?:unknown;minZoom?:unknown};
+    if(label.enabled!==true)return {field:null,minZoom:DEFAULT_LABEL_MIN_ZOOM,mode:"off"};
+    const field=typeof label.field==="string"&&label.field.trim()?label.field.trim():null;
+    const rawZoom=Number(label.minZoom??DEFAULT_LABEL_MIN_ZOOM);
+    const minZoom=Number.isFinite(rawZoom)?Math.min(22,Math.max(0,Math.round(rawZoom))):DEFAULT_LABEL_MIN_ZOOM;
+    return {field,minZoom,mode:field?"configured":"off"};
+  }
+  const field=detectedLabelField(layer.geojson);
+  return {field,minZoom:DEFAULT_LABEL_MIN_ZOOM,mode:field?"auto":"off"};
+}
+
 function bindFeatureLabel(feature:Feature<Geometry>,layer:Layer,field:string,className:string){
   const value=feature.properties?.[field];
   if(value===null||value===undefined||(typeof value!=="string"&&typeof value!=="number"))return;
@@ -195,7 +212,7 @@ export function AssessmentLeafletMap({
     const bbox=payload?.bbox;
     return bbox?[(bbox[1]+bbox[3])/2,(bbox[0]+bbox[2])/2]:[-2.5,118];
   },[payload]);
-  const labelFields=useMemo(()=>Object.fromEntries((payload?.layers??[]).map((layer)=>[layer.datasetVersionId,detectedLabelField(layer.geojson)])) as Record<string,string|null>,[payload]);
+  const labelPresentations=useMemo(()=>Object.fromEntries((payload?.layers??[]).map((layer)=>[layer.datasetVersionId,labelPresentation(layer)])) as Record<string,LabelPresentation>,[payload]);
   const initialFitBbox=useMemo(()=>combinedBbox((payload?.layers??[]).filter((layer)=>layer.visible))??payload?.bbox??null,[payload]);
   const currentFitBbox=useMemo(()=>combinedBbox((payload?.layers??[]).filter((layer)=>visibility[layer.datasetVersionId]??layer.visible))??payload?.bbox??null,[payload,visibility]);
 
@@ -265,8 +282,8 @@ export function AssessmentLeafletMap({
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
           {payload.layers.filter((layer)=>(visibility[layer.datasetVersionId]??layer.visible)).map((layer)=>{
             let featureIndex=-1;
-            const labelField=labelFields[layer.datasetVersionId];
-            const showLabels=Boolean(labelField&&mapZoom>=LABEL_MIN_ZOOM);
+            const presentation=labelPresentations[layer.datasetVersionId]??{field:null,minZoom:DEFAULT_LABEL_MIN_ZOOM,mode:"off" as const};
+            const showLabels=Boolean(presentation.field&&mapZoom>=presentation.minZoom);
             return <GeoJSON
               key={`${layer.datasetVersionId}-${selectedFeature?.layerId??"none"}-${selectedFeature?.featureIndex??-1}-${showLabels?"labels":"nolabels"}`}
               data={layer.geojson}
@@ -281,7 +298,7 @@ export function AssessmentLeafletMap({
                 const typed=feature as Feature<Geometry>;
                 const index=featuresOf(layer.geojson).indexOf(typed);
                 bindSafePopup(typed,leafletLayer);
-                if(showLabels&&labelField)bindFeatureLabel(typed,leafletLayer,labelField,styles.featureLabel);
+                if(showLabels&&presentation.field)bindFeatureLabel(typed,leafletLayer,presentation.field,styles.featureLabel);
                 leafletLayer.on("click",()=>{
                   if(index<0)return;
                   setAttributeLayerId(layer.datasetVersionId);
@@ -298,7 +315,7 @@ export function AssessmentLeafletMap({
         </MapContainer>
         <aside className="runtime-layer-list">
           <strong>Layer Peta</strong>
-          {payload.layers.map((layer)=>{const labelField=labelFields[layer.datasetVersionId];return <label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}{labelField?` · label ${labelField}`:""}</small></label>;})}
+          {payload.layers.map((layer)=>{const presentation=labelPresentations[layer.datasetVersionId];const labelSummary=presentation?.field?` · label ${presentation.field} z≥${presentation.minZoom}${presentation.mode==="auto"?" auto":""}`:presentation?.mode==="off"?" · label off":"";return <label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}{labelSummary}</small></label>;})}
           {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
         </aside>
       </div>
@@ -311,7 +328,7 @@ export function AssessmentLeafletMap({
         selected={selectedFeature}
         onSelect={(value)=>{setSelectedFeature(value);setVisibility((current)=>({...current,[value.layerId]:true}));}}
       />
-      <p className={styles.note}>Peta otomatis membuka extent layer yang visible. Label aman tampil mulai zoom {LABEL_MIN_ZOOM} bila dataset memiliki field nama umum. Pencarian, koordinat, label, dan Attribute Table tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
+      <p className={styles.note}>Peta otomatis membuka extent layer yang visible. Label mengikuti konfigurasi QuestionVersion; layer lama tanpa konfigurasi tetap memakai deteksi label aman. Pencarian, koordinat, label, dan Attribute Table tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { requireTeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
 import { createQuestionDraft, type ContentScope } from "@/server/content/service";
 import { attachQuestionToGroup, resolveQuestionGroupForCreate } from "@/server/content/question-groups";
-import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole } from "@/server/content/question-datasets";
+import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole, type QuestionDatasetSelection } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 import { publicRedirectUrl } from "@/server/http/public-url";
 
@@ -15,7 +15,7 @@ function failureReason(error:unknown){
   if(error instanceof AuthorizationError)return "permission";
   const message=error instanceof Error?error.message:"";
   if(/stimulus set|group|scope soal|stimulus soal/i.test(message))return "group";
-  if(/dataset|binding|version/i.test(message))return "dataset";
+  if(/dataset|binding|version|label field/i.test(message))return "dataset";
   return "save";
 }
 function spatialValidationConfig(form:FormData){
@@ -40,16 +40,22 @@ function activityConfig(form:FormData){
   const distanceMeters=Number.isFinite(distance)&&distance>0?Math.min(distance,100000):500;
   return {tools:Array.from(new Set(tools)),requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),toolParameters:tools.includes("buffer")?{buffer:{distanceMeters}}:{}};
 }
-function datasetBindings(form:FormData):Array<{datasetId:string;role:QuestionDatasetRole}>{
+function datasetBindings(form:FormData):QuestionDatasetSelection[]{
   const raw=String(form.get("datasetBindingsJson")??"[]");
   const value=JSON.parse(raw) as unknown;
   if(!Array.isArray(value)||value.length>50)throw new Error("Dataset bindings tidak valid.");
   return value.map((item)=>{
     if(!item||typeof item!=="object")throw new Error("Dataset bindings tidak valid.");
-    const datasetId=String((item as {datasetId?:unknown}).datasetId??"").trim();
-    const role=String((item as {role?:unknown}).role??"") as QuestionDatasetRole;
+    const source=item as {datasetId?:unknown;role?:unknown;label?:unknown};
+    const datasetId=String(source.datasetId??"").trim();
+    const role=String(source.role??"") as QuestionDatasetRole;
     if(!datasetId||!supportedRoles.has(role))throw new Error("Dataset bindings tidak valid.");
-    return {datasetId,role};
+    let label:QuestionDatasetSelection["label"];
+    if(source.label&&typeof source.label==="object"){
+      const rawLabel=source.label as {enabled?:unknown;field?:unknown;minZoom?:unknown};
+      label={enabled:rawLabel.enabled===true,field:typeof rawLabel.field==="string"?rawLabel.field:null,minZoom:Number(rawLabel.minZoom??11)};
+    }
+    return {datasetId,role,label};
   });
 }
 function contentScope(value:string):ContentScope{
