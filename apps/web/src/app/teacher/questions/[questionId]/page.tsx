@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getQuestionEditor } from "@/server/content/service";
-import { listQuestionDatasetBindings } from "@/server/content/question-datasets";
-import { listDatasets } from "@/server/data/service";
+import { listQuestionDatasetBindings,listQuestionDatasetOptions } from "@/server/content/question-datasets";
 import { listMediaBank } from "@/server/content/service";
 import { listQuestionMediaBindings } from "@/server/content/question-media";
 import { requireTeacherSession } from "@/server/auth/session";
@@ -12,7 +11,7 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const session=await requireTeacherSession();
   const {questionId}=await params;
   const [item,datasets,bindings,media,mediaBindings,{status}]=await Promise.all([
-    getQuestionEditor(session,questionId),listDatasets(session),listQuestionDatasetBindings(session,questionId),listMediaBank(session),listQuestionMediaBindings(session,questionId),searchParams,
+    getQuestionEditor(session,questionId),listQuestionDatasetOptions(session),listQuestionDatasetBindings(session,questionId),listMediaBank(session),listQuestionMediaBindings(session,questionId),searchParams,
   ]);
   if(!item) notFound();
   const answers=(item.responseConfig?.answers??[]).filter(answer=>answer.label.trim());
@@ -29,7 +28,16 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const bufferAction=requiredActions.find((action)=>action&&typeof action==="object"&&(action as {tool?:unknown}).tool==="buffer") as {parameters?:{distanceMeters?:number}}|undefined;
   const toolParameters:{buffer?:{distanceMeters?:number}}=activity.toolParameters&&typeof activity.toolParameters==="object"?activity.toolParameters as {buffer?:{distanceMeters?:number}}:{};
   const bufferDistance=bufferAction?.parameters?.distanceMeters??toolParameters.buffer?.distanceMeters??500;
-  const datasetBindings=bindings.map((binding)=>({datasetId:binding.datasetId,role:binding.role}));
+  const datasetBindings=bindings.map((binding)=>{
+    const style=binding.style&&typeof binding.style==="object"?binding.style:{};
+    const labelRaw=(style as {label?:unknown}).label;
+    const label=labelRaw&&typeof labelRaw==="object"?{
+      enabled:(labelRaw as {enabled?:unknown}).enabled===true,
+      field:typeof (labelRaw as {field?:unknown}).field==="string"?(labelRaw as {field:string}).field:null,
+      minZoom:Number((labelRaw as {minZoom?:unknown}).minZoom??11),
+    }:undefined;
+    return {datasetId:binding.datasetId,role:binding.role,label};
+  });
   const stimulusMedia=mediaBindings.find((binding)=>binding.role==="STIMULUS");
 
   return (
@@ -45,7 +53,7 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
       {status==="error"&&<p className="account-alert error">Operasi gagal.</p>}
 
       {isDraft ? (
-        <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets.filter(d=>d.versionStatus==="PUBLISHED"&&d.dataKind==="VECTOR")} media={media} initial={{
+        <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets} media={media} initial={{
           title:item.title,subject:item.subject??"",topic:item.topic??"",spatialMode:item.spatialMode??"location",difficulty:item.difficulty??"Sedang",prompt:item.prompt??"",
           stimulusType:item.stimulusType??"text",responseType:item.responseConfig?.type??"multiple-choice",answers,correctAnswer:key,
           datasetBindings,allowedGisTools,requiredGisTools,bufferDistance,
