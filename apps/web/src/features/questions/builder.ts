@@ -4,7 +4,8 @@ export type StimulusType="text"|"image"|"video"|"webgis";
 export type ResponseType="multiple-choice"|"draw-point"|"draw-line"|"draw-polygon"|"feature-select";
 export type DatasetRole="SOURCE"|"TARGET"|"CONTEXT";
 export type GisTool="buffer"|"overlay"|"distance";
-export type DatasetSelection={datasetId:string;role:DatasetRole};
+export type DatasetLabelConfig={enabled:boolean;field?:string|null;minZoom?:number};
+export type DatasetSelection={datasetId:string;role:DatasetRole;label?:DatasetLabelConfig};
 
 export type BuilderSnapshot={
   stimulusType:StimulusType; responseType:ResponseType; answers:Array<{id:AnswerId;label:string}>;
@@ -59,6 +60,10 @@ export function validateForPublish(value:BuilderSnapshot):string[]{
     if(required.some((tool)=>!allowed.includes(tool))) errors.push("GIS Tool wajib harus termasuk dalam tool yang diizinkan.");
     if(allowed.some((tool)=>tool==="overlay"||tool==="distance")&&targetCount===0) errors.push("Overlay/Distance memerlukan satu TARGET Dataset.");
     if(allowed.includes("buffer")&&(!value.bufferDistance||value.bufferDistance<=0)) errors.push("Buffer Distance harus lebih dari 0 meter.");
+    for(const binding of bindings){
+      if(binding.label?.enabled&&!binding.label.field)errors.push("Layer berlabel harus memiliki field label.");
+      if(binding.label?.minZoom!==undefined&&(binding.label.minZoom<0||binding.label.minZoom>22))errors.push("Min zoom label harus antara 0 dan 22.");
+    }
   }
   return errors;
 }
@@ -67,7 +72,8 @@ export function configurationSummary(value:BuilderSnapshot){
   const stimulus=value.stimulusType.toUpperCase();
   const bindings=normalizedBindings(value);
   const {allowed,required}=normalizedTools(value);
-  const layerSummary=value.stimulusType==="webgis"?` · ${bindings.length} LAYER`:"";
+  const labelCount=bindings.filter((binding)=>binding.label?.enabled).length;
+  const layerSummary=value.stimulusType==="webgis"?` · ${bindings.length} LAYER${labelCount?` · ${labelCount} LABEL`:""}`:"";
   const toolSummary=value.stimulusType==="webgis"&&allowed.length
     ? ` · ${allowed.map((tool)=>tool.toUpperCase()+(tool==="buffer"?` ${value.bufferDistance||0} M`:"")).join(", ")}${required.length?` · ${required.length} WAJIB`:""}`:"";
   if(value.responseType!=="multiple-choice") return `${stimulus}${layerSummary}${toolSummary} · ${value.responseType.replaceAll("-"," ").toUpperCase()}`;
