@@ -3,10 +3,13 @@ import type { TeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
 
 export type QuestionDatasetRole="SOURCE"|"TARGET"|"CONTEXT";
+export type QuestionLayerLabel={enabled:boolean;field?:string|null;minZoom?:number};
+export type QuestionDatasetSelection={datasetId:string;role:QuestionDatasetRole;label?:QuestionLayerLabel};
 export type QuestionDatasetBinding={
   id:string;datasetId:string;datasetVersionId:string;title:string;role:QuestionDatasetRole;
-  position:number;visible:boolean;opacity:number;
+  position:number;visible:boolean;opacity:number;style:Record<string,unknown>;
 };
+export type QuestionDatasetOption={id:string;title:string;geometryType:string|null;fields:string[]};
 
 async function editableVersion(actor:TeacherSession,questionId:string){
   const [row]=await query<{id:string;school_id:string|null;owner_teacher_id:string|null;scope:string}>(
@@ -22,13 +25,26 @@ async function editableVersion(actor:TeacherSession,questionId:string){
   return row.id;
 }
 
-async function resolveVersions(actor:TeacherSession,bindings:Array<{datasetId:string;role:QuestionDatasetRole}>){
+function normalizedLabel(label:QuestionLayerLabel|undefined,schema:Record<string,unknown>){
+  if(!label)return null;
+  const enabled=label.enabled===true;
+  const field=typeof label.field==="string"?label.field.trim():"";
+  const rawMinZoom=Number(label.minZoom??11);
+  const minZoom=Number.isFinite(rawMinZoom)?Math.min(22,Math.max(0,Math.round(rawMinZoom))):11;
+  if(enabled){
+    if(!field)throw new Error("Label field wajib dipilih saat label diaktifkan.");
+    if(!Object.prototype.hasOwnProperty.call(schema,field))throw new Error("Label field tidak ditemukan pada schema DatasetVersion.");
+  }
+  return {enabled,field:enabled?field:null,minZoom};
+}
+
+async function resolveVersions(actor:TeacherSession,bindings:QuestionDatasetSelection[]){
   const clean=bindings.filter((b)=>b.datasetId).filter((b,index,array)=>array.findIndex((x)=>x.datasetId===b.datasetId)===index);
   if(!clean.length)return [];
-  const rows=await query<{datasetId:string;datasetVersionId:string}>(
-    `select d.id as "datasetId",dv.id as "datasetVersionId"
+  const rows=await query<{datasetId:string;datasetVersionId:string;schemaJson:Record<string,unknown>|null}>(
+    `select d.id as "datasetId",dv.id as "datasetVersionId",dv.schema_json as "schemaJson"
      from datasets d join lateral (
-       select id from dataset_versions x where x.dataset_id=d.id and x.status='PUBLISHED'
+       select id,schema_json from dataset_versions x where x.dataset_id=d.id and x.status='PUBLISHED'
        order by x.version_number desc limit 1
      ) dv on true
      where d.id=any($1::uuid[]) and d.status='ACTIVE' and (
@@ -36,15 +52,44 @@ async function resolveVersions(actor:TeacherSession,bindings:Array<{datasetId:st
      )`,
     [clean.map((b)=>b.datasetId),actor.schoolId,actor.staffUserId],
   );
-  const map=new Map(rows.map((row)=>[row.datasetId,row.datasetVersionId]));
+  const map=new Map(rows.map((row)=>[row.datasetId,row]));
   if(clean.some((binding)=>!map.has(binding.datasetId))) throw new AuthorizationError();
-  return clean.map((binding)=>({datasetVersionId:map.get(binding.datasetId) as string,role:binding.role}));
+  return clean.map((binding)=>{
+    const version=map.get(binding.datasetId)!;
+    const label=normalizedLabel(binding.label,version.schemaJson??{});
+    return {
+      datasetVersionId:version.datasetVersionId,
+      role:binding.role,
+      style:label?{label}:{},
+    };
+  });
+}
+
+export async function listQuestionDatasetOptions(actor:TeacherSession):Promise<QuestionDatasetOption[]>{
+  const rows=await query<{id:string;title:string;geometryType:string|null;schemaJson:Record<string,unknown>|null}>(
+    `select d.id,d.title,dv.geometry_type as "geometryType",dv.schema_json as "schemaJson"
+     from datasets d join lateral (
+       select geometry_type,schema_json from dataset_versions x
+       where x.dataset_id=d.id and x.status='PUBLISHED' order by x.version_number desc limit 1
+     ) dv on true
+     where d.status='ACTIVE' and d.data_kind='VECTOR' and (
+       d.scope='SYSTEM' or (d.scope='SCHOOL' and d.school_id=$1) or (d.scope='PRIVATE' and d.owner_teacher_id=$2)
+     )
+     order by d.updated_at desc`,
+    [actor.schoolId,actor.staffUserId],
+  );
+  return rows.map((row)=>({
+    id:row.id,
+    title:row.title,
+    geometryType:row.geometryType,
+    fields:Object.keys(row.schemaJson??{}).sort((a,b)=>a.localeCompare(b,"id",{sensitivity:"base"})),
+  }));
 }
 
 export async function replaceQuestionDraftDatasetBindings(
   actor:TeacherSession,
   questionId:string,
-  bindings:Array<{datasetId:string;role:QuestionDatasetRole}>,
+  bindings:QuestionDatasetSelection[],
 ):Promise<void>{
   const questionVersionId=await editableVersion(actor,questionId);
   const resolved=await resolveVersions(actor,bindings);
@@ -55,9 +100,9 @@ export async function replaceQuestionDraftDatasetBindings(
     let position=1;
     for(const binding of resolved){
       await client.query(
-        `insert into question_version_dataset_layers(question_version_id,dataset_version_id,role,position)
-         values($1,$2,$3,$4)`,
-        [questionVersionId,binding.datasetVersionId,binding.role,position++],
+        `insert into question_version_dataset_layers(question_version_id,dataset_version_id,role,position,style_json)
+         values($1,$2,$3,$4,$5::jsonb)`,
+        [questionVersionId,binding.datasetVersionId,binding.role,position++,JSON.stringify(binding.style)],
       );
     }
     await client.query("commit");
@@ -76,13 +121,17 @@ export async function listQuestionDatasetBindings(
   if(question.scope==="PRIVATE"&&question.owner_teacher_id!==actor.staffUserId) throw new AuthorizationError();
   return query<QuestionDatasetBinding>(
     `select qdl.id,d.id as "datasetId",dv.id as "datasetVersionId",d.title,qdl.role,qdl.position,qdl.visible,
-       qdl.opacity::float8 as opacity
-     from question_versions qv
+       qdl.opacity::float8 as opacity,coalesce(qdl.style_json,'{}'::jsonb) as style
+     from questions q
+     join lateral (
+       select id from question_versions x where x.question_id=q.id
+       order by case x.status when 'DRAFT' then 0 else 1 end,x.version_number desc limit 1
+     ) qv on true
      join question_version_dataset_layers qdl on qdl.question_version_id=qv.id
      join dataset_versions dv on dv.id=qdl.dataset_version_id
      join datasets d on d.id=dv.dataset_id
-     where qv.question_id=$1
-     order by case qv.status when 'DRAFT' then 0 else 1 end,qv.version_number desc,qdl.position`,
+     where q.id=$1
+     order by qdl.position`,
     [questionId],
   );
 }
