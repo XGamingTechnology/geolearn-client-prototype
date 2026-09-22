@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {requireTeacherSession} from "@/server/auth/session";
-import {listDatasets} from "@/server/data/service";
+import {listQuestionDatasetOptions} from "@/server/content/question-datasets";
 import {listMediaBank} from "@/server/content/service";
 import {listQuestionGroups} from "@/server/content/question-groups";
 import {QuestionBuilderForm} from "@/components/question-builder-form";
@@ -14,10 +14,9 @@ const errorMessage:Record<string,string>={
 
 export default async function NewQuestionPage({searchParams}:{searchParams:Promise<{status?:string;reason?:string;groupId?:string}>}){
   const session=await requireTeacherSession();
-  const [allDatasets,media,groups,params]=await Promise.all([listDatasets(session),listMediaBank(session),listQuestionGroups(session),searchParams]);
+  const [datasets,media,groups,params]=await Promise.all([listQuestionDatasetOptions(session),listMediaBank(session),listQuestionGroups(session),searchParams]);
   const {status,reason,groupId}=params;
   const group=groupId?groups.find((item)=>item.id===groupId):undefined;
-  const datasets=allDatasets.filter(d=>d.versionStatus==="PUBLISHED"&&d.dataKind==="VECTOR");
   const action=group?`/api/content/questions?groupId=${encodeURIComponent(group.id)}`:"/api/content/questions";
   const initial=group?{scope:group.scope,subject:group.subject??"Geografi",topic:group.topic??"",stimulusType:group.stimulusType}:{};
 
