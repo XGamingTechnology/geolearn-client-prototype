@@ -1,6 +1,6 @@
 "use client";
 
-import {FormEvent,useEffect,useMemo,useState} from "react";
+import {FormEvent,useEffect,useMemo,useRef,useState} from "react";
 import {CircleMarker,GeoJSON,MapContainer,TileLayer,Tooltip,ZoomControl,useMap,useMapEvents} from "react-leaflet";
 import type {Feature,GeoJsonObject,Geometry} from "geojson";
 import type {Layer} from "leaflet";
@@ -10,23 +10,56 @@ import {assessmentPathStyle,assessmentPointStyle} from "./assessment-map-style";
 import {AssessmentAttributeTable,featuresOf,type SelectedMapFeature} from "./assessment-attribute-table";
 import styles from "./assessment-map-navigation.module.css";
 
+type Bbox=[number,number,number,number];
 type MapLayer={
   datasetVersionId:string;
   title:string;
   role:"SOURCE"|"TARGET"|"CONTEXT";
   visible:boolean;
   opacity:number;
+  bbox:Bbox|null;
   geojson:GeoJsonObject;
 };
 type AnalysisLayer={toolId:string;title:string;geojson:GeoJsonObject|null};
-type Payload={layers:MapLayer[];bbox:[number,number,number,number]|null};
+type Payload={layers:MapLayer[];bbox:Bbox|null};
 type SearchResult={id:string;label:string;lat:number;lon:number;type:string|null};
 type NavTarget={lat:number;lon:number;label:string}|null;
 
-function FitToData({bbox}:{bbox:Payload["bbox"]}){
+const LABEL_MIN_ZOOM=11;
+const LABEL_FIELD_PRIORITY=["name","nama","title","label","school_name","nama_sekolah","zone","zona","region","wilayah"];
+
+function fitMapToBbox(map:L.Map,bbox:Bbox){
+  map.fitBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]],{padding:[24,24],maxZoom:16});
+}
+
+function combinedBbox(layers:MapLayer[]):Bbox|null{
+  const boxes=layers.map((layer)=>layer.bbox).filter((bbox):bbox is Bbox=>Array.isArray(bbox)&&bbox.length===4&&bbox.every(Number.isFinite));
+  if(!boxes.length)return null;
+  return [Math.min(...boxes.map((x)=>x[0])),Math.min(...boxes.map((x)=>x[1])),Math.max(...boxes.map((x)=>x[2])),Math.max(...boxes.map((x)=>x[3]))];
+}
+
+function FitToData({bbox}:{bbox:Bbox|null}){
   const map=useMap();
   if(!bbox)return null;
-  return <button className="runtime-fit-button" type="button" onClick={(event)=>{event.stopPropagation();map.fitBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]],{padding:[24,24]});}}>Fit ke data</button>;
+  return <button className="runtime-fit-button" type="button" onClick={(event)=>{event.stopPropagation();fitMapToBbox(map,bbox);}}>Fit ke data</button>;
+}
+
+function AutoFitToData({bbox}:{bbox:Bbox|null}){
+  const map=useMap();
+  const fitted=useRef(false);
+  useEffect(()=>{
+    if(!bbox||fitted.current)return;
+    fitted.current=true;
+    const frame=requestAnimationFrame(()=>fitMapToBbox(map,bbox));
+    return()=>cancelAnimationFrame(frame);
+  },[bbox,map]);
+  return null;
+}
+
+function MapZoomTracker({onZoom}:{onZoom:(zoom:number)=>void}){
+  const map=useMapEvents({zoomend(){onZoom(map.getZoom());}});
+  useEffect(()=>{onZoom(map.getZoom());},[map,onZoom]);
+  return null;
 }
 
 function NavigateToTarget({target}:{target:NavTarget}){
@@ -70,6 +103,30 @@ function bindSafePopup(feature:Feature<Geometry>,layer:Layer){
     content.append(term,detail);
   }
   layer.bindPopup(content);
+}
+
+function detectedLabelField(geojson:GeoJsonObject):string|null{
+  const features=featuresOf(geojson);
+  const keys=new Map<string,string>();
+  for(const feature of features.slice(0,100)){
+    for(const [key,value] of Object.entries(feature.properties??{})){
+      if(value===null||!["string","number"].includes(typeof value))continue;
+      keys.set(key.toLowerCase(),key);
+    }
+  }
+  for(const candidate of LABEL_FIELD_PRIORITY){const match=keys.get(candidate);if(match)return match;}
+  return null;
+}
+
+function bindFeatureLabel(feature:Feature<Geometry>,layer:Layer,field:string,className:string){
+  const value=feature.properties?.[field];
+  if(value===null||value===undefined||(typeof value!=="string"&&typeof value!=="number"))return;
+  const text=String(value).trim();
+  if(!text)return;
+  const content=document.createElement("span");
+  content.textContent=text.length>80?`${text.slice(0,77)}…`:text;
+  const point=feature.geometry.type==="Point"||feature.geometry.type==="MultiPoint";
+  layer.bindTooltip(content,{permanent:true,direction:point?"right":"center",offset:point?[8,0]:[0,0],className,interactive:false,opacity:.94});
 }
 
 function analysisStyle(toolId:string):L.PathOptions{
@@ -116,6 +173,7 @@ export function AssessmentLeafletMap({
   const [attributeOpen,setAttributeOpen]=useState(false);
   const [attributeLayerId,setAttributeLayerId]=useState("");
   const [selectedFeature,setSelectedFeature]=useState<SelectedMapFeature>(null);
+  const [mapZoom,setMapZoom]=useState(5);
 
   useEffect(()=>{
     let active=true;
@@ -137,6 +195,9 @@ export function AssessmentLeafletMap({
     const bbox=payload?.bbox;
     return bbox?[(bbox[1]+bbox[3])/2,(bbox[0]+bbox[2])/2]:[-2.5,118];
   },[payload]);
+  const labelFields=useMemo(()=>Object.fromEntries((payload?.layers??[]).map((layer)=>[layer.datasetVersionId,detectedLabelField(layer.geojson)])) as Record<string,string|null>,[payload]);
+  const initialFitBbox=useMemo(()=>combinedBbox((payload?.layers??[]).filter((layer)=>layer.visible))??payload?.bbox??null,[payload]);
+  const currentFitBbox=useMemo(()=>combinedBbox((payload?.layers??[]).filter((layer)=>visibility[layer.datasetVersionId]??layer.visible))??payload?.bbox??null,[payload,visibility]);
 
   async function searchPlace(event:FormEvent){
     event.preventDefault();
@@ -193,17 +254,21 @@ export function AssessmentLeafletMap({
       </section>
       {searchError&&<div className={styles.error}>{searchError}</div>}
       <div className="runtime-leaflet-shell">
-        <MapContainer key={questionVersionId} center={center} zoom={payload.bbox?11:5} className="runtime-product-map" scrollWheelZoom zoomControl={false}>
+        <MapContainer key={questionVersionId} center={center} zoom={payload.bbox?8:5} className="runtime-product-map" scrollWheelZoom zoomControl={false}>
           <ZoomControl position="bottomright"/>
-          <FitToData bbox={payload.bbox}/>
+          <AutoFitToData bbox={initialFitBbox}/>
+          <FitToData bbox={currentFitBbox}/>
+          <MapZoomTracker onZoom={setMapZoom}/>
           <NavigateToTarget target={target}/>
           <NavigateToFeature selected={selectedFeature} layers={payload.layers}/>
           <CoordinatePicker enabled={pickMode} onPick={pickCoordinate} onReadout={(lat,lon)=>setReadout({lat,lon})}/>
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
           {payload.layers.filter((layer)=>(visibility[layer.datasetVersionId]??layer.visible)).map((layer)=>{
             let featureIndex=-1;
+            const labelField=labelFields[layer.datasetVersionId];
+            const showLabels=Boolean(labelField&&mapZoom>=LABEL_MIN_ZOOM);
             return <GeoJSON
-              key={`${layer.datasetVersionId}-${selectedFeature?.layerId??"none"}-${selectedFeature?.featureIndex??-1}`}
+              key={`${layer.datasetVersionId}-${selectedFeature?.layerId??"none"}-${selectedFeature?.featureIndex??-1}-${showLabels?"labels":"nolabels"}`}
               data={layer.geojson}
               style={(feature)=>{
                 featureIndex+=1;
@@ -213,8 +278,10 @@ export function AssessmentLeafletMap({
               }}
               pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(layer.role,layer.opacity))}
               onEachFeature={(feature,leafletLayer)=>{
-                const index=featuresOf(layer.geojson).indexOf(feature as Feature<Geometry>);
-                bindSafePopup(feature as Feature<Geometry>,leafletLayer);
+                const typed=feature as Feature<Geometry>;
+                const index=featuresOf(layer.geojson).indexOf(typed);
+                bindSafePopup(typed,leafletLayer);
+                if(showLabels&&labelField)bindFeatureLabel(typed,leafletLayer,labelField,styles.featureLabel);
                 leafletLayer.on("click",()=>{
                   if(index<0)return;
                   setAttributeLayerId(layer.datasetVersionId);
@@ -231,7 +298,7 @@ export function AssessmentLeafletMap({
         </MapContainer>
         <aside className="runtime-layer-list">
           <strong>Layer Peta</strong>
-          {payload.layers.map((layer)=><label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}</small></label>)}
+          {payload.layers.map((layer)=>{const labelField=labelFields[layer.datasetVersionId];return <label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}{labelField?` · label ${labelField}`:""}</small></label>;})}
           {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
         </aside>
       </div>
@@ -244,7 +311,7 @@ export function AssessmentLeafletMap({
         selected={selectedFeature}
         onSelect={(value)=>{setSelectedFeature(value);setVisibility((current)=>({...current,[value.layerId]:true}));}}
       />
-      <p className={styles.note}>Pencarian, koordinat, dan Attribute Table hanya membantu navigasi/inspeksi peta. Fitur ini tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
+      <p className={styles.note}>Peta otomatis membuka extent layer yang visible. Label aman tampil mulai zoom {LABEL_MIN_ZOOM} bila dataset memiliki field nama umum. Pencarian, koordinat, label, dan Attribute Table tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
     </div>
   );
 }
