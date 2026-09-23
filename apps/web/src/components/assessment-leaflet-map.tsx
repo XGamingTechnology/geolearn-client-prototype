@@ -8,6 +8,7 @@ import L from "leaflet";
 
 import {assessmentPathStyle,assessmentPointStyle} from "./assessment-map-style";
 import {AssessmentAttributeTable,featuresOf,type SelectedMapFeature} from "./assessment-attribute-table";
+import {configuredMapInteractions,mapInteractionsForActivityConfig,normalizeMapExperience,type MapInteraction} from "@/features/questions/experience";
 import styles from "./assessment-map-navigation.module.css";
 
 type Bbox=[number,number,number,number];
@@ -26,6 +27,8 @@ type Payload={layers:MapLayer[];bbox:Bbox|null};
 type SearchResult={id:string;label:string;lat:number;lon:number;type:string|null};
 type NavTarget={lat:number;lon:number;label:string}|null;
 type LabelPresentation={field:string|null;minZoom:number;mode:"configured"|"auto"|"off"};
+
+type DataPanelContent={layerTitle:string;role:MapLayer["role"];entries:Array<[string,string]>}|null;
 
 const DEFAULT_LABEL_MIN_ZOOM=11;
 const LABEL_FIELD_PRIORITY=["name","nama","title","label","school_name","nama_sekolah","zone","zona","region","wilayah"];
@@ -87,10 +90,10 @@ function NavigateToFeature({selected,layers}:{selected:SelectedMapFeature;layers
   return null;
 }
 
-function CoordinatePicker({enabled,onPick,onReadout}:{enabled:boolean;onPick:(lat:number,lon:number)=>void;onReadout:(lat:number,lon:number)=>void}){
+function CoordinateTracker({pickEnabled,readoutEnabled,onPick,onReadout}:{pickEnabled:boolean;readoutEnabled:boolean;onPick:(lat:number,lon:number)=>void;onReadout:(lat:number,lon:number)=>void}){
   useMapEvents({
-    mousemove(event){onReadout(event.latlng.lat,event.latlng.lng);},
-    click(event){if(enabled)onPick(event.latlng.lat,event.latlng.lng);},
+    mousemove(event){if(readoutEnabled)onReadout(event.latlng.lat,event.latlng.lng);},
+    click(event){if(pickEnabled)onPick(event.latlng.lat,event.latlng.lng);},
   });
   return null;
 }
@@ -165,14 +168,35 @@ function analysisColor(toolId:string){
 
 function validCoordinate(lat:number,lon:number){return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;}
 
+function dataPanelContent(selected:SelectedMapFeature,layers:MapLayer[]):DataPanelContent{
+  if(!selected)return null;
+  const layer=layers.find((item)=>item.datasetVersionId===selected.layerId);
+  if(!layer)return null;
+  const feature=featuresOf(layer.geojson)[selected.featureIndex];
+  if(!feature)return null;
+  const entries=Object.entries(feature.properties??{})
+    .filter(([,value])=>value===null||["string","number","boolean"].includes(typeof value))
+    .slice(0,10)
+    .map(([key,value])=>[key,value===null?"—":typeof value==="boolean"?(value?"Ya":"Tidak"):String(value)] as [string,string]);
+  return {layerTitle:layer.title,role:layer.role,entries};
+}
+
+function experienceLabel(value:string){
+  if(value==="analysis")return "Peta Analisis";
+  if(value==="map-data")return "Peta + Data";
+  return "Peta Tunggal";
+}
+
 export function AssessmentLeafletMap({
   attemptId,
   questionVersionId,
   analyses,
+  activityConfig,
 }:{
   attemptId:string;
   questionVersionId:string;
   analyses:AnalysisLayer[];
+  activityConfig:Record<string,unknown>;
 }){
   const [payload,setPayload]=useState<Payload|null>(null);
   const [error,setError]=useState("");
@@ -191,6 +215,26 @@ export function AssessmentLeafletMap({
   const [attributeLayerId,setAttributeLayerId]=useState("");
   const [selectedFeature,setSelectedFeature]=useState<SelectedMapFeature>(null);
   const [mapZoom,setMapZoom]=useState(5);
+
+  const configuredInteractions=useMemo(()=>configuredMapInteractions(activityConfig),[activityConfig]);
+  const interactionSet=useMemo(()=>new Set(mapInteractionsForActivityConfig(activityConfig)),[activityConfig]);
+  const mapExperience=normalizeMapExperience(activityConfig.mapExperience);
+  const legacyMode=configuredInteractions===null;
+  const enabled=(interaction:MapInteraction)=>interactionSet.has(interaction);
+  const showSearch=enabled("search-place");
+  const showGoToCoordinate=enabled("go-to-coordinate");
+  const showPickCoordinate=enabled("pick-coordinate");
+  const showPointer=enabled("pointer-coordinate");
+  const showCoordinateBox=showGoToCoordinate||showPickCoordinate;
+  const showToolbar=showSearch||showCoordinateBox||showPointer;
+  const showLayerControl=enabled("layer-control");
+  const showLegend=enabled("legend");
+  const showPopup=enabled("popup");
+  const showLabels=enabled("feature-labels");
+  const showDataPanel=enabled("data-panel");
+  const showAttributeTable=enabled("attribute-table");
+  const showFit=enabled("fit-to-data");
+  const showNorthArrow=enabled("north-arrow");
 
   useEffect(()=>{
     let active=true;
@@ -215,6 +259,7 @@ export function AssessmentLeafletMap({
   const labelPresentations=useMemo(()=>Object.fromEntries((payload?.layers??[]).map((layer)=>[layer.datasetVersionId,labelPresentation(layer)])) as Record<string,LabelPresentation>,[payload]);
   const initialFitBbox=useMemo(()=>combinedBbox((payload?.layers??[]).filter((layer)=>layer.visible))??payload?.bbox??null,[payload]);
   const currentFitBbox=useMemo(()=>combinedBbox((payload?.layers??[]).filter((layer)=>visibility[layer.datasetVersionId]??layer.visible))??payload?.bbox??null,[payload,visibility]);
+  const selectedData=useMemo(()=>payload?dataPanelContent(selectedFeature,payload.layers):null,[payload,selectedFeature]);
 
   async function searchPlace(event:FormEvent){
     event.preventDefault();
@@ -252,40 +297,49 @@ export function AssessmentLeafletMap({
   if(!payload)return <div className="runtime-map-shell"><div className="map-loading">Memuat DatasetVersion dari PostGIS…</div></div>;
 
   return (
-    <div className={styles.workspace}>
-      <section className={styles.toolbar} aria-label="Navigasi peta">
-        <form className={styles.searchBox} onSubmit={searchPlace}>
+    <div className={styles.workspace} data-map-experience={mapExperience}>
+      <div className={styles.experienceBar}><span>{experienceLabel(mapExperience)}</span><small>{legacyMode?"Mode kompatibilitas soal lama":"Kontrol peta mengikuti konfigurasi soal"}</small></div>
+
+      {showToolbar&&<section className={styles.toolbar} aria-label="Navigasi peta">
+        {showSearch&&<form className={styles.searchBox} onSubmit={searchPlace}>
           <label htmlFor={`place-search-${questionVersionId}`}>Cari tempat</label>
           <div className={styles.inlineControls}>
             <input id={`place-search-${questionVersionId}`} value={searchQuery} onChange={(event)=>setSearchQuery(event.target.value)} placeholder="Contoh: Pekanbaru, Riau"/>
             <button type="submit" disabled={searching}>{searching?"Mencari…":"Cari"}</button>
           </div>
           {searchResults.length>0&&<div className={styles.results}>{searchResults.map((result)=><button type="button" key={result.id} onClick={()=>chooseResult(result)}><strong>{result.label}</strong><small>{result.lat.toFixed(5)}, {result.lon.toFixed(5)}</small></button>)}</div>}
-        </form>
-        <div className={styles.coordinateBox}>
+        </form>}
+        {showCoordinateBox&&<div className={styles.coordinateBox}>
           <span>Koordinat</span>
-          <div className={styles.coordinateInputs}><input inputMode="decimal" aria-label="Latitude" value={latInput} onChange={(event)=>setLatInput(event.target.value)} placeholder="Latitude"/><input inputMode="decimal" aria-label="Longitude" value={lonInput} onChange={(event)=>setLonInput(event.target.value)} placeholder="Longitude"/></div>
-          <div className={styles.inlineControls}><button type="button" onClick={goToCoordinate}>Pergi</button><button className={pickMode?styles.activeButton:""} type="button" onClick={()=>setPickMode((value)=>!value)}>{pickMode?"Klik peta…":"Ambil dari peta"}</button></div>
-        </div>
-        <div className={styles.readout}><span>Pointer</span><strong>{readout?`${readout.lat.toFixed(5)}, ${readout.lon.toFixed(5)}`:"Gerakkan pointer di peta"}</strong>{target&&<small>Marker: {target.label}</small>}</div>
-      </section>
+          <div className={styles.coordinateInputs}>
+            <input inputMode="decimal" aria-label="Latitude" value={latInput} readOnly={!showGoToCoordinate} onChange={(event)=>setLatInput(event.target.value)} placeholder="Latitude"/>
+            <input inputMode="decimal" aria-label="Longitude" value={lonInput} readOnly={!showGoToCoordinate} onChange={(event)=>setLonInput(event.target.value)} placeholder="Longitude"/>
+          </div>
+          <div className={styles.inlineControls}>
+            {showGoToCoordinate&&<button type="button" onClick={goToCoordinate}>Pergi</button>}
+            {showPickCoordinate&&<button className={pickMode?styles.activeButton:""} type="button" onClick={()=>setPickMode((value)=>!value)}>{pickMode?"Klik peta…":"Ambil dari peta"}</button>}
+          </div>
+        </div>}
+        {showPointer&&<div className={styles.readout}><span>Pointer</span><strong>{readout?`${readout.lat.toFixed(5)}, ${readout.lon.toFixed(5)}`:"Gerakkan pointer di peta"}</strong>{target&&<small>Marker: {target.label}</small>}</div>}
+      </section>}
       {searchError&&<div className={styles.error}>{searchError}</div>}
+
       <div className="runtime-leaflet-shell">
         <MapContainer key={questionVersionId} center={center} zoom={payload.bbox?8:5} className="runtime-product-map" scrollWheelZoom zoomControl={false}>
           <ZoomControl position="bottomright"/>
           <AutoFitToData bbox={initialFitBbox}/>
-          <FitToData bbox={currentFitBbox}/>
-          <MapZoomTracker onZoom={setMapZoom}/>
+          {showFit&&<FitToData bbox={currentFitBbox}/>} 
+          {showLabels&&<MapZoomTracker onZoom={setMapZoom}/>} 
           <NavigateToTarget target={target}/>
-          <NavigateToFeature selected={selectedFeature} layers={payload.layers}/>
-          <CoordinatePicker enabled={pickMode} onPick={pickCoordinate} onReadout={(lat,lon)=>setReadout({lat,lon})}/>
+          {(showDataPanel||showAttributeTable)&&<NavigateToFeature selected={selectedFeature} layers={payload.layers}/>} 
+          {(showPickCoordinate||showPointer)&&<CoordinateTracker pickEnabled={pickMode&&showPickCoordinate} readoutEnabled={showPointer} onPick={pickCoordinate} onReadout={(lat,lon)=>setReadout({lat,lon})}/>} 
           <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
           {payload.layers.filter((layer)=>(visibility[layer.datasetVersionId]??layer.visible)).map((layer)=>{
             let featureIndex=-1;
             const presentation=labelPresentations[layer.datasetVersionId]??{field:null,minZoom:DEFAULT_LABEL_MIN_ZOOM,mode:"off" as const};
-            const showLabels=Boolean(presentation.field&&mapZoom>=presentation.minZoom);
+            const labelsVisible=Boolean(showLabels&&presentation.field&&mapZoom>=presentation.minZoom);
             return <GeoJSON
-              key={`${layer.datasetVersionId}-${selectedFeature?.layerId??"none"}-${selectedFeature?.featureIndex??-1}-${showLabels?"labels":"nolabels"}`}
+              key={`${layer.datasetVersionId}-${selectedFeature?.layerId??"none"}-${selectedFeature?.featureIndex??-1}-${labelsVisible?"labels":"nolabels"}`}
               data={layer.geojson}
               style={(feature)=>{
                 featureIndex+=1;
@@ -297,29 +351,50 @@ export function AssessmentLeafletMap({
               onEachFeature={(feature,leafletLayer)=>{
                 const typed=feature as Feature<Geometry>;
                 const index=featuresOf(layer.geojson).indexOf(typed);
-                bindSafePopup(typed,leafletLayer);
-                if(showLabels&&presentation.field)bindFeatureLabel(typed,leafletLayer,presentation.field,styles.featureLabel);
-                leafletLayer.on("click",()=>{
-                  if(index<0)return;
-                  setAttributeLayerId(layer.datasetVersionId);
-                  setSelectedFeature({layerId:layer.datasetVersionId,featureIndex:index});
-                  setAttributeOpen(true);
-                });
+                if(showPopup)bindSafePopup(typed,leafletLayer);
+                if(labelsVisible&&presentation.field)bindFeatureLabel(typed,leafletLayer,presentation.field,styles.featureLabel);
+                if(showDataPanel||showAttributeTable){
+                  leafletLayer.on("click",()=>{
+                    if(index<0)return;
+                    setAttributeLayerId(layer.datasetVersionId);
+                    setSelectedFeature({layerId:layer.datasetVersionId,featureIndex:index});
+                    if(showAttributeTable)setAttributeOpen(true);
+                  });
+                }
               }}
             ><Tooltip sticky>{layer.title} · {layer.role}</Tooltip></GeoJSON>;
           })}
           {analyses.filter((analysis)=>analysis.geojson&&(analysisVisibility[analysis.toolId]??true)).map((analysis)=>(
-            <GeoJSON key={analysis.toolId} data={analysis.geojson!} style={analysisStyle(analysis.toolId)} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,analysisPointStyle(analysis.toolId))} onEachFeature={bindSafePopup}><Tooltip sticky>{analysis.title} · hasil PostGIS</Tooltip></GeoJSON>
+            <GeoJSON key={analysis.toolId} data={analysis.geojson!} style={analysisStyle(analysis.toolId)} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,analysisPointStyle(analysis.toolId))} onEachFeature={(feature,layer)=>{if(showPopup)bindSafePopup(feature as Feature<Geometry>,layer);}}><Tooltip sticky>{analysis.title} · hasil PostGIS</Tooltip></GeoJSON>
           ))}
           {target&&<CircleMarker center={[target.lat,target.lon]} radius={9} pathOptions={{color:"#0f172a",fillColor:"#ffffff",fillOpacity:1,weight:3}}><Tooltip permanent direction="top" offset={[0,-8]}>{target.label}</Tooltip></CircleMarker>}
         </MapContainer>
-        <aside className="runtime-layer-list">
-          <strong>Layer Peta</strong>
-          {payload.layers.map((layer)=>{const presentation=labelPresentations[layer.datasetVersionId];const labelSummary=presentation?.field?` · label ${presentation.field} z≥${presentation.minZoom}${presentation.mode==="auto"?" auto":""}`:presentation?.mode==="off"?" · label off":"";return <label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}{labelSummary}</small></label>;})}
-          {analyses.filter((analysis)=>analysis.geojson).map((analysis)=><label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>)}
-        </aside>
+
+        {showNorthArrow&&<div className={styles.northArrow} aria-label="Arah utara"><b>N</b><span aria-hidden="true">↑</span></div>}
+
+        {(showLayerControl||showLegend)&&<aside className="runtime-layer-list" aria-label={showLayerControl?"Kontrol layer peta":"Legenda peta"}>
+          <strong>{showLayerControl?"Layer Peta":"Legenda Peta"}</strong>
+          {payload.layers.map((layer)=>{
+            const presentation=labelPresentations[layer.datasetVersionId];
+            const labelSummary=showLabels&&presentation?.field?` · label ${presentation.field} z≥${presentation.minZoom}${presentation.mode==="auto"?" auto":""}`:"";
+            return showLayerControl
+              ? <label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(event)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:event.target.checked}))}/><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}{labelSummary}</small></label>
+              : <span key={layer.datasetVersionId}><i className={"runtime-layer-dot "+layer.role.toLowerCase()}/><span>{layer.title}</span><small>{layer.role}</small></span>;
+          })}
+          {analyses.filter((analysis)=>analysis.geojson).map((analysis)=>showLayerControl
+            ? <label key={analysis.toolId}><input type="checkbox" checked={analysisVisibility[analysis.toolId]??true} onChange={(event)=>setAnalysisVisibility((current)=>({...current,[analysis.toolId]:event.target.checked}))}/><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></label>
+            : <span key={analysis.toolId}><i className="runtime-layer-dot" style={{background:analysisColor(analysis.toolId)}}/><span>Hasil {analysis.title}</span><small>POSTGIS</small></span>)}
+        </aside>}
       </div>
-      <AssessmentAttributeTable
+
+      {showDataPanel&&<section className={styles.dataPanel} aria-live="polite">
+        <div className={styles.dataPanelHead}><div><span>Data Panel</span><strong>{selectedData?.layerTitle??"Pilih feature pada peta"}</strong></div>{selectedData&&<small>{selectedData.role}</small>}</div>
+        {selectedData
+          ? selectedData.entries.length?<dl>{selectedData.entries.map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>:<p>Feature terpilih tidak memiliki atribut sederhana yang dapat ditampilkan.</p>
+          : <p>Klik feature untuk melihat atribut penting tanpa membuka tabel lengkap.</p>}
+      </section>}
+
+      {showAttributeTable&&<AssessmentAttributeTable
         layers={payload.layers}
         open={attributeOpen}
         onOpenChange={setAttributeOpen}
@@ -327,8 +402,9 @@ export function AssessmentLeafletMap({
         onActiveLayerChange={(layerId)=>{setAttributeLayerId(layerId);setSelectedFeature(null);}}
         selected={selectedFeature}
         onSelect={(value)=>{setSelectedFeature(value);setVisibility((current)=>({...current,[value.layerId]:true}));}}
-      />
-      <p className={styles.note}>Peta otomatis membuka extent layer yang visible. Label mengikuti konfigurasi QuestionVersion; layer lama tanpa konfigurasi tetap memakai deteksi label aman. Pencarian, koordinat, label, dan Attribute Table tidak mengubah dataset, jawaban, atau analisis PostGIS.</p>
+      />}
+
+      <p className={styles.note}>{legacyMode?"Soal ini dibuat sebelum konfigurasi adaptive tersedia, sehingga GeoLearn mempertahankan kontrol WebGIS lama untuk kompatibilitas.":"Kontrol peta di halaman ini hanya menampilkan interaksi yang dipilih guru untuk QuestionVersion ini."}</p>
     </div>
   );
 }
