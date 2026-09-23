@@ -63,7 +63,6 @@ export function validateForPublish(value:BuilderSnapshot):string[]{
     if(required.some((tool)=>!allowed.includes(tool))) errors.push("GIS Tool wajib harus termasuk dalam tool yang diizinkan.");
     if(allowed.some((tool)=>tool==="overlay"||tool==="distance")&&targetCount===0) errors.push("Overlay/Distance memerlukan satu TARGET Dataset.");
     if(allowed.includes("buffer")&&(!value.bufferDistance||value.bufferDistance<=0)) errors.push("Buffer Distance harus lebih dari 0 meter.");
-    if(!value.mapExperience)errors.push("Pilih pengalaman peta untuk WebGIS.");
     for(const binding of bindings){
       if(binding.label?.enabled&&!binding.label.field)errors.push("Layer berlabel harus memiliki field label.");
       if(binding.label?.minZoom!==undefined&&(binding.label.minZoom<0||binding.label.minZoom>22))errors.push("Min zoom label harus antara 0 dan 22.");
