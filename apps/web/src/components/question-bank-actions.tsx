@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import {ConfirmAction} from "./confirm-action";
 
 export function QuestionBankLifecycleAction({
   action,
@@ -13,10 +13,14 @@ export function QuestionBankLifecycleAction({
   confirmText:string;
   tone?:"default"|"danger";
 }){
-  function confirm(event:FormEvent<HTMLFormElement>){
-    if(!window.confirm(confirmText))event.preventDefault();
-  }
-  return <form action={action} method="post" onSubmit={confirm}>
-    <button className={tone==="danger"?"question-action danger":"question-action"} type="submit">{label}</button>
-  </form>;
+  const title=tone==="danger"?`${label} draft?`:`${label} soal?`;
+  return <ConfirmAction
+    action={action}
+    triggerLabel={label}
+    title={title}
+    description={confirmText}
+    confirmLabel={label}
+    tone={tone}
+    triggerClassName={tone==="danger"?"question-action danger":"question-action"}
+  />;
 }
