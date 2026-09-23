@@ -6,10 +6,11 @@ import {listQuestionMediaBindings} from "@/server/content/question-media";
 import {requireTeacherSession} from "@/server/auth/session";
 import {QuestionBuilderForm} from "@/components/question-builder-form";
 import {StatusNotice} from "@/components/status-notice";
+import {mapExperienceOptions,mapInteractionOptions,mapInteractionsForActivityConfig,normalizeMapExperience} from "@/features/questions/experience";
 import styles from "./question-view.module.css";
 
 function spatialLabel(value?:string|null){
-  const labels:Record<string,string>={location:"Location",condition:"Condition",influence:"Influence",region:"Region",hierarchy:"Hierarchy",analogy:"Analogy",pattern:"Pattern",association:"Association"};
+  const labels:Record<string,string>={location:"Location",condition:"Condition",influence:"Influence",region:"Region",hierarchy:"Hierarchy",analogy:"Analogies",pattern:"Pattern",association:"Association"};
   return value?labels[value]??value:"Belum diatur";
 }
 function stimulusLabel(value?:string|null){
@@ -60,6 +61,9 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const bufferAction=requiredActions.find((action)=>action&&typeof action==="object"&&(action as {tool?:unknown}).tool==="buffer") as {parameters?:{distanceMeters?:number}}|undefined;
   const toolParameters:{buffer?:{distanceMeters?:number}}=activity.toolParameters&&typeof activity.toolParameters==="object"?activity.toolParameters as {buffer?:{distanceMeters?:number}}:{};
   const bufferDistance=bufferAction?.parameters?.distanceMeters??toolParameters.buffer?.distanceMeters??500;
+  const mapExperience=normalizeMapExperience(activity.mapExperience);
+  const mapInteractions=mapInteractionsForActivityConfig(activity);
+  const mapExperienceLabel=mapExperienceOptions.find((option)=>option.id===mapExperience)?.label??mapExperience;
   const datasetBindings=bindings.map((binding)=>{
     const style=binding.style&&typeof binding.style==="object"?binding.style:{};
     const labelRaw=(style as {label?:unknown}).label;
@@ -105,11 +109,10 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
 
       {isDraft?(
         <section className={styles.draftShell}>
-          <div className={styles.editBanner}><span className={styles.editBannerIcon}>✎</span><div><strong>Mode edit draft</strong><p>Form di bawah masih menggunakan builder saat ini. Pada checkpoint berikutnya kita akan mengubahnya menjadi workflow bertahap Pertanyaan → Spatial Thinking → Stimulus → Data & Interaksi → Analisis → Jawaban → Preview → Publish.</p></div></div>
           <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets} media={media} initial={{
             title:item.title,subject:item.subject??"",topic:item.topic??"",spatialMode:item.spatialMode??"location",difficulty:item.difficulty??"Sedang",prompt:item.prompt??"",
             stimulusType:item.stimulusType??"text",responseType,answers,correctAnswer:key,
-            datasetBindings,allowedGisTools,requiredGisTools,bufferDistance,
+            datasetBindings,allowedGisTools,requiredGisTools,bufferDistance,mapExperience,mapInteractions,
             stimulusMediaId:stimulusMedia?.mediaAssetId,mediaAltText:stimulusMedia?.altText??"",mediaCaption:stimulusMedia?.caption??"",
             spatialValidationMethod,maxDistanceMeters,minOverlapRatio,feedbackCorrect:item.feedbackConfig?.correct??"",feedbackIncorrect:item.feedbackConfig?.incorrect??""
           }}/>
@@ -130,6 +133,8 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
                     <div className={styles.stimulusBlock}>
                       <div className={styles.mapVisual} aria-hidden="true"><i/><i/><i/></div>
                       <div className={styles.stimulusInfo}>
+                        <div className={styles.infoRow}><small>Pengalaman peta</small><strong>{mapExperienceLabel}</strong></div>
+                        <div className={styles.infoRow}><small>Interaksi siswa</small><div className={styles.toolList}>{mapInteractions.length?mapInteractions.map((interaction)=><span className={styles.toolTag} key={interaction}>{mapInteractionOptions.find((option)=>option.id===interaction)?.label??interaction}</span>):<span>Tanpa kontrol tambahan.</span>}</div></div>
                         <div className={styles.infoRow}><small>Layer yang digunakan</small><div className={styles.datasetList}>{selectedDatasets.length?selectedDatasets.map(({binding,dataset})=><span className={styles.datasetTag} key={binding.datasetId}><b>{roleLabel(binding.role)}</b>{dataset!.title}</span>):<span>Belum ada dataset terhubung.</span>}</div></div>
                         <div className={styles.infoRow}><small>Analisis GIS tersedia</small><div className={styles.toolList}>{allowedGisTools.length?allowedGisTools.map((tool)=><span className={requiredGisTools.includes(tool)?styles.requiredTag:styles.toolTag} key={tool}>{toolLabel(tool)}{requiredGisTools.includes(tool)?" · wajib":""}</span>):<span>Tanpa tool analisis tambahan.</span>}</div></div>
                         {allowedGisTools.includes("buffer")&&<div className={styles.infoRow}><small>Jarak Buffer</small><strong>{bufferDistance} meter</strong></div>}
@@ -158,8 +163,8 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
             </div>
 
             <aside className={styles.stack}>
-              <section className={styles.sideCard}><h3>Ringkasan konfigurasi</h3><p>Informasi ini membantu guru memeriksa struktur soal sebelum digunakan kembali dalam penugasan.</p><div className={styles.facts}><div className={styles.fact}><span>Kepemilikan</span><strong>{scopeLabel(item.scope)}</strong></div><div className={styles.fact}><span>Versi</span><strong>{item.versionNumber?`Versi ${item.versionNumber}`:"-"}</strong></div><div className={styles.fact}><span>Dataset</span><strong>{selectedDatasets.length}</strong></div><div className={styles.fact}><span>Tool GIS</span><strong>{allowedGisTools.length}</strong></div></div></section>
-              <section className={styles.sideCard}><h3>Alur siswa</h3><p>Ringkasan pengalaman yang saat ini dibentuk oleh konfigurasi soal.</p><div className={styles.flow}><div className={styles.flowStep}><b>1</b><span>Membaca pertanyaan dan stimulus.</span></div>{item.stimulusType==="webgis"&&<div className={styles.flowStep}><b>2</b><span>Menjelajahi layer dan menjalankan analisis yang tersedia.</span></div>}<div className={styles.flowStep}><b>{item.stimulusType==="webgis"?3:2}</b><span>Memberikan {responseLabel(responseType).toLowerCase()} sebagai jawaban.</span></div></div></section>
+              <section className={styles.sideCard}><h3>Ringkasan konfigurasi</h3><p>Informasi ini membantu guru memeriksa struktur soal sebelum digunakan kembali dalam penugasan.</p><div className={styles.facts}><div className={styles.fact}><span>Kepemilikan</span><strong>{scopeLabel(item.scope)}</strong></div><div className={styles.fact}><span>Versi</span><strong>{item.versionNumber?`Versi ${item.versionNumber}`:"-"}</strong></div><div className={styles.fact}><span>Dataset</span><strong>{selectedDatasets.length}</strong></div><div className={styles.fact}><span>Interaksi</span><strong>{item.stimulusType==="webgis"?mapInteractions.length:0}</strong></div><div className={styles.fact}><span>Tool GIS</span><strong>{allowedGisTools.length}</strong></div></div></section>
+              <section className={styles.sideCard}><h3>Alur siswa</h3><p>Ringkasan pengalaman yang dibentuk oleh konfigurasi QuestionVersion.</p><div className={styles.flow}><div className={styles.flowStep}><b>1</b><span>Membaca pertanyaan dan stimulus.</span></div>{item.stimulusType==="webgis"&&<div className={styles.flowStep}><b>2</b><span>Menjelajahi peta dengan interaksi yang dipilih guru dan menjalankan analisis yang tersedia.</span></div>}<div className={styles.flowStep}><b>{item.stimulusType==="webgis"?3:2}</b><span>Memberikan {responseLabel(responseType).toLowerCase()} sebagai jawaban.</span></div></div></section>
             </aside>
           </section>
 
