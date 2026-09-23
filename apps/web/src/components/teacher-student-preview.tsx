@@ -15,7 +15,7 @@ type Answer={id:string;label:string};
 
 export function TeacherStudentPreview({
   stimulus,spatialModeLabel,bindings,mapExperience,mapInteractions,allowedTools,requiredTools,responseType,answers,
-  initialTitle,initialPrompt,mediaSource,mediaType,mediaCaption,
+  initialTitle,initialPrompt,mediaSource,mediaCaption,
 }:{
   stimulus:StimulusType;
   spatialModeLabel:string;
@@ -29,7 +29,6 @@ export function TeacherStudentPreview({
   initialTitle?:string;
   initialPrompt?:string;
   mediaSource?:string|null;
-  mediaType?:"IMAGE"|"VIDEO"|"DOCUMENT"|"ILLUSTRATION";
   mediaCaption?:string;
 }){
   const root=useRef<HTMLElement|null>(null);
