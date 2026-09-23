@@ -14,13 +14,14 @@ const TeacherLiveMapPreview=dynamic(
 type Answer={id:string;label:string};
 
 export function TeacherStudentPreview({
-  stimulus,spatialModeLabel,bindings,mapExperience,mapInteractions,allowedTools,requiredTools,responseType,answers,
+  stimulus,spatialModeLabel,bindings,mapExperience,basemap,mapInteractions,allowedTools,requiredTools,responseType,answers,
   initialTitle,initialPrompt,mediaSource,mediaCaption,
 }:{
   stimulus:StimulusType;
   spatialModeLabel:string;
   bindings:DatasetSelection[];
   mapExperience:string;
+  basemap?:string;
   mapInteractions:string[];
   allowedTools:string[];
   requiredTools:string[];
@@ -51,7 +52,7 @@ export function TeacherStudentPreview({
     return()=>{form.removeEventListener("input",sync);form.removeEventListener("change",sync);};
   },[initialPrompt,initialTitle]);
 
-  const activityConfig={mapExperience,interactions:mapInteractions};
+  const activityConfig={mapExperience,basemap:basemap??"street",interactions:mapInteractions};
   const filledAnswers=answers.filter((answer)=>answer.label.trim());
 
   return <article className={styles.card} ref={root}>
