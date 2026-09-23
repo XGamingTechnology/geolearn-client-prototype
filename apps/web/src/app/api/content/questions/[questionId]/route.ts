@@ -3,9 +3,9 @@ import { requireTeacherSession } from "@/server/auth/session";
 import { updateQuestionDraft } from "@/server/content/service";
 import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole, type QuestionDatasetSelection } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
+import {questionActivityConfigFromForm} from "@/server/content/question-config";
 import { publicRedirectUrl } from "@/server/http/public-url";
 
-const supportedTools=new Set(["buffer","overlay","distance"]);
 const supportedRoles=new Set<QuestionDatasetRole>(["SOURCE","TARGET","CONTEXT"]);
 
 function answers(form:FormData){return (["A","B","C","D","E"] as const).map(id=>({id,label:String(form.get("answer_"+id)??"").trim()})).filter(answer=>answer.label);}
@@ -22,20 +22,6 @@ function spatialValidationConfig(form:FormData){
     return {method,minOverlapRatio:Number.isFinite(minOverlapRatio)?Math.min(Math.max(minOverlapRatio,0),1):0.5,targetRole:"TARGET"};
   }
   return {method:"manual-review"};
-}
-
-function activityConfig(form:FormData){
-  const stimulus=String(form.get("stimulusType")??"text");
-  if(stimulus!=="webgis")return {};
-  const tools=form.getAll("allowedGisTool").map(String).filter((tool)=>supportedTools.has(tool));
-  const required=form.getAll("requiredGisTool").map(String).filter((tool)=>supportedTools.has(tool)&&tools.includes(tool));
-  const distance=Number(form.get("bufferDistance")??500);
-  const distanceMeters=Number.isFinite(distance)&&distance>0?Math.min(distance,100000):500;
-  return {
-    tools:Array.from(new Set(tools)),
-    requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),
-    toolParameters:tools.includes("buffer")?{buffer:{distanceMeters}}:{},
-  };
 }
 
 function datasetBindings(form:FormData):QuestionDatasetSelection[]{
@@ -77,7 +63,7 @@ export async function POST(request:NextRequest,{params}:{params:Promise<{questio
       responseType:String(form.get("responseType")??"multiple-choice"),
       feedbackCorrect:String(form.get("feedbackCorrect")??""),
       feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
-      activityConfig:activityConfig(form),
+      activityConfig:questionActivityConfigFromForm(form),
       validationConfig:spatialValidationConfig(form),
     });
     await replaceQuestionDraftDatasetBindings(actor,questionId,stimulus==="webgis"?datasetBindings(form):[]);
