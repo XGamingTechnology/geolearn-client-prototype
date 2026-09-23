@@ -105,7 +105,7 @@ export function AssessmentRuntimeClient({
   useEffect(()=>{
     const warn=(event:BeforeUnloadEvent)=>{if(Object.values(spatialDirty).some(Boolean)){event.preventDefault();event.returnValue="";}};
     window.addEventListener("beforeunload",warn);
-    return()=>window.removeEventListener("beforeunload",warn);
+    return()=>{window.removeEventListener("beforeunload",warn);};
   },[spatialDirty]);
 
   if(!question)return <div className="empty-state"><strong>Tidak ada soal pada QuizVersion ini.</strong></div>;
@@ -174,7 +174,7 @@ export function AssessmentRuntimeClient({
           <div><strong>{requiredComplete?"Aktivitas GIS wajib selesai":"Aktivitas GIS wajib"}</strong><small>{required.join(", ")}</small></div>
         </div>}
 
-        {stimulusType==="webgis"&&<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} analyses={Object.values(currentResults).map((result)=>({toolId:result.toolId,title:result.title,geojson:result.geojson}))}/>}        
+        {stimulusType==="webgis"&&<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} activityConfig={question.activityConfig} analyses={Object.values(currentResults).map((result)=>({toolId:result.toolId,title:result.title,geojson:result.geojson}))}/>}        
         {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
         {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
 
