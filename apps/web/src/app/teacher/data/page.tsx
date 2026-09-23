@@ -62,7 +62,7 @@ export default async function DataPage({searchParams}:{searchParams:Promise<{sta
             <input className={styles.input} name="description" placeholder="Citra atau raster analitis yang digunakan dalam soal"/>
           </label>
           <label className={`${styles.field} ${styles.fieldFull}`}>Public XYZ tile URL
-            <input className={styles.input} name="tileUrl" type="url" required placeholder="https://tiles.example.org/{z}/{x}/{y}.png"/>
+            <input className={styles.input} name="tileUrl" type="text" inputMode="url" required placeholder="https://tiles.example.org/{z}/{x}/{y}.png"/>
           </label>
           <div className={styles.twoCol}>
             <label className={styles.field}>Sumber / koleksi<input className={styles.input} name="sourceLabel" placeholder="Copernicus Data Space"/></label>
