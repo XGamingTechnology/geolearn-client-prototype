@@ -6,6 +6,7 @@ import { attachQuestionToGroup, resolveQuestionGroupForCreate } from "@/server/c
 import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole, type QuestionDatasetSelection } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
 import {questionActivityConfigFromForm} from "@/server/content/question-config";
+import {assertQuestionDatasetCompatibility} from "@/server/content/question-dataset-compatibility";
 import { publicRedirectUrl } from "@/server/http/public-url";
 
 const supportedRoles=new Set<QuestionDatasetRole>(["SOURCE","TARGET","CONTEXT"]);
@@ -15,7 +16,7 @@ function failureReason(error:unknown){
   if(error instanceof AuthorizationError)return "permission";
   const message=error instanceof Error?error.message:"";
   if(/stimulus set|group|scope soal|stimulus soal/i.test(message))return "group";
-  if(/dataset|binding|version|label field/i.test(message))return "dataset";
+  if(/dataset|binding|version|label field|vector|raster/i.test(message))return "dataset";
   return "save";
 }
 function spatialValidationConfig(form:FormData){
@@ -61,17 +62,20 @@ export async function POST(request:NextRequest){
     const form=await request.formData();
     const correct=String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E";
     const stimulus=String(form.get("stimulusType")??"text");
+    const responseType=String(form.get("responseType")??"multiple-choice");
     const scope=contentScope(String(form.get("scope")??"PRIVATE"));
     if(groupId){
       const group=await resolveQuestionGroupForCreate(actor,groupId,scope);
       if(!group||group.stimulusType!==stimulus)throw new Error("Stimulus soal harus sama dengan Stimulus Set.");
     }
     const bindings=stimulus==="webgis"?datasetBindings(form):[];
+    const activityConfig=questionActivityConfigFromForm(form);
+    await assertQuestionDatasetCompatibility({actor,bindings,activityConfig,responseType});
     const id=await createQuestionDraft({
       actor,title:String(form.get("title")??""),subject:String(form.get("subject")??""),topic:String(form.get("topic")??""),scope,
       spatialMode:String(form.get("spatialMode")??"location"),difficulty:String(form.get("difficulty")??"Sedang"),prompt:String(form.get("prompt")??""),stimulusType:stimulus,
-      answers:answers(form),correctAnswer:correct,responseType:String(form.get("responseType")??"multiple-choice"),feedbackCorrect:String(form.get("feedbackCorrect")??""),feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
-      activityConfig:questionActivityConfigFromForm(form),validationConfig:spatialValidationConfig(form),
+      answers:answers(form),correctAnswer:correct,responseType,feedbackCorrect:String(form.get("feedbackCorrect")??""),feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
+      activityConfig,validationConfig:spatialValidationConfig(form),
     });
     if(groupId)await attachQuestionToGroup({actor,questionId:id,groupId,questionScope:scope,stimulusType:stimulus});
     await replaceQuestionDraftDatasetBindings(actor,id,bindings);
