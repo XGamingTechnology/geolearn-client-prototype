@@ -96,7 +96,6 @@ function LivePreviewBridge({root,media}:{root:HTMLElement|null;media:Media[]}){
     initialTitle={state.title}
     initialPrompt={state.prompt}
     mediaSource={mediaSource}
-    mediaType={mediaAsset?.mediaType}
     mediaCaption={state.mediaCaption}
   />,host);
 }
