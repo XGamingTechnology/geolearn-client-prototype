@@ -1,6 +1,15 @@
 export const mapExperienceIds=["standard","analysis","map-data"] as const;
 export type MapExperience=(typeof mapExperienceIds)[number];
 
+export const basemapIds=["street","light","terrain","satellite"] as const;
+export type BasemapId=(typeof basemapIds)[number];
+export const basemapOptions:Array<{id:BasemapId;label:string;description:string}>=[
+  {id:"street",label:"Street",description:"Peta jalan dan tempat umum untuk orientasi sehari-hari."},
+  {id:"light",label:"Light",description:"Basemap minimal agar layer tematik lebih menonjol."},
+  {id:"terrain",label:"Terrain",description:"Konteks relief dan topografi untuk analisis fisik wilayah."},
+  {id:"satellite",label:"Satellite",description:"Citra sebagai konteks visual. Bukan pengganti dataset raster analitis."},
+];
+
 export const mapInteractionIds=[
   "layer-control",
   "legend",
@@ -62,76 +71,25 @@ type SpatialRecommendation={
 };
 
 const recommendationByMode:Record<string,SpatialRecommendation>={
-  location:{
-    experience:"standard",
-    interactions:["layer-control","legend","popup","search-place","go-to-coordinate","pick-coordinate","pointer-coordinate","fit-to-data","north-arrow"],
-    analysis:[],
-    note:"Cocok untuk membaca posisi, arah, koordinat, dan hubungan lokasi.",
-  },
-  condition:{
-    experience:"map-data",
-    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
-    analysis:[],
-    note:"Cocok ketika siswa perlu membaca beberapa atribut kondisi wilayah.",
-  },
-  influence:{
-    experience:"analysis",
-    interactions:["layer-control","legend","popup","fit-to-data"],
-    analysis:["buffer","overlay"],
-    note:"Cocok untuk menguji wilayah pengaruh dan hubungan antar-layer.",
-  },
-  region:{
-    experience:"standard",
-    interactions:["layer-control","legend","popup","fit-to-data","north-arrow"],
-    analysis:[],
-    note:"Cocok untuk mengenali batas, karakteristik, dan perbedaan wilayah.",
-  },
-  hierarchy:{
-    experience:"map-data",
-    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
-    analysis:["distance"],
-    note:"Cocok untuk membaca tingkatan layanan, jangkauan, dan hubungan pusat–wilayah.",
-    futureExperience:"dashboard",
-  },
-  analogy:{
-    experience:"standard",
-    interactions:["legend","popup","fit-to-data"],
-    analysis:[],
-    note:"Spatial Analogies idealnya memakai Compare Map. Untuk saat ini gunakan peta tunggal; Compare Map akan menjadi renderer lanjutan.",
-    futureExperience:"compare",
-  },
-  pattern:{
-    experience:"map-data",
-    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
-    analysis:[],
-    note:"Cocok untuk mengenali distribusi, konsentrasi, dan pola feature.",
-  },
-  association:{
-    experience:"analysis",
-    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
-    analysis:["overlay"],
-    note:"Cocok untuk menguji keterkaitan dua atau lebih fenomena spasial.",
-  },
+  location:{experience:"standard",interactions:["layer-control","legend","popup","search-place","go-to-coordinate","pick-coordinate","pointer-coordinate","fit-to-data","north-arrow"],analysis:[],note:"Cocok untuk membaca posisi, arah, koordinat, dan hubungan lokasi."},
+  condition:{experience:"map-data",interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],analysis:[],note:"Cocok ketika siswa perlu membaca beberapa atribut kondisi wilayah."},
+  influence:{experience:"analysis",interactions:["layer-control","legend","popup","fit-to-data"],analysis:["buffer","overlay"],note:"Cocok untuk menguji wilayah pengaruh dan hubungan antar-layer."},
+  region:{experience:"standard",interactions:["layer-control","legend","popup","fit-to-data","north-arrow"],analysis:[],note:"Cocok untuk mengenali batas, karakteristik, dan perbedaan wilayah."},
+  hierarchy:{experience:"map-data",interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],analysis:["distance"],note:"Cocok untuk membaca tingkatan layanan, jangkauan, dan hubungan pusat–wilayah.",futureExperience:"dashboard"},
+  analogy:{experience:"standard",interactions:["legend","popup","fit-to-data"],analysis:[],note:"Spatial Analogies idealnya memakai Compare Map. Untuk saat ini gunakan peta tunggal; Compare Map akan menjadi renderer lanjutan.",futureExperience:"compare"},
+  pattern:{experience:"map-data",interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],analysis:[],note:"Cocok untuk mengenali distribusi, konsentrasi, dan pola feature."},
+  association:{experience:"analysis",interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],analysis:["overlay"],note:"Cocok untuk menguji keterkaitan dua atau lebih fenomena spasial."},
 };
 
-export function recommendationForSpatialMode(mode:string):SpatialRecommendation{
-  return recommendationByMode[mode]??recommendationByMode.location;
-}
-
-export function normalizeMapExperience(value:unknown):MapExperience{
-  return typeof value==="string"&&(mapExperienceIds as readonly string[]).includes(value)?value as MapExperience:"standard";
-}
-
+export function recommendationForSpatialMode(mode:string):SpatialRecommendation{return recommendationByMode[mode]??recommendationByMode.location;}
+export function normalizeMapExperience(value:unknown):MapExperience{return typeof value==="string"&&(mapExperienceIds as readonly string[]).includes(value)?value as MapExperience:"standard";}
+export function normalizeBasemap(value:unknown):BasemapId{return typeof value==="string"&&(basemapIds as readonly string[]).includes(value)?value as BasemapId:"street";}
 export function normalizeMapInteractions(value:unknown):MapInteraction[]{
   if(!Array.isArray(value))return [];
   return Array.from(new Set(value.filter((item):item is MapInteraction=>typeof item==="string"&&(mapInteractionIds as readonly string[]).includes(item))));
 }
-
 export function configuredMapInteractions(config:Record<string,unknown>):MapInteraction[]|null{
   if(!Object.prototype.hasOwnProperty.call(config,"interactions"))return null;
   return normalizeMapInteractions(config.interactions);
 }
-
-export function mapInteractionsForActivityConfig(config:Record<string,unknown>):MapInteraction[]{
-  return configuredMapInteractions(config)??legacyMapInteractions;
-}
+export function mapInteractionsForActivityConfig(config:Record<string,unknown>):MapInteraction[]{return configuredMapInteractions(config)??legacyMapInteractions;}
