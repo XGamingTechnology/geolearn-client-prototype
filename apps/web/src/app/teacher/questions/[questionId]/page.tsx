@@ -1,11 +1,41 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getQuestionEditor } from "@/server/content/service";
-import { listQuestionDatasetBindings,listQuestionDatasetOptions } from "@/server/content/question-datasets";
-import { listMediaBank } from "@/server/content/service";
-import { listQuestionMediaBindings } from "@/server/content/question-media";
-import { requireTeacherSession } from "@/server/auth/session";
+import {notFound} from "next/navigation";
+import {getQuestionEditor,listMediaBank} from "@/server/content/service";
+import {listQuestionDatasetBindings,listQuestionDatasetOptions} from "@/server/content/question-datasets";
+import {listQuestionMediaBindings} from "@/server/content/question-media";
+import {requireTeacherSession} from "@/server/auth/session";
 import {QuestionBuilderForm} from "@/components/question-builder-form";
+import {StatusNotice} from "@/components/status-notice";
+import styles from "./question-view.module.css";
+
+function spatialLabel(value?:string|null){
+  const labels:Record<string,string>={location:"Location",condition:"Condition",influence:"Influence",region:"Region",hierarchy:"Hierarchy",analogy:"Analogy",pattern:"Pattern",association:"Association"};
+  return value?labels[value]??value:"Belum diatur";
+}
+function stimulusLabel(value?:string|null){
+  const labels:Record<string,string>={text:"Teks",image:"Gambar",video:"Video",webgis:"WebGIS"};
+  return value?labels[value]??value:"Teks";
+}
+function responseLabel(value?:string|null){
+  const labels:Record<string,string>={"multiple-choice":"Pilihan Ganda","draw-point":"Titik di Peta","draw-line":"Garis di Peta","draw-polygon":"Area di Peta","feature-select":"Pilih Feature"};
+  return value?labels[value]??value:"Belum diatur";
+}
+function roleLabel(value:string){
+  if(value==="SOURCE")return "Utama";
+  if(value==="TARGET")return "Pembanding";
+  return "Konteks";
+}
+function scopeLabel(value?:string|null){
+  if(value==="PRIVATE")return "Milik Saya";
+  if(value==="SCHOOL")return "Sekolah";
+  return "GeoLearn";
+}
+function toolLabel(value:string){
+  if(value==="buffer")return "Buffer";
+  if(value==="overlay")return "Overlay";
+  if(value==="distance")return "Distance";
+  return value;
+}
 
 export default async function QuestionEditorPage({params,searchParams}:{params:Promise<{questionId:string}>;searchParams:Promise<{status?:string}>}){
   const session=await requireTeacherSession();
@@ -13,12 +43,14 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
   const [item,datasets,bindings,media,mediaBindings,{status}]=await Promise.all([
     getQuestionEditor(session,questionId),listQuestionDatasetOptions(session),listQuestionDatasetBindings(session,questionId),listMediaBank(session),listQuestionMediaBindings(session,questionId),searchParams,
   ]);
-  if(!item) notFound();
+  if(!item)notFound();
+
   const answers=(item.responseConfig?.answers??[]).filter(answer=>answer.label.trim());
   const key=item.validationConfig?.correctAnswer??"A";
   const spatialValidationMethod=item.validationConfig?.method??"manual-review";
   const maxDistanceMeters=Number((item.validationConfig as {maxDistanceMeters?:number}|null)?.maxDistanceMeters??100);
   const minOverlapRatio=Number((item.validationConfig as {minOverlapRatio?:number}|null)?.minOverlapRatio??0.5);
+  const responseType=item.responseConfig?.type??"multiple-choice";
   const isDraft=item.versionStatus==="DRAFT";
   const activity=item.activityConfig??{};
   const requiredActions=Array.isArray(activity.requiredActions)?activity.requiredActions:[];
@@ -39,32 +71,103 @@ export default async function QuestionEditorPage({params,searchParams}:{params:P
     return {datasetId:binding.datasetId,role:binding.role,label};
   });
   const stimulusMedia=mediaBindings.find((binding)=>binding.role==="STIMULUS");
+  const selectedMedia=stimulusMedia?media.find((asset)=>asset.id===stimulusMedia.mediaAssetId):null;
+  const selectedDatasets=datasetBindings.map((binding)=>({binding,dataset:datasets.find((dataset)=>dataset.id===binding.datasetId)})).filter((entry)=>entry.dataset);
+  const topicLine=[item.subject,item.topic].filter(Boolean).join(" · ")||"Topik belum diisi";
 
   return (
-    <main className="dashboard builder-page">
-      <div className="breadcrumb"><Link href="/teacher/questions">Bank Soal</Link><span>/</span><strong>{item.title}</strong></div>
-      <header className="catalog-header">
-        <div><p className="eyebrow">Question Version</p><h1>{item.title}</h1><p>{item.scope} · {item.versionNumber?"v"+item.versionNumber:"-"} · {item.versionStatus}</p></div>
-        <span className="status-pill">{item.versionStatus}</span>
-      </header>
-      {status==="updated"&&<p className="account-alert">Draft berhasil disimpan.</p>}
-      {status==="published"&&<p className="account-alert">Version berhasil dipublish dan sekarang immutable.</p>}
-      {status==="draft-created"&&<p className="account-alert">Draft version baru dibuat dari published version.</p>}
-      {status==="error"&&<p className="account-alert error">Operasi gagal.</p>}
+    <main className={styles.page}>
+      <nav className={styles.breadcrumb} aria-label="Breadcrumb"><Link href="/teacher/questions">Bank Soal</Link><span>/</span><strong>{item.title}</strong></nav>
 
-      {isDraft ? (
-        <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets} media={media} initial={{
-          title:item.title,subject:item.subject??"",topic:item.topic??"",spatialMode:item.spatialMode??"location",difficulty:item.difficulty??"Sedang",prompt:item.prompt??"",
-          stimulusType:item.stimulusType??"text",responseType:item.responseConfig?.type??"multiple-choice",answers,correctAnswer:key,
-          datasetBindings,allowedGisTools,requiredGisTools,bufferDistance,
-          stimulusMediaId:stimulusMedia?.mediaAssetId,mediaAltText:stimulusMedia?.altText??"",mediaCaption:stimulusMedia?.caption??"",
-          spatialValidationMethod,maxDistanceMeters,minOverlapRatio,feedbackCorrect:item.feedbackConfig?.correct??"",feedbackIncorrect:item.feedbackConfig?.incorrect??""
-        }}/>
-      ) : (
-        <section className="published-question-view">
-          <article className="dashboard-panel"><p className="eyebrow">Published Snapshot</p><h2>{item.prompt}</h2><div className="question-tags"><span>{item.spatialMode}</span><span>{item.stimulusType}</span><span>{item.responseType}</span></div><div className="published-answer-list">{answers.map((a)=><div key={a.id}><b>{a.id}</b><span>{a.label}</span>{a.id===key&&<em>Correct</em>}</div>)}</div></article>
-          <div className="builder-footer"><form action={"/api/content/questions/"+item.id+"/duplicate"} method="post"><button className="button button-secondary" type="submit">Duplicate / Fork</button></form><form action={"/api/content/questions/"+item.id+"/new-version"} method="post"><button className="button" type="submit">Buat Draft Version Baru</button></form></div>
+      <header className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <span className={styles.kicker}><i className={styles.kickerDot}/>{isDraft?"Draft soal":"Soal published"}</span>
+          <h1>{item.title}</h1>
+          <p className={styles.heroSub}>{topicLine}. {isDraft?"Lanjutkan penyusunan soal sebelum dipublish.":"Lihat kembali pertanyaan, stimulus, data, dan pengalaman yang sudah dikonfigurasi untuk siswa."}</p>
+          <div className={styles.metaLine}><span>{scopeLabel(item.scope)}</span><span>{spatialLabel(item.spatialMode)}</span><span>{item.difficulty??"Kesulitan belum diatur"}</span>{item.versionNumber&&<span>Versi {item.versionNumber}</span>}</div>
+        </div>
+        <div className={styles.heroActions}><span className={isDraft?styles.statusDraft:styles.statusPublished}>{isDraft?"Draft":"Published"}</span></div>
+      </header>
+
+      <div className={styles.noticeWrap}>
+        {status==="updated"&&<StatusNotice tone="success" title="Draft berhasil disimpan" description="Perubahan terbaru pada soal sudah tersimpan." autoDismissMs={5000}/>} 
+        {status==="published"&&<StatusNotice tone="success" title="Soal berhasil dipublish" description="Versi ini siap digunakan dan tetap dipertahankan untuk penugasan yang menggunakannya." autoDismissMs={6000}/>} 
+        {status==="draft-created"&&<StatusNotice tone="success" title="Draft baru dibuat" description="Anda dapat mengubah versi baru tanpa mengubah versi published sebelumnya." autoDismissMs={6000}/>} 
+        {status==="error"&&<StatusNotice tone="error" title="Operasi belum berhasil" description="Silakan coba kembali. Jika masalah berlanjut, periksa konfigurasi soal."/>}
+      </div>
+
+      <section className={styles.summaryGrid} aria-label="Ringkasan soal">
+        <article className={styles.summaryCard}><small>Spatial Thinking</small><strong>{spatialLabel(item.spatialMode)}</strong></article>
+        <article className={styles.summaryCard}><small>Stimulus</small><strong>{stimulusLabel(item.stimulusType)}</strong></article>
+        <article className={styles.summaryCard}><small>Jenis Jawaban</small><strong>{responseLabel(responseType)}</strong></article>
+        <article className={styles.summaryCard}><small>Kesulitan</small><strong>{item.difficulty??"Belum diatur"}</strong></article>
+      </section>
+
+      {isDraft?(
+        <section className={styles.draftShell}>
+          <div className={styles.editBanner}><span className={styles.editBannerIcon}>✎</span><div><strong>Mode edit draft</strong><p>Form di bawah masih menggunakan builder saat ini. Pada checkpoint berikutnya kita akan mengubahnya menjadi workflow bertahap Pertanyaan → Spatial Thinking → Stimulus → Data & Interaksi → Analisis → Jawaban → Preview → Publish.</p></div></div>
+          <QuestionBuilderForm action={"/api/content/questions/"+item.id} publishAction={"/api/content/questions/"+item.id+"/publish"} datasets={datasets} media={media} initial={{
+            title:item.title,subject:item.subject??"",topic:item.topic??"",spatialMode:item.spatialMode??"location",difficulty:item.difficulty??"Sedang",prompt:item.prompt??"",
+            stimulusType:item.stimulusType??"text",responseType,answers,correctAnswer:key,
+            datasetBindings,allowedGisTools,requiredGisTools,bufferDistance,
+            stimulusMediaId:stimulusMedia?.mediaAssetId,mediaAltText:stimulusMedia?.altText??"",mediaCaption:stimulusMedia?.caption??"",
+            spatialValidationMethod,maxDistanceMeters,minOverlapRatio,feedbackCorrect:item.feedbackConfig?.correct??"",feedbackIncorrect:item.feedbackConfig?.incorrect??""
+          }}/>
         </section>
+      ):(
+        <>
+          <section className={styles.layout}>
+            <div className={styles.stack}>
+              <article className={styles.panel}>
+                <div className={styles.panelHead}><div><small>Pertanyaan</small><h2>Apa yang dilihat dan dijawab siswa</h2></div></div>
+                <div className={styles.panelBody}><p className={styles.prompt}>{item.prompt||"Prompt belum tersedia."}</p></div>
+              </article>
+
+              <article className={styles.panel}>
+                <div className={styles.panelHead}><div><small>Stimulus</small><h2>{stimulusLabel(item.stimulusType)}</h2></div></div>
+                <div className={styles.panelBody}>
+                  {item.stimulusType==="webgis"?(
+                    <div className={styles.stimulusBlock}>
+                      <div className={styles.mapVisual} aria-hidden="true"><i/><i/><i/></div>
+                      <div className={styles.stimulusInfo}>
+                        <div className={styles.infoRow}><small>Layer yang digunakan</small><div className={styles.datasetList}>{selectedDatasets.length?selectedDatasets.map(({binding,dataset})=><span className={styles.datasetTag} key={binding.datasetId}><b>{roleLabel(binding.role)}</b>{dataset!.title}</span>):<span>Belum ada dataset terhubung.</span>}</div></div>
+                        <div className={styles.infoRow}><small>Analisis GIS tersedia</small><div className={styles.toolList}>{allowedGisTools.length?allowedGisTools.map((tool)=><span className={requiredGisTools.includes(tool)?styles.requiredTag:styles.toolTag} key={tool}>{toolLabel(tool)}{requiredGisTools.includes(tool)?" · wajib":""}</span>):<span>Tanpa tool analisis tambahan.</span>}</div></div>
+                        {allowedGisTools.includes("buffer")&&<div className={styles.infoRow}><small>Jarak Buffer</small><strong>{bufferDistance} meter</strong></div>}
+                      </div>
+                    </div>
+                  ):(
+                    <div className={styles.stimulusInfo}>
+                      <div className={styles.infoRow}><small>Tipe stimulus</small><strong>{stimulusLabel(item.stimulusType)}</strong></div>
+                      {(item.stimulusType==="image"||item.stimulusType==="video")&&<div className={styles.infoRow}><small>Media terpilih</small><strong>{selectedMedia?.title??"Media belum ditemukan"}</strong>{stimulusMedia?.caption&&<span>{stimulusMedia.caption}</span>}</div>}
+                      {item.stimulusType==="text"&&<div className={styles.infoRow}><span>Stimulus utama disampaikan melalui teks pertanyaan dan konteks soal.</span></div>}
+                    </div>
+                  )}
+                </div>
+              </article>
+
+              <article className={styles.panel}>
+                <div className={styles.panelHead}><div><small>Jawaban</small><h2>{responseLabel(responseType)}</h2></div></div>
+                <div className={styles.panelBody}>
+                  {responseType==="multiple-choice"?(
+                    <div className={styles.answers}>{answers.length?answers.map((answer)=><div className={`${styles.answer} ${answer.id===key?styles.correct:""}`} key={answer.id}><b className={styles.answerKey}>{answer.id}</b><span>{answer.label}</span>{answer.id===key&&<em>Kunci</em>}</div>):<p className={styles.prompt}>Pilihan jawaban belum tersedia.</p>}</div>
+                  ):(
+                    <div className={styles.stimulusInfo}><div className={styles.infoRow}><small>Validasi jawaban spasial</small><strong>{spatialValidationMethod}</strong></div>{spatialValidationMethod==="geometry-distance"&&<div className={styles.infoRow}><small>Toleransi jarak</small><strong>{maxDistanceMeters} meter</strong></div>}{spatialValidationMethod==="geometry-overlap"&&<div className={styles.infoRow}><small>Minimum overlap</small><strong>{minOverlapRatio}</strong></div>}</div>
+                  )}
+                </div>
+              </article>
+            </div>
+
+            <aside className={styles.stack}>
+              <section className={styles.sideCard}><h3>Ringkasan konfigurasi</h3><p>Informasi ini membantu guru memeriksa struktur soal sebelum digunakan kembali dalam penugasan.</p><div className={styles.facts}><div className={styles.fact}><span>Kepemilikan</span><strong>{scopeLabel(item.scope)}</strong></div><div className={styles.fact}><span>Versi</span><strong>{item.versionNumber?`Versi ${item.versionNumber}`:"-"}</strong></div><div className={styles.fact}><span>Dataset</span><strong>{selectedDatasets.length}</strong></div><div className={styles.fact}><span>Tool GIS</span><strong>{allowedGisTools.length}</strong></div></div></section>
+              <section className={styles.sideCard}><h3>Alur siswa</h3><p>Ringkasan pengalaman yang saat ini dibentuk oleh konfigurasi soal.</p><div className={styles.flow}><div className={styles.flowStep}><b>1</b><span>Membaca pertanyaan dan stimulus.</span></div>{item.stimulusType==="webgis"&&<div className={styles.flowStep}><b>2</b><span>Menjelajahi layer dan menjalankan analisis yang tersedia.</span></div>}<div className={styles.flowStep}><b>{item.stimulusType==="webgis"?3:2}</b><span>Memberikan {responseLabel(responseType).toLowerCase()} sebagai jawaban.</span></div></div></section>
+            </aside>
+          </section>
+
+          <div className={styles.footerActions}>
+            <form action={"/api/content/questions/"+item.id+"/duplicate"} method="post"><button className={styles.secondary} type="submit">Duplikat Soal</button></form>
+            <form action={"/api/content/questions/"+item.id+"/new-version"} method="post"><button className={styles.primary} type="submit">Buat Draft Versi Baru</button></form>
+          </div>
+        </>
       )}
     </main>
   );
