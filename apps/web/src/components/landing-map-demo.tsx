@@ -14,6 +14,13 @@ const BASEMAPS: Record<BasemapKey, { label: string; style: string }> = {
   dark: { label: "Dark", style: "https://tiles.openfreemap.org/styles/dark" },
 };
 
+const INITIAL_VISIBILITY: Record<DemoLayerKey, boolean> = {
+  schools: true,
+  river: true,
+  buffer: true,
+  relation: true,
+};
+
 const SCHOOLS: GeoJSON.FeatureCollection<GeoJSON.Point> = {
   type: "FeatureCollection",
   features: [
@@ -172,9 +179,9 @@ function addDemoData(map: MapLibreMap, visible: Record<DemoLayerKey, boolean>) {
 export default function LandingMapDemo() {
   const mapNode = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const visibleRef = useRef<Record<DemoLayerKey, boolean>>({ schools: true, river: true, buffer: true, relation: true });
+  const visibleRef = useRef<Record<DemoLayerKey, boolean>>({ ...INITIAL_VISIBILITY });
   const [basemap, setBasemap] = useState<BasemapKey>("light");
-  const [visible, setVisible] = useState<Record<DemoLayerKey, boolean>>(visibleRef.current);
+  const [visible, setVisible] = useState<Record<DemoLayerKey, boolean>>({ ...INITIAL_VISIBILITY });
 
   useEffect(() => {
     if (!mapNode.current || mapRef.current) return;
