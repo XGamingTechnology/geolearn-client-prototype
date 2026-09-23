@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/prepare-maplibre-worker.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/prepare-maplibre-worker.mjs",
     "build": "next build",
     "start": "next start",
     "db:migrate": "node scripts/migrate.mjs",
