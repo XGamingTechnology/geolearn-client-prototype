@@ -5,9 +5,9 @@ import { createQuestionDraft, type ContentScope } from "@/server/content/service
 import { attachQuestionToGroup, resolveQuestionGroupForCreate } from "@/server/content/question-groups";
 import { replaceQuestionDraftDatasetBindings, type QuestionDatasetRole, type QuestionDatasetSelection } from "@/server/content/question-datasets";
 import { replaceQuestionDraftMediaBindings } from "@/server/content/question-media";
+import {questionActivityConfigFromForm} from "@/server/content/question-config";
 import { publicRedirectUrl } from "@/server/http/public-url";
 
-const supportedTools=new Set(["buffer","overlay","distance"]);
 const supportedRoles=new Set<QuestionDatasetRole>(["SOURCE","TARGET","CONTEXT"]);
 
 function answers(form:FormData){return (["A","B","C","D","E"] as const).map(id=>({id,label:String(form.get("answer_"+id)??"").trim()})).filter(answer=>answer.label);}
@@ -30,15 +30,6 @@ function spatialValidationConfig(form:FormData){
     return {method,minOverlapRatio:Number.isFinite(minOverlapRatio)?Math.min(Math.max(minOverlapRatio,0),1):0.5,targetRole:"TARGET"};
   }
   return {method:"manual-review"};
-}
-function activityConfig(form:FormData){
-  const stimulus=String(form.get("stimulusType")??"text");
-  if(stimulus!=="webgis")return {};
-  const tools=form.getAll("allowedGisTool").map(String).filter((tool)=>supportedTools.has(tool));
-  const required=form.getAll("requiredGisTool").map(String).filter((tool)=>supportedTools.has(tool)&&tools.includes(tool));
-  const distance=Number(form.get("bufferDistance")??500);
-  const distanceMeters=Number.isFinite(distance)&&distance>0?Math.min(distance,100000):500;
-  return {tools:Array.from(new Set(tools)),requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),toolParameters:tools.includes("buffer")?{buffer:{distanceMeters}}:{}};
 }
 function datasetBindings(form:FormData):QuestionDatasetSelection[]{
   const raw=String(form.get("datasetBindingsJson")??"[]");
@@ -80,7 +71,7 @@ export async function POST(request:NextRequest){
       actor,title:String(form.get("title")??""),subject:String(form.get("subject")??""),topic:String(form.get("topic")??""),scope,
       spatialMode:String(form.get("spatialMode")??"location"),difficulty:String(form.get("difficulty")??"Sedang"),prompt:String(form.get("prompt")??""),stimulusType:stimulus,
       answers:answers(form),correctAnswer:correct,responseType:String(form.get("responseType")??"multiple-choice"),feedbackCorrect:String(form.get("feedbackCorrect")??""),feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
-      activityConfig:activityConfig(form),validationConfig:spatialValidationConfig(form),
+      activityConfig:questionActivityConfigFromForm(form),validationConfig:spatialValidationConfig(form),
     });
     if(groupId)await attachQuestionToGroup({actor,questionId:id,groupId,questionScope:scope,stimulusType:stimulus});
     await replaceQuestionDraftDatasetBindings(actor,id,bindings);
