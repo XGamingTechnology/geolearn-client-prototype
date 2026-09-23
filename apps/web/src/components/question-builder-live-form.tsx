@@ -49,7 +49,8 @@ function findPreviewHost(root:HTMLElement):HTMLElement|null{
   for(const section of Array.from(root.querySelectorAll<HTMLElement>("section"))){
     const heading=section.querySelector("h3");
     if(heading?.textContent?.trim()!=="Preview pengalaman siswa")continue;
-    return section.querySelector<HTMLElement>("article");
+    const oldPreview=section.querySelector<HTMLElement>("article");
+    return oldPreview?.parentElement??oldPreview;
   }
   return null;
 }
@@ -74,16 +75,31 @@ function LivePreviewBridge({root,media}:{root:HTMLElement|null;media:Media[]}){
 
   useEffect(()=>{
     if(!host)return;
-    const children=Array.from(host.children) as HTMLElement[];
-    children.forEach((child)=>{child.dataset.previewOriginalDisplay=child.style.display;child.style.display="none";});
-    return()=>children.forEach((child)=>{child.style.display=child.dataset.previewOriginalDisplay??"";delete child.dataset.previewOriginalDisplay;});
+    const hideLegacy=()=>{
+      for(const child of Array.from(host.children) as HTMLElement[]){
+        if(child.dataset.geolearnLivePreview==="true")continue;
+        if(child.dataset.previewOriginalDisplay===undefined)child.dataset.previewOriginalDisplay=child.style.display;
+        child.style.display="none";
+      }
+    };
+    hideLegacy();
+    const observer=new MutationObserver(hideLegacy);
+    observer.observe(host,{childList:true});
+    return()=>{
+      observer.disconnect();
+      for(const child of Array.from(host.children) as HTMLElement[]){
+        if(child.dataset.geolearnLivePreview==="true")continue;
+        child.style.display=child.dataset.previewOriginalDisplay??"";
+        delete child.dataset.previewOriginalDisplay;
+      }
+    };
   },[host]);
 
   const mediaAsset=useMemo(()=>media.find((item)=>item.id===state.mediaId),[media,state.mediaId]);
   const mediaSource=mediaAsset?.storageKey&&(mediaAsset.storageKey.startsWith("http://")||mediaAsset.storageKey.startsWith("https://")||mediaAsset.storageKey.startsWith("/"))?mediaAsset.storageKey:(mediaAsset?`/api/media/${mediaAsset.id}`:null);
 
   if(!host)return null;
-  return createPortal(<TeacherStudentPreview
+  return createPortal(<div data-geolearn-live-preview="true" style={{gridColumn:"1 / -1",minWidth:0}}><TeacherStudentPreview
     stimulus={state.stimulus}
     spatialModeLabel={modeLabel(state.spatialMode)}
     bindings={state.bindings}
@@ -97,14 +113,44 @@ function LivePreviewBridge({root,media}:{root:HTMLElement|null;media:Media[]}){
     initialPrompt={state.prompt}
     mediaSource={mediaSource}
     mediaCaption={state.mediaCaption}
-  />,host);
+  /></div>,host);
 }
+
+const responsiveCss=`
+.geolearn-builder-live-root [hidden]{display:none!important}
+@media(max-width:1180px){
+  .geolearn-builder-live-root>form>div{grid-template-columns:1fr!important;gap:14px!important}
+  .geolearn-builder-live-root>form>div>aside{position:sticky!important;top:76px!important;z-index:24!important;display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:16px!important}
+  .geolearn-builder-live-root>form>div>aside>div:first-child{min-width:124px!important;padding:0!important}
+  .geolearn-builder-live-root>form>div>aside>div:first-child>span{display:none!important}
+  .geolearn-builder-live-root>form>div>aside>div:first-child>strong{font-size:12px!important;white-space:nowrap!important}
+  .geolearn-builder-live-root>form>div>aside>div:first-child>small{font-size:9px!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2){display:flex!important;gap:5px!important;overflow-x:auto!important;scrollbar-width:thin;padding:1px 0 3px!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex:0 0 132px!important;min-height:43px!important;padding:6px!important;grid-template-columns:27px minmax(0,1fr)!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button b{width:26px!important;height:26px!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button strong{font-size:9.5px!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button small{display:none!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(3){display:none!important}
+}
+@media(max-width:860px){
+  .geolearn-builder-live-root>form>div>aside{top:68px!important;grid-template-columns:1fr!important;padding:9px 10px!important;border-radius:14px!important}
+  .geolearn-builder-live-root>form>div>aside>div:first-child{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;min-width:0!important}
+  .geolearn-builder-live-root>form>div>aside>div:first-child>strong{font-size:11px!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex-basis:112px!important}
+}
+@media(max-width:560px){
+  .geolearn-builder-live-root>form>div>aside>div:first-child>strong{display:none!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex-basis:88px!important;grid-template-columns:24px minmax(0,1fr)!important}
+  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button strong{font-size:8.5px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+}
+`;
 
 export function QuestionBuilderLiveForm(props:{action:string;publishAction?:string;datasets:Dataset[];media:Media[];initial?:QuestionBuilderInitial;isNew?:boolean}){
   const wrapperRef=useRef<HTMLDivElement>(null);
   const [root,setRoot]=useState<HTMLElement|null>(null);
   useEffect(()=>{setRoot(wrapperRef.current);},[]);
-  return <div ref={wrapperRef}>
+  return <div ref={wrapperRef} className="geolearn-builder-live-root">
+    <style>{responsiveCss}</style>
     <QuestionBuilderForm {...props}/>
     <LivePreviewBridge root={root} media={props.media}/>
   </div>;
