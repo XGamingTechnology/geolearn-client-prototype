@@ -1,0 +1,117 @@
+"use client";
+
+import {FormEvent,useEffect,useMemo,useRef,useState} from "react";
+import {CircleMarker,GeoJSON,MapContainer,TileLayer,Tooltip,ZoomControl,useMap,useMapEvents} from "react-leaflet";
+import type {Feature,GeoJsonObject,Geometry} from "geojson";
+import type {Layer} from "leaflet";
+import L from "leaflet";
+import {assessmentPathStyle,assessmentPointStyle} from "./assessment-map-style";
+import {AssessmentAttributeTable,featuresOf,type SelectedMapFeature} from "./assessment-attribute-table";
+import {normalizeMapExperience,normalizeMapInteractions,type MapInteraction} from "@/features/questions/experience";
+import type {DatasetSelection} from "@/features/questions/builder";
+import styles from "./teacher-live-map-preview.module.css";
+
+type Bbox=[number,number,number,number];
+type MapLayer={datasetVersionId:string;title:string;role:"SOURCE"|"TARGET"|"CONTEXT";visible:boolean;opacity:number;bbox:Bbox|null;style:Record<string,unknown>;geojson:GeoJsonObject};
+type Payload={layers:MapLayer[];bbox:Bbox|null};
+type LoadedPayload={key:string;data:Payload};
+type PreviewError={key:string;message:string};
+type SearchResult={id:string;label:string;lat:number;lon:number};
+type Target={lat:number;lon:number;label:string}|null;
+type LabelConfig={field:string|null;minZoom:number};
+
+function fit(map:L.Map,bbox:Bbox){map.fitBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]],{padding:[22,22],maxZoom:16});}
+function FitButton({bbox}:{bbox:Bbox|null}){const map=useMap();return bbox?<button className={styles.fit} type="button" onClick={()=>fit(map,bbox)}>Fit ke data</button>:null;}
+function AutoFit({bbox}:{bbox:Bbox|null}){const map=useMap();const done=useRef(false);useEffect(()=>{if(!bbox||done.current)return;done.current=true;const frame=requestAnimationFrame(()=>fit(map,bbox));return()=>cancelAnimationFrame(frame);},[bbox,map]);return null;}
+function ZoomTracker({onZoom}:{onZoom:(value:number)=>void}){const map=useMapEvents({zoomend(){onZoom(map.getZoom());}});useEffect(()=>onZoom(map.getZoom()),[map,onZoom]);return null;}
+function Navigate({target}:{target:Target}){const map=useMap();useEffect(()=>{if(target)map.flyTo([target.lat,target.lon],Math.max(map.getZoom(),14),{duration:.7});},[map,target]);return null;}
+function MapEvents({pick,readout,onPick,onReadout}:{pick:boolean;readout:boolean;onPick:(lat:number,lon:number)=>void;onReadout:(lat:number,lon:number)=>void}){useMapEvents({mousemove(e){if(readout)onReadout(e.latlng.lat,e.latlng.lng);},click(e){if(pick)onPick(e.latlng.lat,e.latlng.lng);}});return null;}
+
+function safePopup(feature:Feature<Geometry>,layer:Layer){
+  const entries=Object.entries(feature.properties??{}).filter(([,value])=>value===null||["string","number","boolean"].includes(typeof value)).slice(0,10);
+  if(!entries.length)return;
+  const dl=document.createElement("dl");dl.className="runtime-feature-popup";
+  for(const [key,value] of entries){const dt=document.createElement("dt");dt.textContent=key;const dd=document.createElement("dd");dd.textContent=value===null?"—":String(value);dl.append(dt,dd);}layer.bindPopup(dl);
+}
+function labelConfig(layer:MapLayer):LabelConfig{
+  const raw=(layer.style as {label?:unknown})?.label;
+  if(!raw||typeof raw!=="object")return {field:null,minZoom:11};
+  const label=raw as {enabled?:unknown;field?:unknown;minZoom?:unknown};
+  if(label.enabled!==true||typeof label.field!=="string"||!label.field.trim())return {field:null,minZoom:11};
+  const zoom=Number(label.minZoom??11);return {field:label.field.trim(),minZoom:Number.isFinite(zoom)?Math.max(0,Math.min(22,zoom)):11};
+}
+function bindLabel(feature:Feature<Geometry>,layer:Layer,field:string){
+  const value=feature.properties?.[field];if(value===null||value===undefined)return;const text=String(value).trim();if(!text)return;
+  layer.bindTooltip(text,{permanent:true,direction:"center",className:styles.label,opacity:.94});
+}
+function selectedData(selected:SelectedMapFeature,layers:MapLayer[]){
+  if(!selected)return null;const layer=layers.find((item)=>item.datasetVersionId===selected.layerId);if(!layer)return null;
+  const feature=featuresOf(layer.geojson)[selected.featureIndex];if(!feature)return null;
+  const entries=Object.entries(feature.properties??{}).filter(([,value])=>value===null||["string","number","boolean"].includes(typeof value)).slice(0,10).map(([key,value])=>[key,value===null?"—":String(value)] as [string,string]);
+  return {title:layer.title,role:layer.role,entries};
+}
+function experienceLabel(value:string){return value==="analysis"?"Peta Analisis":value==="map-data"?"Peta + Data":"Peta Tunggal";}
+function validCoordinate(lat:number,lon:number){return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;}
+
+export function TeacherLiveMapPreview({bindings,activityConfig}:{bindings:DatasetSelection[];activityConfig:Record<string,unknown>}){
+  const [loaded,setLoaded]=useState<LoadedPayload|null>(null);const [loadError,setLoadError]=useState<PreviewError|null>(null);const [visibility,setVisibility]=useState<Record<string,boolean>>({});
+  const [query,setQuery]=useState("");const [results,setResults]=useState<SearchResult[]>([]);const [searching,setSearching]=useState(false);const [interactionError,setInteractionError]=useState("");
+  const [lat,setLat]=useState("");const [lon,setLon]=useState("");const [target,setTarget]=useState<Target>(null);const [pick,setPick]=useState(false);const [readout,setReadout]=useState<{lat:number;lon:number}|null>(null);
+  const [selected,setSelected]=useState<SelectedMapFeature>(null);const [attributeOpen,setAttributeOpen]=useState(false);const [attributeLayerId,setAttributeLayerId]=useState("");const [zoom,setZoom]=useState(5);
+  const bindingKey=JSON.stringify(bindings);const interactions=normalizeMapInteractions(activityConfig.interactions);const interactionSet=useMemo(()=>new Set<MapInteraction>(interactions),[interactions]);const mapExperience=normalizeMapExperience(activityConfig.mapExperience);
+  const enabled=(id:MapInteraction)=>interactionSet.has(id);
+
+  useEffect(()=>{
+    if(bindingKey==="[]")return;
+    const controller=new AbortController();
+    const requestBindings=JSON.parse(bindingKey) as DatasetSelection[];
+    fetch("/api/content/questions/preview/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({bindings:requestBindings}),signal:controller.signal})
+      .then(async(response)=>{const body=await response.json();if(!response.ok)throw new Error(body.error??"Preview peta gagal dimuat.");const next=body as Payload;setLoaded({key:bindingKey,data:next});setLoadError(null);setAttributeLayerId(next.layers[0]?.datasetVersionId??"");setVisibility({});setSelected(null);setAttributeOpen(false);})
+      .catch((reason)=>{if(reason instanceof DOMException&&reason.name==="AbortError")return;setLoadError({key:bindingKey,message:reason instanceof Error?reason.message:"Preview peta gagal dimuat."});});
+    return()=>controller.abort();
+  },[bindingKey]);
+
+  const payload=loaded?.key===bindingKey?loaded.data:null;
+  const currentLoadError=loadError?.key===bindingKey?loadError.message:"";
+  const bbox=payload?.bbox??null;const center=useMemo<[number,number]>(()=>bbox?[(bbox[1]+bbox[3])/2,(bbox[0]+bbox[2])/2]:[-2.5,118],[bbox]);
+  const data=payload?selectedData(selected,payload.layers):null;
+
+  async function searchPlace(event:FormEvent){event.preventDefault();if(query.trim().length<2)return;setSearching(true);setInteractionError("");try{const response=await fetch(`/api/map/search?q=${encodeURIComponent(query.trim())}`,{cache:"no-store"});const body=await response.json() as {results?:SearchResult[];error?:string};if(!response.ok)throw new Error(body.error??"Pencarian gagal.");setResults(body.results??[]);}catch(reason){setInteractionError(reason instanceof Error?reason.message:"Pencarian gagal.");}finally{setSearching(false);}}
+  function choose(result:SearchResult){setTarget({lat:result.lat,lon:result.lon,label:result.label});setLat(result.lat.toFixed(6));setLon(result.lon.toFixed(6));setResults([]);}
+  function go(){const a=Number(lat),b=Number(lon);if(!validCoordinate(a,b)){setInteractionError("Koordinat tidak valid.");return;}setTarget({lat:a,lon:b,label:`${a.toFixed(6)}, ${b.toFixed(6)}`});setInteractionError("");}
+  function picked(a:number,b:number){setLat(a.toFixed(6));setLon(b.toFixed(6));setTarget({lat:a,lon:b,label:"Koordinat pilihan"});setPick(false);}
+
+  if(!bindings.length)return <div className={styles.empty}>Tambahkan minimal satu dataset pada langkah Data & Layer untuk melihat preview WebGIS nyata.</div>;
+  if(currentLoadError&&!payload)return <div className={styles.error}>{currentLoadError}</div>;
+  if(!payload)return <div className={styles.loading}>Memuat layer nyata dari DatasetVersion…</div>;
+  if(!payload.layers.length)return <div className={styles.empty}>Dataset terpilih belum memiliki feature yang dapat dipreview.</div>;
+
+  const showSearch=enabled("search-place"),showGo=enabled("go-to-coordinate"),showPick=enabled("pick-coordinate"),showPointer=enabled("pointer-coordinate");
+  const showToolbar=showSearch||showGo||showPick||showPointer,showLayer=enabled("layer-control"),showLegend=enabled("legend"),showPopup=enabled("popup"),showLabels=enabled("feature-labels"),showData=enabled("data-panel"),showTable=enabled("attribute-table"),showFit=enabled("fit-to-data"),showNorth=enabled("north-arrow");
+  const mapKey=`preview-${payload.layers.map((x)=>x.datasetVersionId).join("-")}-${mapExperience}`;
+
+  return <div className={styles.shell}>
+    <div className={styles.experience}><strong>{experienceLabel(mapExperience)}</strong><small>Preview guru · tanpa menyimpan Attempt/GIS Activity</small></div>
+    {showToolbar&&<section className={styles.toolbar}>
+      {showSearch&&<form className={styles.tool} onSubmit={searchPlace}><label>Cari tempat</label><div className={styles.row}><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Cari kota atau lokasi…"/><button disabled={searching}>{searching?"…":"Cari"}</button></div>{results.length>0&&<div>{results.slice(0,5).map((result)=><button type="button" key={result.id} onClick={()=>choose(result)}>{result.label}</button>)}</div>}</form>}
+      {(showGo||showPick)&&<div className={styles.tool}><span>Koordinat</span><div className={styles.coords}><input value={lat} readOnly={!showGo} onChange={(e)=>setLat(e.target.value)} placeholder="Latitude"/><input value={lon} readOnly={!showGo} onChange={(e)=>setLon(e.target.value)} placeholder="Longitude"/></div><div className={styles.row}>{showGo&&<button type="button" onClick={go}>Pergi</button>}{showPick&&<button type="button" onClick={()=>setPick((value)=>!value)}>{pick?"Klik peta…":"Ambil dari peta"}</button>}</div></div>}
+      {showPointer&&<div className={styles.tool}><span>Pointer</span><div className={styles.readout}>{readout?`${readout.lat.toFixed(5)}, ${readout.lon.toFixed(5)}`:"Gerakkan pointer di peta"}</div></div>}
+    </section>}
+    {(interactionError||currentLoadError)&&<div className={styles.error}>{interactionError||currentLoadError}</div>}
+    <div className={styles.mapShell}>
+      <MapContainer key={mapKey} center={center} zoom={bbox?8:5} className={styles.map} scrollWheelZoom zoomControl={false}>
+        <ZoomControl position="bottomright"/><AutoFit bbox={bbox}/>{showFit&&<FitButton bbox={bbox}/>}<Navigate target={target}/>{showLabels&&<ZoomTracker onZoom={setZoom}/>} {(showPick||showPointer)&&<MapEvents pick={pick&&showPick} readout={showPointer} onPick={picked} onReadout={(a,b)=>setReadout({lat:a,lon:b})}/>}<TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+        {payload.layers.filter((layer)=>visibility[layer.datasetVersionId]??layer.visible).map((layer)=>{
+          let counter=-1;const label=labelConfig(layer);const labelsVisible=showLabels&&Boolean(label.field)&&zoom>=label.minZoom;
+          return <GeoJSON key={`${layer.datasetVersionId}-${labelsVisible}-${selected?.layerId??""}-${selected?.featureIndex??-1}`} data={layer.geojson} style={(feature)=>{counter+=1;const base=feature?.geometry.type==="Point"||feature?.geometry.type==="MultiPoint"?assessmentPointStyle(layer.role,layer.opacity):assessmentPathStyle(layer.role,layer.opacity);return selected?.layerId===layer.datasetVersionId&&selected.featureIndex===counter?{...base,color:"#0f172a",weight:5}:base;}} pointToLayer={(_feature,latlng)=>L.circleMarker(latlng,assessmentPointStyle(layer.role,layer.opacity))} onEachFeature={(feature,leafletLayer)=>{const typed=feature as Feature<Geometry>;const index=featuresOf(layer.geojson).indexOf(typed);if(showPopup)safePopup(typed,leafletLayer);if(labelsVisible&&label.field)bindLabel(typed,leafletLayer,label.field);if(showData||showTable)leafletLayer.on("click",()=>{if(index<0)return;setSelected({layerId:layer.datasetVersionId,featureIndex:index});setAttributeLayerId(layer.datasetVersionId);if(showTable)setAttributeOpen(true);});}}><Tooltip sticky>{layer.title} · {layer.role}</Tooltip></GeoJSON>;
+        })}
+        {target&&<CircleMarker center={[target.lat,target.lon]} radius={8} pathOptions={{color:"#0f172a",fillColor:"#fff",fillOpacity:1,weight:3}}><Tooltip permanent direction="top">{target.label}</Tooltip></CircleMarker>}
+      </MapContainer>
+      {showNorth&&<div className={styles.north}><b>N</b><span>↑</span></div>}
+      {(showLayer||showLegend)&&<aside className={styles.layers}><strong>{showLayer?"Layer Peta":"Legenda Peta"}</strong>{payload.layers.map((layer)=>showLayer?<label key={layer.datasetVersionId}><input type="checkbox" checked={visibility[layer.datasetVersionId]??layer.visible} onChange={(e)=>setVisibility((current)=>({...current,[layer.datasetVersionId]:e.target.checked}))}/><i className={`${styles.dot} ${styles[layer.role.toLowerCase()]}`}/><span>{layer.title}</span></label>:<span key={layer.datasetVersionId}><i className={`${styles.dot} ${styles[layer.role.toLowerCase()]}`}/><span>{layer.title}</span></span>)}</aside>}
+    </div>
+    {showData&&<section className={styles.dataPanel}><header><strong>{data?.title??"Data Panel"}</strong><small>{data?.role??"Klik feature pada peta"}</small></header>{data?<dl>{data.entries.map(([key,value])=><div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}</dl>:<p className={styles.hint}>Klik feature untuk melihat atribut penting.</p>}</section>}
+    {showTable&&<AssessmentAttributeTable layers={payload.layers} open={attributeOpen} onOpenChange={setAttributeOpen} activeLayerId={attributeLayerId} onActiveLayerChange={(value)=>{setAttributeLayerId(value);setSelected(null);}} selected={selected} onSelect={(value)=>{setSelected(value);setVisibility((current)=>({...current,[value.layerId]:true}));}}/>}
+    <p className={styles.hint}>Kontrol yang terlihat di preview ini mengikuti pilihan Interaksi Siswa. Zoom dan pan tetap menjadi navigasi dasar peta.</p>
+  </div>;
+}
