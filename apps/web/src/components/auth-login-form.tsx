@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { StatusNotice } from "./status-notice";
 import styles from "./auth-login.module.css";
 
 type Role = "teacher" | "student";
@@ -45,17 +46,17 @@ export default function AuthLoginForm({ role, errorMessage }: AuthLoginFormProps
     ? {
         eyebrow: "Ruang Guru",
         title: "Selamat datang kembali.",
-        intro: "Masuk untuk menyiapkan case, soal, penugasan, dan melihat hasil pembelajaran spasial.",
-        visualTitle: "Dari case ke pembelajaran spasial, dalam satu ruang kerja.",
-        visualText: "Susun pengalaman belajar berbasis bukti dengan alur yang jelas dari konten hingga hasil siswa.",
+        intro: "Masuk untuk membuat soal, menyiapkan penugasan, mengelola kelas, dan melihat hasil pembelajaran spasial.",
+        visualTitle: "Dari soal ke pengalaman belajar spasial, dalam satu ruang kerja.",
+        visualText: "Susun pengalaman belajar berbasis peta, data, dan analisis dengan alur yang jelas dari soal hingga hasil siswa.",
         image: "/auth-teacher-visual.svg",
-        imageAlt: "Ilustrasi dashboard guru GeoLearn dengan case, peta, penugasan, dan analitik hasil",
+        imageAlt: "Ilustrasi dashboard guru GeoLearn dengan soal, peta, penugasan, dan analitik hasil",
         action: "/api/auth/teacher/login",
         submit: "Masuk ke Ruang Guru",
         switchHref: "/student-login",
         switchLead: "Anda siswa?",
         switchLabel: "Masuk ke Ruang Siswa",
-        chips: ["Case & Soal", "Penugasan", "Hasil & Analitik"],
+        chips: ["Soal & WebGIS", "Penugasan", "Hasil & Analitik"],
       }
     : {
         eyebrow: "Ruang Siswa",
@@ -111,9 +112,9 @@ export default function AuthLoginForm({ role, errorMessage }: AuthLoginFormProps
               <p>{copy.intro}</p>
             </div>
 
-            {errorMessage && <div className={styles.error} id="login-error" role="alert"><span>!</span><p>{errorMessage}</p></div>}
+            {errorMessage && <StatusNotice tone="error" title="Tidak dapat masuk" description={errorMessage} dismissible={false}/>} 
 
-            <form action={copy.action} method="post" aria-describedby={errorMessage ? "login-error" : undefined}>
+            <form action={copy.action} method="post">
               <div className={styles.fields}>
                 {teacher ? (
                   <>
