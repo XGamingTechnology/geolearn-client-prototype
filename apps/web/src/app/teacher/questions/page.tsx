@@ -3,6 +3,7 @@ import { requireTeacherSession } from "@/server/auth/session";
 import { listQuestionBankPage } from "@/server/content/question-bank";
 import { listQuestionGroups } from "@/server/content/question-groups";
 import { QuestionBankLifecycleAction } from "@/components/question-bank-actions";
+import { StatusNotice } from "@/components/status-notice";
 import styles from "./question-bank.module.css";
 
 type Params={
@@ -90,10 +91,10 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
         </div>
       </section>
 
-      {params.status==="deleted"&&<p className={`${styles.notice} ${styles.success}`}>Draft berhasil dihapus.</p>}
-      {params.status==="archived"&&<p className={`${styles.notice} ${styles.success}`}>Soal berhasil diarsipkan.</p>}
-      {params.status==="restored"&&<p className={`${styles.notice} ${styles.success}`}>Soal berhasil dikembalikan ke Bank Soal aktif.</p>}
-      {params.status==="error"&&<p className={`${styles.notice} ${styles.error}`}>{params.message||"Operasi soal gagal."}</p>}
+      {params.status==="deleted"&&<StatusNotice tone="success" title="Draft berhasil dihapus" description="Draft sudah dihapus permanen dari Bank Soal." autoDismissMs={6500}/>} 
+      {params.status==="archived"&&<StatusNotice tone="success" title="Soal berhasil diarsipkan" description="Soal tidak lagi tampil di koleksi aktif, tetapi versi published tetap aman untuk penugasan dan attempt lama." autoDismissMs={7000}/>} 
+      {params.status==="restored"&&<StatusNotice tone="success" title="Soal kembali aktif" description="Soal sudah dipulihkan dan kembali tersedia di Bank Soal aktif." autoDismissMs={6500}/>} 
+      {params.status==="error"&&<StatusNotice tone="error" title="Operasi soal belum berhasil" description={params.message||"Periksa data atau coba kembali beberapa saat lagi."}/>} 
 
       <section className={styles.toolbar}>
         <div className={styles.tabs}>
