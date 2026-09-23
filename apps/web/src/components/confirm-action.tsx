@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect,useState} from "react";
+import {createPortal} from "react-dom";
 import styles from "./confirm-action.module.css";
 
 type Tone="default"|"danger";
@@ -24,6 +25,9 @@ function Icon({tone}:{tone:Tone}){
 
 export function ConfirmAction({action,triggerLabel,title,description,confirmLabel=triggerLabel,cancelLabel="Batalkan",tone="default",triggerClassName}:Props){
   const [open,setOpen]=useState(false);
+  const [mounted,setMounted]=useState(false);
+
+  useEffect(()=>setMounted(true),[]);
 
   useEffect(()=>{
     if(!open)return;
@@ -34,9 +38,8 @@ export function ConfirmAction({action,triggerLabel,title,description,confirmLabe
     return ()=>{window.removeEventListener("keydown",onKey);document.body.style.overflow=previous;};
   },[open]);
 
-  return <>
-    <button className={triggerClassName} type="button" onClick={()=>setOpen(true)}>{triggerLabel}</button>
-    {open&&<div className={styles.backdrop} role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)setOpen(false);}}>
+  const dialog=open&&mounted?createPortal(
+    <div className={styles.backdrop} role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)setOpen(false);}}>
       <section className={`${styles.dialog} ${tone==="danger"?styles.danger:""}`} role="alertdialog" aria-modal="true" aria-labelledby="geolearn-confirm-title" aria-describedby="geolearn-confirm-description">
         <div className={styles.icon}><Icon tone={tone}/></div>
         <div className={styles.copy}>
@@ -49,6 +52,12 @@ export function ConfirmAction({action,triggerLabel,title,description,confirmLabe
           <form action={action} method="post"><button className={tone==="danger"?styles.confirmDanger:styles.confirm} type="submit">{confirmLabel}</button></form>
         </div>
       </section>
-    </div>}
+    </div>,
+    document.body,
+  ):null;
+
+  return <>
+    <button className={triggerClassName} type="button" onClick={()=>setOpen(true)}>{triggerLabel}</button>
+    {dialog}
   </>;
 }
