@@ -14,6 +14,8 @@ import styles from "./teacher-live-map-preview.module.css";
 type Bbox=[number,number,number,number];
 type MapLayer={datasetVersionId:string;title:string;role:"SOURCE"|"TARGET"|"CONTEXT";visible:boolean;opacity:number;bbox:Bbox|null;style:Record<string,unknown>;geojson:GeoJsonObject};
 type Payload={layers:MapLayer[];bbox:Bbox|null};
+type LoadedPayload={key:string;data:Payload};
+type PreviewError={key:string;message:string};
 type SearchResult={id:string;label:string;lat:number;lon:number};
 type Target={lat:number;lon:number;label:string}|null;
 type LabelConfig={field:string|null;minZoom:number};
@@ -52,35 +54,37 @@ function experienceLabel(value:string){return value==="analysis"?"Peta Analisis"
 function validCoordinate(lat:number,lon:number){return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180;}
 
 export function TeacherLiveMapPreview({bindings,activityConfig}:{bindings:DatasetSelection[];activityConfig:Record<string,unknown>}){
-  const [payload,setPayload]=useState<Payload|null>(null);const [error,setError]=useState("");const [visibility,setVisibility]=useState<Record<string,boolean>>({});
-  const [query,setQuery]=useState("");const [results,setResults]=useState<SearchResult[]>([]);const [searching,setSearching]=useState(false);
+  const [loaded,setLoaded]=useState<LoadedPayload|null>(null);const [loadError,setLoadError]=useState<PreviewError|null>(null);const [visibility,setVisibility]=useState<Record<string,boolean>>({});
+  const [query,setQuery]=useState("");const [results,setResults]=useState<SearchResult[]>([]);const [searching,setSearching]=useState(false);const [interactionError,setInteractionError]=useState("");
   const [lat,setLat]=useState("");const [lon,setLon]=useState("");const [target,setTarget]=useState<Target>(null);const [pick,setPick]=useState(false);const [readout,setReadout]=useState<{lat:number;lon:number}|null>(null);
   const [selected,setSelected]=useState<SelectedMapFeature>(null);const [attributeOpen,setAttributeOpen]=useState(false);const [attributeLayerId,setAttributeLayerId]=useState("");const [zoom,setZoom]=useState(5);
   const bindingKey=JSON.stringify(bindings);const interactions=normalizeMapInteractions(activityConfig.interactions);const interactionSet=useMemo(()=>new Set<MapInteraction>(interactions),[interactions]);const mapExperience=normalizeMapExperience(activityConfig.mapExperience);
   const enabled=(id:MapInteraction)=>interactionSet.has(id);
 
   useEffect(()=>{
-    if(!bindings.length){setPayload({layers:[],bbox:null});setError("");return;}
-    const controller=new AbortController();setPayload(null);setError("");
-    fetch("/api/content/questions/preview/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({bindings}),signal:controller.signal})
-      .then(async(response)=>{const body=await response.json();if(!response.ok)throw new Error(body.error??"Preview peta gagal dimuat.");const next=body as Payload;setPayload(next);setAttributeLayerId(next.layers[0]?.datasetVersionId??"");setVisibility({});setSelected(null);setAttributeOpen(false);})
-      .catch((reason)=>{if(reason instanceof DOMException&&reason.name==="AbortError")return;setError(reason instanceof Error?reason.message:"Preview peta gagal dimuat.");});
+    if(bindingKey==="[]")return;
+    const controller=new AbortController();
+    const requestBindings=JSON.parse(bindingKey) as DatasetSelection[];
+    fetch("/api/content/questions/preview/map",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({bindings:requestBindings}),signal:controller.signal})
+      .then(async(response)=>{const body=await response.json();if(!response.ok)throw new Error(body.error??"Preview peta gagal dimuat.");const next=body as Payload;setLoaded({key:bindingKey,data:next});setLoadError(null);setAttributeLayerId(next.layers[0]?.datasetVersionId??"");setVisibility({});setSelected(null);setAttributeOpen(false);})
+      .catch((reason)=>{if(reason instanceof DOMException&&reason.name==="AbortError")return;setLoadError({key:bindingKey,message:reason instanceof Error?reason.message:"Preview peta gagal dimuat."});});
     return()=>controller.abort();
-  // bindings are intentionally represented by a stable serialized key.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[bindingKey]);
 
+  const payload=loaded?.key===bindingKey?loaded.data:null;
+  const currentLoadError=loadError?.key===bindingKey?loadError.message:"";
   const bbox=payload?.bbox??null;const center=useMemo<[number,number]>(()=>bbox?[(bbox[1]+bbox[3])/2,(bbox[0]+bbox[2])/2]:[-2.5,118],[bbox]);
   const data=payload?selectedData(selected,payload.layers):null;
 
-  async function searchPlace(event:FormEvent){event.preventDefault();if(query.trim().length<2)return;setSearching(true);setError("");try{const response=await fetch(`/api/map/search?q=${encodeURIComponent(query.trim())}`,{cache:"no-store"});const body=await response.json() as {results?:SearchResult[];error?:string};if(!response.ok)throw new Error(body.error??"Pencarian gagal.");setResults(body.results??[]);}catch(reason){setError(reason instanceof Error?reason.message:"Pencarian gagal.");}finally{setSearching(false);}}
+  async function searchPlace(event:FormEvent){event.preventDefault();if(query.trim().length<2)return;setSearching(true);setInteractionError("");try{const response=await fetch(`/api/map/search?q=${encodeURIComponent(query.trim())}`,{cache:"no-store"});const body=await response.json() as {results?:SearchResult[];error?:string};if(!response.ok)throw new Error(body.error??"Pencarian gagal.");setResults(body.results??[]);}catch(reason){setInteractionError(reason instanceof Error?reason.message:"Pencarian gagal.");}finally{setSearching(false);}}
   function choose(result:SearchResult){setTarget({lat:result.lat,lon:result.lon,label:result.label});setLat(result.lat.toFixed(6));setLon(result.lon.toFixed(6));setResults([]);}
-  function go(){const a=Number(lat),b=Number(lon);if(!validCoordinate(a,b)){setError("Koordinat tidak valid.");return;}setTarget({lat:a,lon:b,label:`${a.toFixed(6)}, ${b.toFixed(6)}`});setError("");}
+  function go(){const a=Number(lat),b=Number(lon);if(!validCoordinate(a,b)){setInteractionError("Koordinat tidak valid.");return;}setTarget({lat:a,lon:b,label:`${a.toFixed(6)}, ${b.toFixed(6)}`});setInteractionError("");}
   function picked(a:number,b:number){setLat(a.toFixed(6));setLon(b.toFixed(6));setTarget({lat:a,lon:b,label:"Koordinat pilihan"});setPick(false);}
 
-  if(error&&!payload)return <div className={styles.error}>{error}</div>;
+  if(!bindings.length)return <div className={styles.empty}>Tambahkan minimal satu dataset pada langkah Data & Layer untuk melihat preview WebGIS nyata.</div>;
+  if(currentLoadError&&!payload)return <div className={styles.error}>{currentLoadError}</div>;
   if(!payload)return <div className={styles.loading}>Memuat layer nyata dari DatasetVersion…</div>;
-  if(!payload.layers.length)return <div className={styles.empty}>Tambahkan minimal satu dataset pada langkah Data & Layer untuk melihat preview WebGIS nyata.</div>;
+  if(!payload.layers.length)return <div className={styles.empty}>Dataset terpilih belum memiliki feature yang dapat dipreview.</div>;
 
   const showSearch=enabled("search-place"),showGo=enabled("go-to-coordinate"),showPick=enabled("pick-coordinate"),showPointer=enabled("pointer-coordinate");
   const showToolbar=showSearch||showGo||showPick||showPointer,showLayer=enabled("layer-control"),showLegend=enabled("legend"),showPopup=enabled("popup"),showLabels=enabled("feature-labels"),showData=enabled("data-panel"),showTable=enabled("attribute-table"),showFit=enabled("fit-to-data"),showNorth=enabled("north-arrow");
@@ -93,7 +97,7 @@ export function TeacherLiveMapPreview({bindings,activityConfig}:{bindings:Datase
       {(showGo||showPick)&&<div className={styles.tool}><span>Koordinat</span><div className={styles.coords}><input value={lat} readOnly={!showGo} onChange={(e)=>setLat(e.target.value)} placeholder="Latitude"/><input value={lon} readOnly={!showGo} onChange={(e)=>setLon(e.target.value)} placeholder="Longitude"/></div><div className={styles.row}>{showGo&&<button type="button" onClick={go}>Pergi</button>}{showPick&&<button type="button" onClick={()=>setPick((value)=>!value)}>{pick?"Klik peta…":"Ambil dari peta"}</button>}</div></div>}
       {showPointer&&<div className={styles.tool}><span>Pointer</span><div className={styles.readout}>{readout?`${readout.lat.toFixed(5)}, ${readout.lon.toFixed(5)}`:"Gerakkan pointer di peta"}</div></div>}
     </section>}
-    {error&&<div className={styles.error}>{error}</div>}
+    {(interactionError||currentLoadError)&&<div className={styles.error}>{interactionError||currentLoadError}</div>}
     <div className={styles.mapShell}>
       <MapContainer key={mapKey} center={center} zoom={bbox?8:5} className={styles.map} scrollWheelZoom zoomControl={false}>
         <ZoomControl position="bottomright"/><AutoFit bbox={bbox}/>{showFit&&<FitButton bbox={bbox}/>}<Navigate target={target}/>{showLabels&&<ZoomTracker onZoom={setZoom}/>} {(showPick||showPointer)&&<MapEvents pick={pick&&showPick} readout={showPointer} onPick={picked} onReadout={(a,b)=>setReadout({lat:a,lon:b})}/>}<TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
