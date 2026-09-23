@@ -192,7 +192,6 @@ export default function LandingMapDemo() {
       style: BASEMAPS.light.style,
       center: [110.367, -7.8],
       zoom: 12.9,
-      attributionControl: true,
     });
 
     mapRef.current = map;
