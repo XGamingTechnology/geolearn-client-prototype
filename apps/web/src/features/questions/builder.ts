@@ -1,3 +1,5 @@
+import type {MapExperience,MapInteraction} from "./experience";
+
 export const answerIds=["A","B","C","D","E"] as const;
 export type AnswerId=(typeof answerIds)[number];
 export type StimulusType="text"|"image"|"video"|"webgis";
@@ -11,6 +13,7 @@ export type BuilderSnapshot={
   stimulusType:StimulusType; responseType:ResponseType; answers:Array<{id:AnswerId;label:string}>;
   correctAnswer?:string; mediaAssetId?:string; selectedMediaType?:string;
   datasetBindings?:DatasetSelection[]; allowedGisTools?:string[]; requiredGisTools?:string[]; bufferDistance?:number;
+  mapExperience?:MapExperience; mapInteractions?:MapInteraction[];
   // Legacy single-source/target/tool fields remain accepted so old QuestionVersions can still validate.
   sourceDatasetId?:string; targetDatasetId?:string; requiredGisTool?:string;
 };
@@ -60,6 +63,7 @@ export function validateForPublish(value:BuilderSnapshot):string[]{
     if(required.some((tool)=>!allowed.includes(tool))) errors.push("GIS Tool wajib harus termasuk dalam tool yang diizinkan.");
     if(allowed.some((tool)=>tool==="overlay"||tool==="distance")&&targetCount===0) errors.push("Overlay/Distance memerlukan satu TARGET Dataset.");
     if(allowed.includes("buffer")&&(!value.bufferDistance||value.bufferDistance<=0)) errors.push("Buffer Distance harus lebih dari 0 meter.");
+    if(!value.mapExperience)errors.push("Pilih pengalaman peta untuk WebGIS.");
     for(const binding of bindings){
       if(binding.label?.enabled&&!binding.label.field)errors.push("Layer berlabel harus memiliki field label.");
       if(binding.label?.minZoom!==undefined&&(binding.label.minZoom<0||binding.label.minZoom>22))errors.push("Min zoom label harus antara 0 dan 22.");
@@ -73,9 +77,11 @@ export function configurationSummary(value:BuilderSnapshot){
   const bindings=normalizedBindings(value);
   const {allowed,required}=normalizedTools(value);
   const labelCount=bindings.filter((binding)=>binding.label?.enabled).length;
-  const layerSummary=value.stimulusType==="webgis"?` · ${bindings.length} LAYER${labelCount?` · ${labelCount} LABEL`:""}`:"";
+  const experience=value.stimulusType==="webgis"&&value.mapExperience?` · ${value.mapExperience.replaceAll("-"," ").toUpperCase()}`:"";
+  const interactionCount=value.stimulusType==="webgis"?(value.mapInteractions?.length??0):0;
+  const layerSummary=value.stimulusType==="webgis"?` · ${bindings.length} LAYER${labelCount?` · ${labelCount} LABEL`:""}${interactionCount?` · ${interactionCount} INTERAKSI`:""}`:"";
   const toolSummary=value.stimulusType==="webgis"&&allowed.length
     ? ` · ${allowed.map((tool)=>tool.toUpperCase()+(tool==="buffer"?` ${value.bufferDistance||0} M`:"")).join(", ")}${required.length?` · ${required.length} WAJIB`:""}`:"";
-  if(value.responseType!=="multiple-choice") return `${stimulus}${layerSummary}${toolSummary} · ${value.responseType.replaceAll("-"," ").toUpperCase()}`;
-  return `${stimulus}${layerSummary}${toolSummary} · MULTIPLE CHOICE · ${value.answers.length} PILIHAN`;
+  if(value.responseType!=="multiple-choice") return `${stimulus}${experience}${layerSummary}${toolSummary} · ${value.responseType.replaceAll("-"," ").toUpperCase()}`;
+  return `${stimulus}${experience}${layerSummary}${toolSummary} · MULTIPLE CHOICE · ${value.answers.length} PILIHAN`;
 }
