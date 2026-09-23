@@ -3,7 +3,7 @@ import {requireTeacherSession} from "@/server/auth/session";
 import {listQuestionDatasetOptions} from "@/server/content/question-datasets";
 import {listMediaBank} from "@/server/content/service";
 import {listQuestionGroups} from "@/server/content/question-groups";
-import {QuestionBuilderForm} from "@/components/question-builder-form";
+import {QuestionBuilderLiveForm} from "@/components/question-builder-live-form";
 import {StatusNotice} from "@/components/status-notice";
 import styles from "./question-builder-page.module.css";
 
@@ -28,6 +28,6 @@ export default async function NewQuestionPage({searchParams}:{searchParams:Promi
     {groupId&&!group&&<StatusNotice tone="error" title="Stimulus Set tidak tersedia" description="Stimulus Set tidak ditemukan atau tidak dapat diakses oleh akun ini."/>}
     {status==="error"&&<StatusNotice tone="error" title="Draft belum berhasil dibuat" description={errorMessage[reason??"save"]??errorMessage.save}/>} 
     {group&&<section className={styles.groupCard}><span>STIMULUS SET AKTIF</span><strong>{group.title}</strong><p>{group.description||"Tanpa deskripsi."}</p><div className={styles.groupTags}><i>{group.stimulusType}</i><i>{group.scope}</i>{group.topic&&<i>{group.topic}</i>}</div></section>}
-    {!groupId||group?<QuestionBuilderForm action={action} datasets={datasets} media={media} initial={initial} isNew/>:null}
+    {!groupId||group?<QuestionBuilderLiveForm action={action} datasets={datasets} media={media} initial={initial} isNew/>:null}
   </main>;
 }
