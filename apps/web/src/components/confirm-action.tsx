@@ -25,9 +25,6 @@ function Icon({tone}:{tone:Tone}){
 
 export function ConfirmAction({action,triggerLabel,title,description,confirmLabel=triggerLabel,cancelLabel="Batalkan",tone="default",triggerClassName}:Props){
   const [open,setOpen]=useState(false);
-  const [mounted,setMounted]=useState(false);
-
-  useEffect(()=>setMounted(true),[]);
 
   useEffect(()=>{
     if(!open)return;
@@ -38,7 +35,7 @@ export function ConfirmAction({action,triggerLabel,title,description,confirmLabe
     return ()=>{window.removeEventListener("keydown",onKey);document.body.style.overflow=previous;};
   },[open]);
 
-  const dialog=open&&mounted?createPortal(
+  const dialog=open?createPortal(
     <div className={styles.backdrop} role="presentation" onMouseDown={(event)=>{if(event.target===event.currentTarget)setOpen(false);}}>
       <section className={`${styles.dialog} ${tone==="danger"?styles.danger:""}`} role="alertdialog" aria-modal="true" aria-labelledby="geolearn-confirm-title" aria-describedby="geolearn-confirm-description">
         <div className={styles.icon}><Icon tone={tone}/></div>
