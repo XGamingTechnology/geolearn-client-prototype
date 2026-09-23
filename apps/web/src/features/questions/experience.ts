@@ -6,6 +6,7 @@ export const mapInteractionIds=[
   "legend",
   "popup",
   "feature-labels",
+  "data-panel",
   "attribute-table",
   "search-place",
   "go-to-coordinate",
@@ -19,7 +20,7 @@ export type MapInteraction=(typeof mapInteractionIds)[number];
 export const mapExperienceOptions:Array<{id:MapExperience;label:string;description:string}>=[
   {id:"standard",label:"Peta Tunggal",description:"Satu ruang peta interaktif dengan kontrol yang dipilih guru."},
   {id:"analysis",label:"Peta Analisis",description:"Peta interaktif untuk menjalankan Buffer, Overlay, atau Distance."},
-  {id:"map-data",label:"Peta + Data",description:"Peta dengan akses data atribut untuk membaca dan membandingkan feature."},
+  {id:"map-data",label:"Peta + Data",description:"Peta dengan panel data untuk membaca atau membandingkan atribut feature."},
 ];
 
 export const plannedMapExperiences=[
@@ -30,9 +31,10 @@ export const plannedMapExperiences=[
 
 export const mapInteractionOptions:Array<{id:MapInteraction;label:string;description:string;group:"explore"|"data"|"orientation"}>=[
   {id:"layer-control",label:"Layer Control",description:"Siswa dapat menyalakan atau mematikan layer.",group:"explore"},
-  {id:"legend",label:"Legend",description:"Tampilkan keterangan layer tanpa harus memberi kontrol visibilitas.",group:"explore"},
+  {id:"legend",label:"Legend",description:"Tampilkan keterangan layer tanpa memberi kontrol tambahan.",group:"explore"},
   {id:"popup",label:"Popup",description:"Klik feature untuk membaca atribut ringkas.",group:"data"},
-  {id:"feature-labels",label:"Feature Labels",description:"Tampilkan field label yang telah dikonfigurasi pada layer.",group:"data"},
+  {id:"feature-labels",label:"Feature Labels",description:"Tampilkan field label yang dikonfigurasi pada layer.",group:"data"},
+  {id:"data-panel",label:"Data Panel",description:"Tampilkan atribut penting feature terpilih dalam panel ringkas.",group:"data"},
   {id:"attribute-table",label:"Attribute Table",description:"Buka tabel atribut lengkap dan pilih feature dari tabel.",group:"data"},
   {id:"search-place",label:"Search Place",description:"Cari nama tempat lalu arahkan peta ke hasil pencarian.",group:"orientation"},
   {id:"go-to-coordinate",label:"Go to Coordinate",description:"Masukkan latitude dan longitude untuk menuju lokasi.",group:"orientation"},
@@ -41,6 +43,11 @@ export const mapInteractionOptions:Array<{id:MapInteraction;label:string;descrip
   {id:"fit-to-data",label:"Fit to Data",description:"Kembalikan tampilan ke extent data yang aktif.",group:"orientation"},
   {id:"north-arrow",label:"North Arrow",description:"Tampilkan orientasi utara pada peta.",group:"orientation"},
 ];
+
+export const plannedMapInteractions=[
+  {id:"inset-map",label:"Inset Map",description:"Peta kecil konteks lokasi untuk membantu orientasi regional."},
+  {id:"sync-navigation",label:"Sync Pan / Zoom",description:"Sinkronkan navigasi pada Compare Map."},
+] as const;
 
 type SpatialRecommendation={
   experience:MapExperience;
@@ -59,7 +66,7 @@ const recommendationByMode:Record<string,SpatialRecommendation>={
   },
   condition:{
     experience:"map-data",
-    interactions:["layer-control","legend","popup","attribute-table","fit-to-data"],
+    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
     analysis:[],
     note:"Cocok ketika siswa perlu membaca beberapa atribut kondisi wilayah.",
   },
@@ -71,13 +78,13 @@ const recommendationByMode:Record<string,SpatialRecommendation>={
   },
   region:{
     experience:"standard",
-    interactions:["layer-control","legend","popup","fit-to-data"],
+    interactions:["layer-control","legend","popup","fit-to-data","north-arrow"],
     analysis:[],
     note:"Cocok untuk mengenali batas, karakteristik, dan perbedaan wilayah.",
   },
   hierarchy:{
     experience:"map-data",
-    interactions:["layer-control","legend","popup","attribute-table","fit-to-data"],
+    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
     analysis:["distance"],
     note:"Cocok untuk membaca tingkatan layanan, jangkauan, dan hubungan pusat–wilayah.",
     futureExperience:"dashboard",
@@ -86,18 +93,18 @@ const recommendationByMode:Record<string,SpatialRecommendation>={
     experience:"standard",
     interactions:["legend","popup","fit-to-data"],
     analysis:[],
-    note:"Spatial Analogies idealnya memakai Compare Map. Untuk saat ini gunakan peta standar; Compare Map akan ditambahkan sebagai renderer lanjutan.",
+    note:"Spatial Analogies idealnya memakai Compare Map. Untuk saat ini gunakan peta tunggal; Compare Map akan menjadi renderer lanjutan.",
     futureExperience:"compare",
   },
   pattern:{
     experience:"map-data",
-    interactions:["layer-control","legend","popup","attribute-table","fit-to-data"],
+    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
     analysis:[],
     note:"Cocok untuk mengenali distribusi, konsentrasi, dan pola feature.",
   },
   association:{
     experience:"analysis",
-    interactions:["layer-control","legend","popup","attribute-table","fit-to-data"],
+    interactions:["layer-control","legend","popup","data-panel","attribute-table","fit-to-data"],
     analysis:["overlay"],
     note:"Cocok untuk menguji keterkaitan dua atau lebih fenomena spasial.",
   },
