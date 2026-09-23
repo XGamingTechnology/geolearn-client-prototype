@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">GeoLearn landscape scene</title>
+  <desc id="desc">A soft landscape with mountains, city skyline and students, used as a decorative closing visual.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf7fb"/>
+      <stop offset=".55" stop-color="#dceff5"/>
+      <stop offset="1" stop-color="#d4e8ec"/>
+    </linearGradient>
+    <linearGradient id="hillFar" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9fbeb7"/>
+      <stop offset="1" stop-color="#b7ceca"/>
+    </linearGradient>
+    <linearGradient id="hillNear" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#557c72"/>
+      <stop offset="1" stop-color="#789a8f"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#54756b"/>
+      <stop offset="1" stop-color="#35594f"/>
+    </linearGradient>
+    <linearGradient id="student" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2e4d5b"/>
+      <stop offset="1" stop-color="#1b3442"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="520" fill="url(#sky)"/>
+  <circle cx="1210" cy="120" r="180" fill="#ffffff" opacity=".32" filter="url(#soft)"/>
+
+  <g opacity=".58">
+    <path d="M0 305C130 230 225 238 340 288C466 343 570 318 690 246C796 183 899 188 1002 247C1112 309 1226 294 1344 218C1438 158 1522 180 1600 230V520H0Z" fill="url(#hillFar)"/>
+    <path d="M0 363C123 286 243 287 351 349C462 412 589 390 713 316C841 240 952 255 1065 322C1188 395 1340 358 1600 250V520H0Z" fill="#88a99f" opacity=".74"/>
+  </g>
+
+  <g opacity=".48" fill="#7d9dad">
+    <rect x="930" y="236" width="28" height="118" rx="2"/>
+    <rect x="968" y="208" width="42" height="146" rx="2"/>
+    <rect x="1021" y="252" width="30" height="102" rx="2"/>
+    <rect x="1062" y="186" width="48" height="168" rx="2"/>
+    <rect x="1124" y="225" width="36" height="129" rx="2"/>
+    <rect x="1173" y="198" width="28" height="156" rx="2"/>
+    <rect x="1213" y="241" width="45" height="113" rx="2"/>
+    <rect x="1271" y="216" width="34" height="138" rx="2"/>
+  </g>
+
+  <path d="M0 391C185 309 336 315 482 387C650 470 828 444 1014 377C1212 306 1402 322 1600 397V520H0Z" fill="url(#hillNear)"/>
+  <path d="M0 447C208 388 384 404 552 457C756 522 974 494 1182 433C1347 385 1487 398 1600 443V520H0Z" fill="url(#ground)"/>
+
+  <g opacity=".55" stroke="#bfe5ec" stroke-width="2" fill="none">
+    <path d="M145 352C284 293 410 306 528 367"/>
+    <path d="M119 372C279 308 432 326 563 396"/>
+    <path d="M1228 345C1320 292 1422 298 1512 346"/>
+  </g>
+
+  <g transform="translate(1174 286)" fill="url(#student)">
+    <ellipse cx="90" cy="44" rx="28" ry="34"/>
+    <path d="M58 86c16-19 49-25 66-8c15 15 18 48 17 85H46c1-33 2-59 12-77Z"/>
+    <rect x="35" y="112" width="20" height="86" rx="10" transform="rotate(9 45 155)"/>
+    <rect x="126" y="112" width="20" height="86" rx="10" transform="rotate(-8 136 155)"/>
+    <rect x="60" y="156" width="24" height="105" rx="12" transform="rotate(3 72 208)"/>
+    <rect x="105" y="156" width="24" height="105" rx="12" transform="rotate(-3 117 208)"/>
+    <rect x="112" y="95" width="44" height="72" rx="18" fill="#24424f"/>
+  </g>
+
+  <g transform="translate(1325 320) scale(.82)" fill="url(#student)" opacity=".96">
+    <ellipse cx="90" cy="44" rx="28" ry="34"/>
+    <path d="M58 86c16-19 49-25 66-8c15 15 18 48 17 85H46c1-33 2-59 12-77Z"/>
+    <rect x="35" y="112" width="20" height="86" rx="10" transform="rotate(9 45 155)"/>
+    <rect x="126" y="112" width="20" height="86" rx="10" transform="rotate(-8 136 155)"/>
+    <rect x="60" y="156" width="24" height="105" rx="12"/>
+    <rect x="105" y="156" width="24" height="105" rx="12"/>
+    <rect x="112" y="95" width="44" height="72" rx="18" fill="#24424f"/>
+  </g>
+
+  <g transform="translate(1088 342) scale(.72)" fill="#324f5c" opacity=".92">
+    <ellipse cx="90" cy="44" rx="28" ry="34"/>
+    <path d="M58 86c16-19 49-25 66-8c15 15 18 48 17 85H46c1-33 2-59 12-77Z"/>
+    <rect x="35" y="112" width="20" height="86" rx="10"/>
+    <rect x="126" y="112" width="20" height="86" rx="10"/>
+    <rect x="60" y="156" width="24" height="105" rx="12"/>
+    <rect x="105" y="156" width="24" height="105" rx="12"/>
+    <rect x="112" y="95" width="44" height="72" rx="18" fill="#264550"/>
+  </g>
+
+  <rect width="1600" height="520" fill="url(#sky)" opacity=".08"/>
+</svg>

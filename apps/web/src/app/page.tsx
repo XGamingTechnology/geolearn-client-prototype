@@ -1,6 +1,7 @@
 import Link from "next/link";
 import LandingMapLoader from "@/components/landing-map-loader";
 import styles from "./page.module.css";
+import polish from "./page-polish.module.css";
 
 type IconName="layers"|"brain"|"chart"|"users"|"book"|"graduation"|"info"|"arrow"|"map"|"clipboard"|"play"|"check";
 
@@ -36,7 +37,7 @@ const workflow=[
 ];
 
 export default function PublicHome(){
-  return <main className={styles.page}>
+  return <main className={`${styles.page} ${polish.page}`}>
     <header className={styles.header}>
       <div className={styles.headerInner}>
         <Link className={styles.brand} href="/">
@@ -54,38 +55,38 @@ export default function PublicHome(){
       </div>
     </header>
 
-    <section className={styles.hero} id="tentang">
-      <div className={styles.heroInner}>
-        <div className={styles.heroCopy}>
+    <section className={`${styles.hero} ${polish.hero}`} id="tentang">
+      <div className={`${styles.heroInner} ${polish.heroInner}`}>
+        <div className={`${styles.heroCopy} ${polish.heroCopy}`}>
           <p className={styles.eyebrow}>Pendidikan geografi untuk generasi masa depan</p>
-          <h1 className={styles.heroTitle}>Belajar geografi<br/>dengan berpikir<br/>secara <span>spasial.</span></h1>
-          <p className={styles.lede}>GeoLearn membantu siswa memahami lokasi, pola, hubungan, dan pengaruh melalui pertanyaan, data, dan WebGIS interaktif.</p>
+          <h1 className={`${styles.heroTitle} ${polish.heroTitle}`}>Belajar geografi<br/>dengan berpikir<br/>secara <span>spasial.</span></h1>
+          <p className={`${styles.lede} ${polish.lede}`}>GeoLearn membantu siswa memahami lokasi, pola, hubungan, dan pengaruh melalui pertanyaan, data, dan WebGIS interaktif.</p>
           <div className={styles.heroButtons}>
             <Link className={styles.button} href="/student-login"><Icon name="graduation"/>Masuk sebagai Siswa</Link>
             <a className={styles.buttonOutline} href="#demo-webgis"><Icon name="play"/>Coba Demo 60 Detik</a>
           </div>
-          <div className={styles.proofs} aria-label="Kemampuan GeoLearn">
-            <div className={styles.proof}><span className={styles.proofIcon}><Icon name="brain"/></span><span><strong>Spatial Thinking</strong><small>Lebih dari sekadar menghafal peta.</small></span></div>
-            <div className={styles.proof}><span className={styles.proofIcon}><Icon name="layers"/></span><span><strong>WebGIS interaktif</strong><small>Data nyata dalam pertanyaan.</small></span></div>
-            <div className={styles.proof}><span className={styles.proofIcon}><Icon name="chart"/></span><span><strong>Analitik pembelajaran</strong><small>Melihat proses dan perkembangan.</small></span></div>
+          <div className={`${styles.proofs} ${polish.proofs}`} aria-label="Kemampuan GeoLearn">
+            <div className={`${styles.proof} ${polish.proof}`}><span className={styles.proofIcon}><Icon name="brain"/></span><span><strong>Spatial Thinking</strong><small>Lebih dari sekadar menghafal peta.</small></span></div>
+            <div className={`${styles.proof} ${polish.proof}`}><span className={styles.proofIcon}><Icon name="layers"/></span><span><strong>WebGIS interaktif</strong><small>Data nyata dalam pertanyaan.</small></span></div>
+            <div className={`${styles.proof} ${polish.proof}`}><span className={styles.proofIcon}><Icon name="chart"/></span><span><strong>Analitik pembelajaran</strong><small>Melihat proses dan perkembangan.</small></span></div>
           </div>
         </div>
 
-        <div id="demo-webgis" className={styles.mapDemo}>
+        <div id="demo-webgis" className={`${styles.mapDemo} ${polish.mapDemo}`}>
           <LandingMapLoader />
         </div>
       </div>
     </section>
 
     <div className={styles.bridge}>
-      <section className={styles.workflowSection} id="cara-kerja">
-        <div className={styles.sectionHeading}>
+      <section className={`${styles.workflowSection} ${polish.reveal}`} id="cara-kerja">
+        <div className={`${styles.sectionHeading} ${polish.sectionHeading}`}>
           <p className={styles.sectionEyebrow}>Cara Kerja</p>
           <h2>Dari pertanyaan geografi ke analisis spasial yang nyata.</h2>
           <p>GeoLearn menjaga alur belajar tetap sederhana, sementara WebGIS hadir tepat saat siswa membutuhkannya.</p>
         </div>
         <div className={styles.workflowGrid}>
-          {workflow.map((step,index)=><article className={styles.workflowCard} key={step.title}>
+          {workflow.map((step,index)=><article className={`${styles.workflowCard} ${polish.workflowCard}`} key={step.title}>
             <div className={styles.workflowTop}><span className={styles.stepNumber}>{String(index+1).padStart(2,"0")}</span><span className={styles.workflowIcon}><Icon name={step.icon}/></span></div>
             <h3>{step.title}</h3><p>{step.copy}</p>
             {index<workflow.length-1&&<span className={styles.workflowArrow}><Icon name="arrow" className={styles.iconSmall}/></span>}
@@ -94,19 +95,19 @@ export default function PublicHome(){
       </section>
     </div>
 
-    <section className={styles.studentStrip}>
-      <div className={styles.studentStripInner}>
-        <div className={styles.studentIntro}><span className={styles.studentIcon}><Icon name="users" className={styles.iconLarge}/></span><div><h2>Ruang Siswa</h2><p>Sudah mendapat Kode Kelas, ID Siswa, dan PIN dari guru?</p></div></div>
+    <section className={`${styles.studentStrip} ${polish.reveal}`}>
+      <div className={`${styles.studentStripInner} ${polish.studentStripInner}`}>
+        <div className={`${styles.studentIntro} ${polish.studentIntro}`}><span className={styles.studentIcon}><Icon name="users" className={styles.iconLarge}/></span><div><h2>Ruang Siswa</h2><p>Sudah mendapat Kode Kelas, ID Siswa, dan PIN dari guru?</p></div></div>
         <Link className={styles.button} href="/student-login">Masuk Ke Kelas <Icon name="arrow" className={styles.iconSmall}/></Link>
         <div className={styles.studentNote}><Icon name="info"/><span>Tidak perlu membuat akun.<br/>Cukup gunakan data yang diberikan oleh guru.</span></div>
       </div>
     </section>
 
-    <section className={styles.featureSection}>
-      <div className={styles.featureGrid}>{features.map((feature)=><article className={styles.featureCard} key={feature.title}><span className={styles.featureIcon}><Icon name={feature.icon} className={styles.iconLarge}/></span><div><h3>{feature.title}</h3><p>{feature.copy}</p></div><span className={styles.featureCheck}><Icon name="check" className={styles.iconSmall}/></span></article>)}</div>
+    <section className={`${styles.featureSection} ${polish.reveal}`}>
+      <div className={styles.featureGrid}>{features.map((feature)=><article className={`${styles.featureCard} ${polish.featureCard}`} key={feature.title}><span className={styles.featureIcon}><Icon name={feature.icon} className={styles.iconLarge}/></span><div><h3>{feature.title}</h3><p>{feature.copy}</p></div><span className={styles.featureCheck}><Icon name="check" className={styles.iconSmall}/></span></article>)}</div>
     </section>
 
-    <section className={styles.closing}><div className={styles.closingContent}><h2>Geografi hari ini, solusi untuk esok.</h2><p>GeoLearn mendukung guru dan siswa dalam membangun pemahaman spasial yang relevan dengan dunia nyata.</p><div className={styles.closingActions}><Link className={styles.button} href="/teacher-login">Masuk sebagai Guru</Link><Link className={styles.buttonOutline} href="/learn/demo">Buka Demo Pembelajaran</Link></div></div></section>
+    <section className={`${styles.closing} ${polish.closing} ${polish.reveal}`}><div className={`${styles.closingContent} ${polish.closingContent}`}><h2>Geografi hari ini, solusi untuk esok.</h2><p>GeoLearn mendukung guru dan siswa dalam membangun pemahaman spasial yang relevan dengan dunia nyata.</p><div className={`${styles.closingActions} ${polish.closingActions}`}><Link className={styles.button} href="/teacher-login">Masuk sebagai Guru</Link><Link className={styles.buttonOutline} href="/learn/demo">Buka Demo Pembelajaran</Link></div></div></section>
 
     <footer className={styles.footer}><div className={styles.footerInner}><div className={styles.footerBrandWrap}><span className={styles.footerBrand}><Icon name="layers" className={styles.iconSmall}/>GeoLearn</span><span>© 2026 GeoLearn. All rights reserved.</span></div><nav className={styles.footerLinks} aria-label="Navigasi footer"><a href="#tentang">Tentang</a><a href="#cara-kerja">Cara Kerja</a><Link href="/learn/demo">Demo</Link><Link href="/teacher-login">Guru</Link><Link href="/student-login">Siswa</Link></nav></div></footer>
   </main>;
