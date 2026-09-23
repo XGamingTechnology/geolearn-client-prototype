@@ -4,16 +4,19 @@ import {createPortal} from "react-dom";
 import {useEffect,useMemo,useRef,useState} from "react";
 import {QuestionBuilderForm,type QuestionBuilderInitial} from "./question-builder-form";
 import {TeacherStudentPreview} from "./teacher-student-preview";
+import {basemapOptions,normalizeBasemap,type BasemapId} from "@/features/questions/experience";
+import {satelliteBasemapAvailable} from "./map-basemap";
 import type {DatasetSelection,ResponseType,StimulusType} from "@/features/questions/builder";
 
 type Dataset={id:string;title:string;geometryType?:string|null;fields?:string[]};
 type Media={id:string;title:string;mediaType:"IMAGE"|"VIDEO"|"DOCUMENT"|"ILLUSTRATION";mimeType:string|null;storageKey:string|null};
+type ExtendedInitial=QuestionBuilderInitial&{basemap?:string};
 type PreviewState={
   title:string;prompt:string;spatialMode:string;stimulus:StimulusType;bindings:DatasetSelection[];mapExperience:string;mapInteractions:string[];
-  allowedTools:string[];requiredTools:string[];responseType:ResponseType;answers:Array<{id:string;label:string}>;mediaId:string;mediaCaption:string;
+  basemap:BasemapId;allowedTools:string[];requiredTools:string[];responseType:ResponseType;answers:Array<{id:string;label:string}>;mediaId:string;mediaCaption:string;
 };
 
-const EMPTY:PreviewState={title:"",prompt:"",spatialMode:"location",stimulus:"text",bindings:[],mapExperience:"standard",mapInteractions:[],allowedTools:[],requiredTools:[],responseType:"multiple-choice",answers:[],mediaId:"",mediaCaption:""};
+const EMPTY:PreviewState={title:"",prompt:"",spatialMode:"location",stimulus:"text",bindings:[],mapExperience:"standard",mapInteractions:[],basemap:"street",allowedTools:[],requiredTools:[],responseType:"multiple-choice",answers:[],mediaId:"",mediaCaption:""};
 
 function checkedValue(form:HTMLFormElement,name:string,fallback:string){
   const input=form.querySelector<HTMLInputElement>(`input[name="${name}"]:checked`);
@@ -26,132 +29,107 @@ function parseBindings(raw:string):DatasetSelection[]{
     return value.filter((item):item is DatasetSelection=>Boolean(item&&typeof item==="object"&&typeof (item as {datasetId?:unknown}).datasetId==="string"));
   }catch{return [];}
 }
-function readState(form:HTMLFormElement):PreviewState{
-  const data=new FormData(form);
-  const answerIds=["A","B","C","D","E"];
+function readState(form:HTMLFormElement,fallbackBasemap:BasemapId):PreviewState{
+  const data=new FormData(form);const ids=["A","B","C","D","E"];
   return {
-    title:String(data.get("title")??""),
-    prompt:String(data.get("prompt")??""),
-    spatialMode:checkedValue(form,"spatialMode","location"),
-    stimulus:checkedValue(form,"stimulusType","text") as StimulusType,
-    bindings:parseBindings(String(data.get("datasetBindingsJson")??"[]")),
-    mapExperience:checkedValue(form,"mapExperience","standard"),
-    mapInteractions:data.getAll("mapInteraction").map(String),
-    allowedTools:data.getAll("allowedGisTool").map(String),
-    requiredTools:data.getAll("requiredGisTool").map(String),
+    title:String(data.get("title")??""),prompt:String(data.get("prompt")??""),spatialMode:checkedValue(form,"spatialMode","location"),
+    stimulus:checkedValue(form,"stimulusType","text") as StimulusType,bindings:parseBindings(String(data.get("datasetBindingsJson")??"[]")),
+    mapExperience:checkedValue(form,"mapExperience","standard"),mapInteractions:data.getAll("mapInteraction").map(String),
+    basemap:normalizeBasemap(data.get("basemap")??fallbackBasemap),allowedTools:data.getAll("allowedGisTool").map(String),requiredTools:data.getAll("requiredGisTool").map(String),
     responseType:String(data.get("responseType")??"multiple-choice") as ResponseType,
-    answers:answerIds.map((id)=>({id,label:String(data.get(`answer_${id}`)??"").trim()})).filter((answer)=>answer.label),
-    mediaId:String(data.get("stimulusMediaId")??""),
-    mediaCaption:String(data.get("mediaCaption")??""),
+    answers:ids.map((id)=>({id,label:String(data.get(`answer_${id}`)??"").trim()})).filter((answer)=>answer.label),
+    mediaId:String(data.get("stimulusMediaId")??""),mediaCaption:String(data.get("mediaCaption")??"")
   };
 }
-function findPreviewHost(root:HTMLElement):HTMLElement|null{
+function findPreviewHost(root:HTMLElement){
   for(const section of Array.from(root.querySelectorAll<HTMLElement>("section"))){
-    const heading=section.querySelector("h3");
-    if(heading?.textContent?.trim()!=="Preview pengalaman siswa")continue;
-    const oldPreview=section.querySelector<HTMLElement>("article");
-    return oldPreview?.parentElement??oldPreview;
+    if(section.querySelector("h3")?.textContent?.trim()==="Preview pengalaman siswa"){
+      const old=section.querySelector<HTMLElement>("article");return old?.parentElement??old;
+    }
   }
   return null;
 }
-function modeLabel(mode:string){const labels:Record<string,string>={location:"Location",condition:"Condition",influence:"Influence",region:"Region",hierarchy:"Hierarchy",analogy:"Analogies",pattern:"Pattern",association:"Association"};return labels[mode]??mode;}
+function findStimulusHost(root:HTMLElement){
+  for(const section of Array.from(root.querySelectorAll<HTMLElement>("section"))){
+    if(section.querySelector("h3")?.textContent?.trim()==="Pilih stimulus dan pengalaman peta")return section;
+  }
+  return null;
+}
+function modeLabel(mode:string){
+  const labels:Record<string,string>={location:"Location",condition:"Condition",influence:"Influence",region:"Region",hierarchy:"Hierarchy",analogy:"Analogies",pattern:"Pattern",association:"Association"};
+  return labels[mode]??mode;
+}
 
-function LivePreviewBridge({root,media}:{root:HTMLElement|null;media:Media[]}){
+function BasemapSelector({host,value,onChange}:{host:HTMLElement|null;value:BasemapId;onChange:(value:BasemapId)=>void}){
+  if(!host)return null;
+  return createPortal(
+    <section className="geolearn-basemap-selector">
+      <input type="hidden" name="basemap" value={value}/>
+      <div><strong>Basemap</strong><p>Pilih konteks visual peta. Basemap tidak menggantikan dataset raster/citra analitis.</p></div>
+      <div className="geolearn-basemap-grid">{basemapOptions.map((item)=>{
+        const unavailable=item.id==="satellite"&&!satelliteBasemapAvailable;
+        return <button type="button" disabled={unavailable} aria-pressed={value===item.id} key={item.id} onClick={()=>onChange(item.id)}><b>{item.label}</b><span>{item.description}</span>{unavailable&&<em>Butuh provider key</em>}</button>;
+      })}</div>
+    </section>,host,
+  );
+}
+
+function LivePreviewBridge({root,media,initialBasemap}:{root:HTMLElement|null;media:Media[];initialBasemap:BasemapId}){
   const [host,setHost]=useState<HTMLElement|null>(null);
-  const [state,setState]=useState<PreviewState>(EMPTY);
+  const [stimulusHost,setStimulusHost]=useState<HTMLElement|null>(null);
+  const [state,setState]=useState<PreviewState>({...EMPTY,basemap:initialBasemap});
+  const [notice,setNotice]=useState("");
 
   useEffect(()=>{
     if(!root)return;
     const form=root.querySelector<HTMLFormElement>("form")??root.closest("form");
     if(!form)return;
-    const sync=()=>setState(readState(form));
-    const resolve=()=>setHost(findPreviewHost(root));
+    const sync=()=>setState(readState(form,initialBasemap));
+    const resolve=()=>{setHost(findPreviewHost(root));setStimulusHost(findStimulusHost(root));};
     sync();resolve();
     form.addEventListener("input",sync);form.addEventListener("change",sync);form.addEventListener("click",sync);
+    const click=(event:Event)=>{
+      const button=(event.target as HTMLElement).closest("button");
+      if(button?.textContent?.includes("Terapkan rekomendasi")){
+        setNotice("Rekomendasi diterapkan. Tinjau pengalaman peta, interaksi, dan analisis sebelum lanjut.");
+        window.setTimeout(()=>setNotice(""),4500);
+      }
+    };
+    form.addEventListener("click",click);
     const observer=new MutationObserver(()=>{resolve();sync();});
     observer.observe(root,{subtree:true,attributes:true,attributeFilter:["hidden","checked","value"]});
-    return()=>{form.removeEventListener("input",sync);form.removeEventListener("change",sync);form.removeEventListener("click",sync);observer.disconnect();};
-  },[root]);
+    return()=>{
+      form.removeEventListener("input",sync);form.removeEventListener("change",sync);form.removeEventListener("click",sync);form.removeEventListener("click",click);observer.disconnect();
+    };
+  },[initialBasemap,root]);
 
   useEffect(()=>{
     if(!host)return;
-    const hideLegacy=()=>{
+    const hide=()=>{
       for(const child of Array.from(host.children) as HTMLElement[]){
         if(child.dataset.geolearnLivePreview==="true")continue;
         if(child.dataset.previewOriginalDisplay===undefined)child.dataset.previewOriginalDisplay=child.style.display;
         child.style.display="none";
       }
     };
-    hideLegacy();
-    const observer=new MutationObserver(hideLegacy);
-    observer.observe(host,{childList:true});
-    return()=>{
-      observer.disconnect();
-      for(const child of Array.from(host.children) as HTMLElement[]){
-        if(child.dataset.geolearnLivePreview==="true")continue;
-        child.style.display=child.dataset.previewOriginalDisplay??"";
-        delete child.dataset.previewOriginalDisplay;
-      }
-    };
+    hide();const observer=new MutationObserver(hide);observer.observe(host,{childList:true});return()=>observer.disconnect();
   },[host]);
 
   const mediaAsset=useMemo(()=>media.find((item)=>item.id===state.mediaId),[media,state.mediaId]);
   const mediaSource=mediaAsset?.storageKey&&(mediaAsset.storageKey.startsWith("http://")||mediaAsset.storageKey.startsWith("https://")||mediaAsset.storageKey.startsWith("/"))?mediaAsset.storageKey:(mediaAsset?`/api/media/${mediaAsset.id}`:null);
 
-  if(!host)return null;
-  return createPortal(<div data-geolearn-live-preview="true" style={{gridColumn:"1 / -1",minWidth:0}}><TeacherStudentPreview
-    stimulus={state.stimulus}
-    spatialModeLabel={modeLabel(state.spatialMode)}
-    bindings={state.bindings}
-    mapExperience={state.mapExperience}
-    mapInteractions={state.mapInteractions}
-    allowedTools={state.allowedTools}
-    requiredTools={state.requiredTools}
-    responseType={state.responseType}
-    answers={state.answers}
-    initialTitle={state.title}
-    initialPrompt={state.prompt}
-    mediaSource={mediaSource}
-    mediaCaption={state.mediaCaption}
-  /></div>,host);
+  return <>
+    {notice&&root&&createPortal(<div className="geolearn-recommendation-notice" role="status"><b>✓ Rekomendasi diterapkan</b><span>{notice}</span></div>,root)}
+    {state.stimulus==="webgis"&&<BasemapSelector host={stimulusHost} value={state.basemap} onChange={(basemap)=>setState((current)=>({...current,basemap}))}/>} 
+    {host&&createPortal(<div data-geolearn-live-preview="true" style={{gridColumn:"1 / -1",minWidth:0}}><TeacherStudentPreview stimulus={state.stimulus} spatialModeLabel={modeLabel(state.spatialMode)} bindings={state.bindings} mapExperience={state.mapExperience} basemap={state.basemap} mapInteractions={state.mapInteractions} allowedTools={state.allowedTools} requiredTools={state.requiredTools} responseType={state.responseType} answers={state.answers} initialTitle={state.title} initialPrompt={state.prompt} mediaSource={mediaSource} mediaCaption={state.mediaCaption}/></div>,host)}
+  </>;
 }
 
-const responsiveCss=`
-.geolearn-builder-live-root [hidden]{display:none!important}
-@media(max-width:1180px){
-  .geolearn-builder-live-root>form>div{grid-template-columns:1fr!important;gap:14px!important}
-  .geolearn-builder-live-root>form>div>aside{position:sticky!important;top:76px!important;z-index:24!important;display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:16px!important}
-  .geolearn-builder-live-root>form>div>aside>div:first-child{min-width:124px!important;padding:0!important}
-  .geolearn-builder-live-root>form>div>aside>div:first-child>span{display:none!important}
-  .geolearn-builder-live-root>form>div>aside>div:first-child>strong{font-size:12px!important;white-space:nowrap!important}
-  .geolearn-builder-live-root>form>div>aside>div:first-child>small{font-size:9px!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2){display:flex!important;gap:5px!important;overflow-x:auto!important;scrollbar-width:thin;padding:1px 0 3px!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex:0 0 132px!important;min-height:43px!important;padding:6px!important;grid-template-columns:27px minmax(0,1fr)!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button b{width:26px!important;height:26px!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button strong{font-size:9.5px!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button small{display:none!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(3){display:none!important}
-}
-@media(max-width:860px){
-  .geolearn-builder-live-root>form>div>aside{top:68px!important;grid-template-columns:1fr!important;padding:9px 10px!important;border-radius:14px!important}
-  .geolearn-builder-live-root>form>div>aside>div:first-child{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important;min-width:0!important}
-  .geolearn-builder-live-root>form>div>aside>div:first-child>strong{font-size:11px!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex-basis:112px!important}
-}
-@media(max-width:560px){
-  .geolearn-builder-live-root>form>div>aside>div:first-child>strong{display:none!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex-basis:88px!important;grid-template-columns:24px minmax(0,1fr)!important}
-  .geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button strong{font-size:8.5px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
-}
-`;
+const responsiveCss=`.geolearn-builder-live-root [hidden]{display:none!important}.geolearn-basemap-selector{display:grid;gap:10px;padding:15px;border:1px solid #dbe7f3;border-radius:15px;background:#f8fbff}.geolearn-basemap-selector p{margin:3px 0 0;color:#64748b;font-size:10px}.geolearn-basemap-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.geolearn-basemap-grid button{display:grid;gap:4px;padding:11px;border:1px solid #dbe7f3;border-radius:12px;background:#fff;text-align:left;cursor:pointer;transition:.18s ease}.geolearn-basemap-grid button[aria-pressed=true]{border-color:#60a5fa;background:#eff6ff;box-shadow:inset 0 0 0 1px #bfdbfe;transform:translateY(-1px)}.geolearn-basemap-grid button:disabled{opacity:.45;cursor:not-allowed}.geolearn-basemap-grid b{font-size:11px;color:#10233f}.geolearn-basemap-grid span,.geolearn-basemap-grid em{font-size:8.5px;line-height:1.35;color:#64748b}.geolearn-basemap-grid em{color:#b45309;font-style:normal}.geolearn-recommendation-notice{position:sticky;top:84px;z-index:60;display:flex;gap:10px;align-items:center;margin:0 0 10px;padding:11px 14px;border:1px solid #99f6e4;border-radius:12px;background:#f0fdfa;box-shadow:0 10px 24px rgba(15,118,110,.12);animation:geolearnNotice .25s ease}.geolearn-recommendation-notice b{font-size:10px;color:#0f766e}.geolearn-recommendation-notice span{font-size:9px;color:#475569}@keyframes geolearnNotice{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}@media(max-width:1180px){.geolearn-builder-live-root>form>div{grid-template-columns:1fr!important;gap:14px!important}.geolearn-builder-live-root>form>div>aside{position:sticky!important;top:76px!important;z-index:24!important;display:grid!important;grid-template-columns:auto minmax(0,1fr)!important;align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:16px!important}.geolearn-builder-live-root>form>div>aside>div:first-child{min-width:124px!important;padding:0!important}.geolearn-builder-live-root>form>div>aside>div:first-child>span{display:none!important}.geolearn-builder-live-root>form>div>aside>div:nth-child(2){display:flex!important;gap:5px!important;overflow-x:auto!important;padding:1px 0 3px!important}.geolearn-builder-live-root>form>div>aside>div:nth-child(2)>button{flex:0 0 132px!important;min-height:43px!important;padding:6px!important;grid-template-columns:27px minmax(0,1fr)!important}.geolearn-builder-live-root>form>div>aside>div:nth-child(3){display:none!important}.geolearn-basemap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:860px){.geolearn-builder-live-root>form>div>aside{top:68px!important;grid-template-columns:1fr!important}.geolearn-basemap-grid{grid-template-columns:1fr 1fr}}@media(max-width:560px){.geolearn-basemap-grid{grid-template-columns:1fr}.geolearn-recommendation-notice{top:70px;align-items:flex-start;flex-direction:column}}@media(prefers-reduced-motion:reduce){.geolearn-basemap-grid button,.geolearn-recommendation-notice{transition:none;animation:none}}`;
 
-export function QuestionBuilderLiveForm(props:{action:string;publishAction?:string;datasets:Dataset[];media:Media[];initial?:QuestionBuilderInitial;isNew?:boolean}){
-  const wrapperRef=useRef<HTMLDivElement>(null);
-  const [root,setRoot]=useState<HTMLElement|null>(null);
+export function QuestionBuilderLiveForm(props:{action:string;publishAction?:string;datasets:Dataset[];media:Media[];initial?:ExtendedInitial;isNew?:boolean}){
+  const wrapperRef=useRef<HTMLDivElement>(null);const [root,setRoot]=useState<HTMLElement|null>(null);
   useEffect(()=>{setRoot(wrapperRef.current);},[]);
-  return <div ref={wrapperRef} className="geolearn-builder-live-root">
-    <style>{responsiveCss}</style>
-    <QuestionBuilderForm {...props}/>
-    <LivePreviewBridge root={root} media={props.media}/>
-  </div>;
+  const initialBasemap=normalizeBasemap(props.initial?.basemap);
+  return <div ref={wrapperRef} className="geolearn-builder-live-root"><style>{responsiveCss}</style><QuestionBuilderForm {...props}/><LivePreviewBridge root={root} media={props.media} initialBasemap={initialBasemap}/></div>;
 }

@@ -1,8 +1,9 @@
-import {mapExperienceIds,mapInteractionIds,type MapExperience,type MapInteraction} from "@/features/questions/experience";
+import {basemapIds,mapExperienceIds,mapInteractionIds,type BasemapId,type MapExperience,type MapInteraction} from "@/features/questions/experience";
 
 const supportedTools=new Set(["buffer","overlay","distance"]);
 const supportedExperiences=new Set<string>(mapExperienceIds);
 const supportedInteractions=new Set<string>(mapInteractionIds);
+const supportedBasemaps=new Set<string>(basemapIds);
 
 export function questionActivityConfigFromForm(form:FormData){
   const stimulus=String(form.get("stimulusType")??"text");
@@ -14,10 +15,13 @@ export function questionActivityConfigFromForm(form:FormData){
   const distanceMeters=Number.isFinite(distance)&&distance>0?Math.min(distance,100000):500;
   const rawExperience=String(form.get("mapExperience")??"standard");
   const mapExperience=(supportedExperiences.has(rawExperience)?rawExperience:"standard") as MapExperience;
+  const rawBasemap=String(form.get("basemap")??"street");
+  const basemap=(supportedBasemaps.has(rawBasemap)?rawBasemap:"street") as BasemapId;
   const interactions=form.getAll("mapInteraction").map(String).filter((item)=>supportedInteractions.has(item)) as MapInteraction[];
 
   return {
     mapExperience,
+    basemap,
     interactions:Array.from(new Set(interactions)),
     tools:Array.from(new Set(tools)),
     requiredActions:Array.from(new Set(required)).map((tool)=>({tool,parameters:tool==="buffer"?{distanceMeters}:{}})),
