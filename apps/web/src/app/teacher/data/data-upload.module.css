@@ -34,6 +34,7 @@
 }
 .field{display:grid;gap:7px;color:#334155;font-size:12px;font-weight:750}
 .fieldFull{grid-column:1/-1}
+.twoCol{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .input,.select,.file{
   width:100%;
   min-width:0;
@@ -64,7 +65,8 @@
 
 @media(max-width:760px){
   .form{grid-template-columns:1fr}
-  .fieldFull,.formatGrid,.help,.actions{grid-column:auto}
-  .formatGrid{grid-template-columns:1fr 1fr}
+  .fieldFull,.twoCol,.formatGrid,.help,.actions{grid-column:auto}
+  .twoCol,.formatGrid{grid-template-columns:1fr 1fr}
   .submit{width:100%;min-width:0}
 }
+@media(max-width:520px){.twoCol,.formatGrid{grid-template-columns:1fr}}
