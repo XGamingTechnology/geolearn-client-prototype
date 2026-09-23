@@ -18,6 +18,7 @@ async function assertScope(actor:TeacherSession,value:Scope){
   if(value!=="SYSTEM"&&!actor.schoolId)throw new AuthorizationError();
 }
 function cleanText(value:string,max:number){const cleaned=value.replace(/[\u0000-\u001f\u007f]/g," ").replace(/\s+/g," ").trim();return cleaned.slice(0,max);}
+function plainAttribution(value:string){return cleanText(value,300).replace(/[<>&"']/g," ").replace(/\s+/g," ").trim();}
 function optionalDate(value:string){const text=value.trim();if(!text)return null;if(!/^\d{4}-\d{2}-\d{2}$/.test(text)||Number.isNaN(Date.parse(`${text}T00:00:00Z`)))throw new Error("Tanggal citra tidak valid.");return text;}
 
 export async function registerRemoteRasterDataset(input:{actor:TeacherSession;title:string;description:string;scope:string;tileUrl:string;bbox:Bbox;attribution?:string;sourceLabel?:string;sensor?:string;acquiredAt?:string;temporalLabel?:string;}){
@@ -25,7 +26,7 @@ export async function registerRemoteRasterDataset(input:{actor:TeacherSession;ti
   const title=cleanText(input.title,220);if(!title)throw new Error("Judul dataset wajib diisi.");
   const tileUrl=validateXyzTemplate(input.tileUrl);const bbox=validateRasterBbox(input.bbox);const acquiredAt=optionalDate(input.acquiredAt??"");
   const metadata={raster:{sourceMode:"REMOTE_XYZ",sourceLabel:cleanText(input.sourceLabel??"",120)||null,sensor:cleanText(input.sensor??"",120)||null,acquiredAt,temporalLabel:cleanText(input.temporalLabel??"",120)||null,bboxSrid:4326}};
-  const style={opacity:1,attributionText:cleanText(input.attribution??"",300)};
+  const style={opacity:1,attributionText:plainAttribution(input.attribution??"")};
   const client=await database().connect();
   try{
     await client.query("begin");
