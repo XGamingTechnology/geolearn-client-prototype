@@ -17,6 +17,10 @@ export const mapInteractionIds=[
 ] as const;
 export type MapInteraction=(typeof mapInteractionIds)[number];
 
+export const legacyMapInteractions:MapInteraction[]=[
+  "layer-control","popup","feature-labels","attribute-table","search-place","go-to-coordinate","pick-coordinate","pointer-coordinate","fit-to-data",
+];
+
 export const mapExperienceOptions:Array<{id:MapExperience;label:string;description:string}>=[
   {id:"standard",label:"Peta Tunggal",description:"Satu ruang peta interaktif dengan kontrol yang dipilih guru."},
   {id:"analysis",label:"Peta Analisis",description:"Peta interaktif untuk menjalankan Buffer, Overlay, atau Distance."},
@@ -126,4 +130,8 @@ export function normalizeMapInteractions(value:unknown):MapInteraction[]{
 export function configuredMapInteractions(config:Record<string,unknown>):MapInteraction[]|null{
   if(!Object.prototype.hasOwnProperty.call(config,"interactions"))return null;
   return normalizeMapInteractions(config.interactions);
+}
+
+export function mapInteractionsForActivityConfig(config:Record<string,unknown>):MapInteraction[]{
+  return configuredMapInteractions(config)??legacyMapInteractions;
 }
