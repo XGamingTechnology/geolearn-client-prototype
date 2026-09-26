@@ -8,6 +8,10 @@ FROM node:24-alpine AS builder
 WORKDIR /workspace
 COPY --from=dependencies /workspace/node_modules ./node_modules
 COPY . .
+ARG NEXT_PUBLIC_ARCGIS_API_KEY=""
+ARG NEXT_PUBLIC_MAPTILER_KEY=""
+ENV NEXT_PUBLIC_ARCGIS_API_KEY=${NEXT_PUBLIC_ARCGIS_API_KEY}
+ENV NEXT_PUBLIC_MAPTILER_KEY=${NEXT_PUBLIC_MAPTILER_KEY}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build --workspace=@geolearn/web
 

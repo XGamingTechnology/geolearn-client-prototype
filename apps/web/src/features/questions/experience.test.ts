@@ -1,7 +1,7 @@
 import {describe,expect,it} from "vitest";
 import {
   configuredMapInteractions,legacyMapInteractions,mapInteractionsForActivityConfig,
-  normalizeMapExperience,normalizeMapInteractions,recommendationForSpatialMode,
+  normalizeBasemap,normalizeMapExperience,normalizeMapInteractions,recommendationForSpatialMode,
 } from "./experience";
 
 describe("adaptive spatial experience",()=>{
@@ -15,7 +15,12 @@ describe("adaptive spatial experience",()=>{
   });
 
   it("drops unsupported interaction identifiers",()=>{
-    expect(normalizeMapInteractions(["popup","attribute-table","network","popup"])).toEqual(["popup","attribute-table"]);
+    expect(normalizeMapInteractions(["popup","basemap-switcher","attribute-table","network","popup"])).toEqual(["popup","basemap-switcher","attribute-table"]);
+  });
+
+  it("normalizes persisted and missing basemap defaults",()=>{
+    expect(normalizeBasemap("terrain")).toBe("terrain");
+    expect(normalizeBasemap(undefined)).toBe("street");
   });
 
   it("falls back to a supported map experience",()=>{

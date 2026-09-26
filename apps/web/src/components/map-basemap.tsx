@@ -2,19 +2,23 @@
 
 import {useEffect} from "react";
 import {TileLayer,useMap} from "react-leaflet";
-import {normalizeBasemap,type BasemapId} from "@/features/questions/experience";
+import {type BasemapId} from "@/features/questions/experience";
+import {availableBasemapOptions,basemapAvailability,resolveBasemap,type BasemapRuntime} from "@/features/maps/basemap-provider";
+import styles from "./map-basemap.module.css";
 
-export type BasemapRuntime={id:BasemapId;label:string;url:string;attribution:string;maxZoom?:number;fallbackFrom?:BasemapId};
+export type {BasemapRuntime} from "@/features/maps/basemap-provider";
+const arcgisApiKey=process.env.NEXT_PUBLIC_ARCGIS_API_KEY?.trim()??"";
 const mapTilerKey=process.env.NEXT_PUBLIC_MAPTILER_KEY?.trim()??"";
-export const satelliteBasemapAvailable=Boolean(mapTilerKey);
+const credentials={arcgisApiKey,mapTilerKey};
+export const basemapProviderAvailability=basemapAvailability(credentials);
+export const satelliteBasemapAvailable=basemapProviderAvailability.satellite;
 
 export function basemapRuntime(value:unknown):BasemapRuntime{
-  const requested=normalizeBasemap(value);
-  if(requested==="light")return {id:"light",label:"Light",url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",attribution:'&copy; OpenStreetMap contributors &copy; CARTO',maxZoom:20};
-  if(requested==="terrain")return {id:"terrain",label:"Terrain",url:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",attribution:'Map data &copy; OpenStreetMap contributors, SRTM | Map style &copy; OpenTopoMap',maxZoom:17};
-  if(requested==="satellite"&&mapTilerKey)return {id:"satellite",label:"Satellite",url:`https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=${mapTilerKey}`,attribution:'&copy; MapTiler &copy; OpenStreetMap contributors',maxZoom:20};
-  if(requested==="satellite")return {id:"street",label:"Street",url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",attribution:'&copy; OpenStreetMap contributors',maxZoom:19,fallbackFrom:"satellite"};
-  return {id:"street",label:"Street",url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",attribution:'&copy; OpenStreetMap contributors',maxZoom:19};
+  return resolveBasemap(value,credentials);
+}
+
+export function BasemapSwitcher({value,onChange}:{value:BasemapId;onChange:(value:BasemapId)=>void}){
+  return <div className={styles.options}>{availableBasemapOptions(credentials).map((option)=><button key={option.id} type="button" disabled={!option.available} aria-pressed={value===option.id} onClick={()=>onChange(option.id)}><strong>{option.label}</strong><span>{option.available?option.description:"Provider belum dikonfigurasi"}</span></button>)}</div>;
 }
 
 function ResponsiveMapSize(){

@@ -12,6 +12,7 @@ export const basemapOptions:Array<{id:BasemapId;label:string;description:string}
 
 export const mapInteractionIds=[
   "layer-control",
+  "basemap-switcher",
   "legend",
   "popup",
   "feature-labels",
@@ -44,6 +45,7 @@ export const plannedMapExperiences=[
 
 export const mapInteractionOptions:Array<{id:MapInteraction;label:string;description:string;group:"explore"|"data"|"orientation"}>=[
   {id:"layer-control",label:"Layer Control",description:"Siswa dapat menyalakan atau mematikan layer.",group:"explore"},
+  {id:"basemap-switcher",label:"Basemap Switcher",description:"Izinkan siswa mengganti konteks visual basemap selama mengerjakan soal.",group:"explore"},
   {id:"legend",label:"Legend",description:"Tampilkan keterangan layer tanpa memberi kontrol tambahan.",group:"explore"},
   {id:"popup",label:"Popup",description:"Klik feature untuk membaca atribut ringkas.",group:"data"},
   {id:"feature-labels",label:"Feature Labels",description:"Tampilkan field label yang dikonfigurasi pada layer.",group:"data"},
