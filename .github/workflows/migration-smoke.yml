@@ -1,0 +1,47 @@
+name: Migration Smoke
+
+on:
+  pull_request:
+    branches:
+      - staging
+    paths:
+      - "apps/web/migrations/**"
+      - "apps/web/scripts/migrate.mjs"
+      - ".github/workflows/migration-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5-alpine
+        env:
+          POSTGRES_DB: geolearn_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd "pg_isready -U postgres -d geolearn_test" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/geolearn_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm install --include=dev
+      - name: Apply migrations
+        run: npm run db:migrate --workspace=@geolearn/web
+      - name: Verify migration idempotency
+        run: npm run db:migrate --workspace=@geolearn/web
+      - name: Verify schema
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "select PostGIS_Lib_Version();"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "select count(*) from geolearn_schema_migrations;"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "select to_regclass('public.question_versions'),to_regclass('public.dataset_features'),to_regclass('public.attempts'),to_regclass('public.response_spatial_artifacts'),to_regclass('public.spatial_skill_scores');"

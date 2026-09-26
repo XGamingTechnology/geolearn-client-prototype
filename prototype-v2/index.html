@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GeoLearn V2 — Staging UI Prototype</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <style>
+    :root{
+      --blue:#2f67f6;--blue2:#eaf1ff;--navy:#10192e;--ink:#182235;--muted:#738098;
+      --line:#dfe6f1;--bg:#f6f8fc;--card:#fff;--green:#19b87a;--green2:#e9fbf4;
+      --amber:#e7a11b;--red:#d84f4f;--shadow:0 12px 34px rgba(24,40,79,.07);
+      --r:18px;--control:11px;
+    }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,input,select,textarea{font:inherit} button{cursor:pointer}.hidden{display:none!important}
+    .top{height:72px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:24px;padding:0 5vw;position:sticky;top:0;z-index:1000}
+    .brand{display:flex;align-items:center;gap:10px;margin-right:20px}.logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--blue),#76a0ff);display:grid;place-items:center;color:white;font-weight:900}.brand small{display:block;color:var(--muted);font-size:10px;margin-top:1px}
+    .nav{display:flex;align-items:center;gap:5px;flex:1}.nav button{border:0;background:transparent;padding:10px 12px;border-radius:10px;color:#495873;font-size:12px;font-weight:700}.nav button.active{background:var(--blue2);color:var(--blue)}
+    .right{display:flex;align-items:center;gap:8px}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:10px;padding:9px 13px;font-size:11px;font-weight:800}.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 6px 15px rgba(47,103,246,.2)}.btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.ghost{background:#f8faff}.btn.sm{padding:7px 9px;font-size:10px}
+    .avatar{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;background:var(--blue);color:#fff;font-size:12px;font-weight:900}
+    main{width:min(1380px,92vw);margin:26px auto 48px}.page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:20px}.page-head h1{margin:4px 0;font-size:28px;letter-spacing:-.035em}.page-head p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.eyebrow{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--blue);font-weight:900}
+    .grid{display:grid;gap:16px}.g4{grid-template-columns:repeat(4,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
+    .metric{padding:18px}.metric span{font-size:10px;color:var(--muted)}.metric b{display:block;font-size:28px;margin-top:6px;letter-spacing:-.04em}.metric small{display:block;color:var(--green);font-size:9px;margin-top:8px}
+    .panel{padding:18px}.panel h3{margin:0 0 4px;font-size:15px}.sub{font-size:10px;color:var(--muted);line-height:1.5}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.search{min-width:260px;flex:1;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 12px;font-size:11px;outline:none}.select{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 11px;font-size:10px;color:#53617b}
+    .tabs{display:flex;gap:5px;padding:5px;background:#eef2f8;border-radius:12px;width:max-content}.tabs button{border:0;background:transparent;padding:8px 12px;border-radius:9px;color:#56637a;font-size:10px;font-weight:800}.tabs button.active{background:#fff;color:var(--blue);box-shadow:0 2px 7px #0000000d}
+    .pill{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:5px 8px;font-size:8px;font-weight:900;border:1px solid}.pill.blue{background:#edf3ff;color:var(--blue);border-color:#cfe0ff}.pill.green{background:var(--green2);color:#128357;border-color:#bcecd8}.pill.amber{background:#fff8e5;color:#a66f00;border-color:#f3dc9a}.pill.gray{background:#f4f6fa;color:#6d7890;border-color:#e3e7ef}
+    .list{display:grid;gap:10px}.row{display:flex;align-items:center;gap:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff}.row .grow{flex:1}.row h4{margin:0 0 4px;font-size:12px}.row p{margin:0;color:var(--muted);font-size:9.5px}.row .actions{display:flex;gap:6px}
+    .class-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;font-weight:900;color:var(--blue)}
+    .dataset{padding:16px}.dataset h4{margin:12px 0 5px;font-size:13px}.dataset p{margin:0;color:var(--muted);font-size:9.5px;min-height:32px}.dataset .meta{margin-top:12px;padding:9px;border:1px solid var(--line);border-radius:9px;display:flex;justify-content:space-between;color:#7a869d;font-size:8.5px}.dataset .foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid #edf1f6}
+    .thumb{height:120px;border-radius:12px;background:linear-gradient(135deg,#dce8ff,#f6f9ff);border:1px solid #dbe4f4;display:grid;place-items:center;color:#5d76a4;font-size:11px;font-weight:800;position:relative;overflow:hidden}.thumb.video:after{content:"▶";width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--blue);box-shadow:0 8px 22px #33508d2b;font-size:13px}.thumb.map{background:linear-gradient(120deg,#d8eddc,#eaf4df 45%,#d6e7f4 46%,#dbeaf5 55%,#f3eed8 56%)}
+    .studio{display:grid;grid-template-columns:330px 1fr;gap:14px;min-height:650px}.side{padding:14px}.side-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.layer{border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:9px}.layer-top{display:flex;align-items:center;gap:8px}.dot{width:10px;height:10px;border-radius:50%;background:var(--green)}.layer h4{font-size:10.5px;margin:0;flex:1}.layer small{font-size:8px;color:var(--muted)}.layer-actions{display:flex;gap:5px;margin-top:9px}.canvas{overflow:hidden;position:relative}.canvas-head{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 12px}.mapwrap{height:595px;position:relative}.mapwrap #map{height:100%;width:100%}.mapstatus{position:absolute;left:12px;right:12px;bottom:10px;z-index:500;background:#ffffffec;border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;gap:14px;font-size:9px;color:#61708a;box-shadow:0 5px 18px #1a31511f}
+    .builder{display:grid;grid-template-columns:230px 1fr;gap:14px}.steps{padding:12px}.step{padding:11px;border-radius:10px;font-size:10px;font-weight:800;color:#657188;margin-bottom:5px}.step.active{background:var(--blue2);color:var(--blue)}.form{padding:20px}.form h3{margin:0 0 6px}.field{margin:14px 0}.field label{display:block;font-size:9px;font-weight:900;margin-bottom:6px;color:#59657a;text-transform:uppercase}.field input,.field textarea,.field select{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 11px;font-size:11px;outline:none}.field textarea{min-height:100px;resize:vertical}.choice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.choice{border:1px solid var(--line);border-radius:12px;padding:13px;font-size:10px;font-weight:800;background:#fff}.choice.active{border-color:#9cbcff;background:#f5f8ff;color:var(--blue)}
+    .student-shell{min-height:calc(100vh - 72px);display:grid;place-items:center;padding:28px}.student-landing{width:min(1200px,94vw);display:grid;grid-template-columns:1.15fr .85fr;gap:28px;align-items:center}.student-copy h1{font-size:50px;letter-spacing:-.055em;line-height:1.04;margin:12px 0}.student-copy h1 span{color:var(--blue)}.student-copy p{color:#65738c;line-height:1.7;font-size:14px;max-width:650px}.login-card{padding:26px}.login-card h2{font-size:23px;margin:8px 0}.login-card .field{margin:12px 0}
+    .assessment{width:min(1300px,94vw);margin:24px auto;display:grid;grid-template-columns:390px 1fr;gap:14px}.question-pane{padding:20px}.question-pane h2{font-size:18px;line-height:1.45}.stimulus{min-height:620px;overflow:hidden}.stimulus-head{height:54px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 14px}.stimulus-body{height:565px;position:relative}.stimulus-body #studentMap{height:100%;width:100%}.answers{display:grid;gap:7px;margin-top:15px}.answer{border:1px solid var(--line);border-radius:11px;padding:10px;font-size:10px;display:flex;gap:9px}.answer b{width:23px;height:23px;border-radius:7px;background:#eef2f8;display:grid;place-items:center;flex:0 0 auto}.answer.selected{border-color:#8fb2ff;background:#f5f8ff}.required{padding:11px;background:#fff8e7;border:1px solid #f2dfac;border-radius:10px;font-size:9px;color:#725b20;margin:12px 0}
+    .notice{padding:12px 14px;border:1px solid #cfe0ff;background:#f1f6ff;color:#3d5c9c;border-radius:11px;font-size:10px;line-height:1.5}
+    @media(max-width:1050px){.g4,.g3{grid-template-columns:repeat(2,1fr)}.studio,.builder,.assessment,.student-landing{grid-template-columns:1fr}.top{padding:0 3vw}.nav{overflow:auto}.student-copy h1{font-size:40px}} @media(max-width:620px){main{width:94vw}.g4,.g3,.g2{grid-template-columns:1fr}.right .label{display:none}.nav button{font-size:10px;padding:9px}.student-copy h1{font-size:34px}.choice-grid{grid-template-columns:1fr 1fr}.page-head{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <header class="top" id="teacherTop">
+    <div class="brand"><div class="logo">G</div><div><strong>GeoLearn</strong><small>Spatial Learning Platform · STAGING</small></div></div>
+    <nav class="nav" id="nav">
+      <button data-view="dashboard" class="active">Dashboard</button>
+      <button data-view="classes">Kelas</button>
+      <button data-view="questions">Bank Soal</button>
+      <button data-view="data">Bank Data</button>
+      <button data-view="media">Media</button>
+      <button data-view="studio">GIS Studio</button>
+    </nav>
+    <div class="right"><button class="btn ghost" id="studentMode">Lihat sebagai Siswa</button><div class="avatar">I</div><span class="label" style="font-size:11px;font-weight:800">Ibu Siti</span></div>
+  </header>
+
+  <div id="teacherApp"><main id="view"></main></div>
+  <div id="studentApp" class="hidden"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+  (() => {
+    const V = document.getElementById("view");
+    const nav = document.getElementById("nav");
+    let map = null, studentMap = null, builderStep = 1;
+
+    const metric = (label,note,value)=>\`<div class="card metric"><span>\${label}</span><b>\${value}</b><small>\${note}</small></div>\`;
+
+    const dashboard = () => \`
+      <div class="page-head"><div><div class="eyebrow">Teacher workspace</div><h1>Selamat pagi, Ibu Siti</h1><p>Kelola kelas, soal, media, data spasial, dan aktivitas belajar dari satu tempat.</p></div><div class="toolbar"><button class="btn" onclick="go('questions')">+ Soal Baru</button><button class="btn primary" onclick="go('classes')">+ Buat Tugas</button></div></div>
+      <div class="grid g4">\${metric("Kelas aktif","+1 semester ini","4")}\${metric("Siswa aktif","98% kredensial aktif","128")}\${metric("Bank Soal","+12 bulan ini","86")}\${metric("Dataset siap","+5 minggu ini","23")}</div>
+      <div class="grid g2" style="margin-top:16px">
+        <section class="card panel"><h3>Tugas aktif</h3><div class="sub">Status kelas dan pengumpulan terbaru.</div><div class="list" style="margin-top:13px">
+          <div class="row"><span class="pill blue">XI-A</span><div class="grow"><h4>Analisis Spatial Condition — Cisarua</h4><p>28 siswa · tutup 14 September</p></div><span class="pill green">21 terkumpul</span></div>
+          <div class="row"><span class="pill blue">XI-B</span><div class="grow"><h4>Spatial Location — Kawasan Monas</h4><p>31 siswa · tutup 15 September</p></div><span class="pill amber">12 terkumpul</span></div>
+        </div></section>
+        <section class="card panel"><h3>Akses cepat</h3><div class="sub">Mulai dari pekerjaan yang paling sering digunakan.</div><div class="grid g2" style="margin-top:13px">
+          <button class="choice" onclick="go('questions')">🧠 Bank Soal<br><small>Buat / gunakan ulang</small></button>
+          <button class="choice" onclick="go('data')">🗺️ Bank Data<br><small>Dataset spasial</small></button>
+          <button class="choice" onclick="go('media')">🎬 Media Bank<br><small>Gambar & video</small></button>
+          <button class="choice" onclick="go('studio')">📍 GIS Studio<br><small>Layer & digitasi</small></button>
+        </div></section>
+      </div>\`;
+
+    const classes = () => \`
+      <div class="page-head"><div><div class="eyebrow">Ruang kelas</div><h1>Kelas & Siswa</h1><p>Siswa tidak perlu mendaftar. Guru membuat kelas, memasukkan siswa, lalu sistem menghasilkan akses.</p></div><button class="btn primary">+ Buat Kelas</button></div>
+      <div class="grid g3">
+        \${["XI-A","XI-B","XI-C"].map((c,i)=>\`<div class="card panel"><div style="display:flex;justify-content:space-between"><span class="pill blue">Kelas \${c}</span><span class="pill gray">2026/2027</span></div><h3 style="margin-top:14px">\${c} Geografi</h3><div class="sub">\${28+i*3} siswa · \${2+i} tugas aktif</div><div style="margin:16px 0;padding:12px;background:#f7f9fd;border-radius:10px"><small class="sub">CLASS CODE</small><div class="class-code">GL-\${c.replace("-","")}-\${["7K3Q","9J2M","4N8R"][i]}</div></div><div class="toolbar"><button class="btn sm">Siswa</button><button class="btn sm">Tugas</button><button class="btn primary sm">Buka Kelas</button></div></div>\`).join("")}
+      </div>
+      <section class="card panel" style="margin-top:16px"><h3>Student Manager — XI-A</h3><div class="sub">Tambah manual atau import Excel/CSV. PIN dapat direset tanpa menghapus histori belajar.</div><div class="toolbar" style="margin:14px 0"><button class="btn">+ Tambah Siswa</button><button class="btn">Import Excel/CSV</button><button class="btn">Export Kredensial</button></div><div class="list">
+        <div class="row"><div class="avatar" style="background:#edf3ff;color:var(--blue)">AP</div><div class="grow"><h4>Andi Pratama</h4><p>Student ID GL-11A-001 · PIN aktif</p></div><span class="pill green">Aktif</span><button class="btn sm">Reset PIN</button></div>
+        <div class="row"><div class="avatar" style="background:#edf3ff;color:var(--blue)">NS</div><div class="grow"><h4>Nadia Salsabila</h4><p>Student ID GL-11A-002 · PIN aktif</p></div><span class="pill green">Aktif</span><button class="btn sm">Reset PIN</button></div>
+      </div></section>\`;
+
+    const questions = () => \`
+      <div class="page-head"><div><div class="eyebrow">Reusable content</div><h1>Bank Soal</h1><p>Gunakan soal bawaan GeoLearn, soal sekolah, atau soal pribadi. Soal system dapat diduplikasi lalu dikembangkan.</p></div><button class="btn primary" onclick="openBuilder()">+ Buat Soal</button></div>
+      <div class="card panel"><div class="toolbar"><input class="search" placeholder="Cari judul soal, materi, atau indikator..."><select class="select"><option>Semua Kelas</option><option>XI</option></select><select class="select"><option>Semua Spatial Mode</option><option>Location</option><option>Influence</option><option>Region</option></select><select class="select"><option>Semua Stimulus</option><option>Image</option><option>Video</option><option>WebGIS</option></select></div><div class="tabs" style="margin-top:12px"><button class="active">System Bank</button><button>School Bank</button><button>My Bank</button></div></div>
+      <div class="list" style="margin-top:14px">
+        <div class="row"><div class="thumb map" style="width:130px;height:82px;flex:0 0 auto">WEBGIS</div><div class="grow"><div class="toolbar"><span class="pill blue">LOCATION</span><span class="pill green">WebGIS</span><span class="pill gray">A–E</span></div><h4 style="margin-top:8px">Sekolah Tangguh Bencana — Buffer Sungai Siak</h4><p>Buffer 500 m · popup · layer control · proximity analysis</p></div><div class="actions"><button class="btn sm">Preview</button><button class="btn sm">Gunakan</button><button class="btn primary sm" onclick="openBuilder()">Duplicate & Edit</button></div></div>
+        <div class="row"><div class="thumb" style="width:130px;height:82px;flex:0 0 auto">IMAGE / VIDEO</div><div class="grow"><div class="toolbar"><span class="pill blue">INFLUENCE</span><span class="pill amber">Media</span><span class="pill gray">A–E</span></div><h4 style="margin-top:8px">Banjir dan Wilayah Hilir</h4><p>Stimulus gambar/video · hubungan hulu–hilir · HOTS</p></div><div class="actions"><button class="btn sm">Preview</button><button class="btn sm">Gunakan</button><button class="btn primary sm" onclick="openBuilder()">Duplicate & Edit</button></div></div>
+        <div class="row"><div class="thumb map" style="width:130px;height:82px;flex:0 0 auto">DUAL MAP</div><div class="grow"><div class="toolbar"><span class="pill blue">ANALOGY</span><span class="pill green">Compare</span><span class="pill gray">A–E</span></div><h4 style="margin-top:8px">Pantura: Sayung vs Pekalongan Utara</h4><p>Dual map / swipe · garis pantai historis · spatial analogies</p></div><div class="actions"><button class="btn sm">Preview</button><button class="btn sm">Gunakan</button><button class="btn primary sm">Duplicate & Edit</button></div></div>
+      </div>\`;
+
+    const data = () => \`
+      <div class="card panel" style="padding:26px"><div class="page-head" style="margin:0"><div><span class="pill blue">Katalog Data GeoLearn</span><h1 style="font-size:25px">Bank Data Spasial</h1><p>Dataset dapat dipakai ulang di banyak Case dan Question tanpa upload berulang.</p></div><div class="toolbar"><button class="btn primary">+ Upload Data</button><button class="btn" onclick="go('studio')">Buka GIS Studio</button></div></div></div>
+      <div class="card panel" style="margin-top:14px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap"><div class="tabs"><button class="active">Semua</button><button>System Data</button><button>School Data</button><button>My Data</button></div><div class="tabs"><button class="active">Semua Tipe</button><button>Vector</button><button>Raster</button></div></div><div class="toolbar" style="margin-top:12px"><input class="search" placeholder="Cari dataset spasial..."><select class="select"><option>Semua Format</option><option>GeoJSON</option><option>SHP</option><option>GeoTIFF</option></select></div></div>
+      <div class="grid g3" style="margin-top:14px">
+        \${[
+          ["Sungai Siak","GEOJSON","System","LineString · referensi analisis Pekanbaru","1.284"],
+          ["SMA Negeri Pekanbaru","GEOJSON","School","Point · sekolah negeri untuk soal mitigasi","48"],
+          ["DEM Semarang-Demak","GEOTIFF","System","Raster elevasi pesisir untuk banjir rob","Raster"],
+          ["Land Subsidence InSAR","GEOTIFF","System","Raster laju penurunan tanah","Raster"],
+          ["Jaringan Jalan Pekanbaru","SHAPEFILE","My Data","Vector jaringan aksesibilitas","8.932"],
+          ["Region Merapi","GEOJSON","School","Polygon KRB dan region lereng","3"]
+        ].map((d,i)=>\`<div class="card dataset"><div style="display:flex;justify-content:space-between"><div class="toolbar"><span class="pill \${d[1]==="GEOTIFF"?"amber":"green"}">\${d[1]}</span><span class="pill blue">\${d[2]}</span></div><span class="pill green">Siap</span></div><h4>\${d[0]}</h4><p>\${d[3]}</p><div class="meta"><span>Jumlah: \${d[4]}</span><span>EPSG:4326</span></div><div class="foot"><button class="btn sm">Preview</button><button class="btn sm" onclick="go('studio')">Buka di Studio →</button></div></div>\`).join("")}
+      </div>\`;
+
+    const media = () => \`
+      <div class="page-head"><div><div class="eyebrow">Non-spatial stimulus</div><h1>Media Bank</h1><p>Gambar, video, dokumen, grafik, dan ilustrasi dikelola terpisah dari dataset spasial.</p></div><button class="btn primary">+ Upload Media</button></div>
+      <div class="card panel"><div class="tabs"><button class="active">Semua</button><button>Gambar</button><button>Video</button><button>Dokumen</button><button>Grafik</button></div></div>
+      <div class="grid g3" style="margin-top:14px">
+        <div class="card dataset"><div class="thumb">🖼️ Diagram DAS Hulu–Hilir</div><h4>Ilustrasi DAS dan aliran limpasan</h4><p>Stimulus Spatial Influence · 1600×900</p><div class="foot"><span class="pill blue">Image</span><button class="btn sm">Gunakan</button></div></div>
+        <div class="card dataset"><div class="thumb video"></div><h4>Video perubahan penggunaan lahan</h4><p>Spatial Condition · 02:34 · MP4</p><div class="foot"><span class="pill amber">Video</span><button class="btn sm">Gunakan</button></div></div>
+        <div class="card dataset"><div class="thumb">📊 Range vs Threshold</div><h4>Grafik Spatial Hierarchy</h4><p>Grafik hubungan jangkauan dan ambang pelayanan.</p><div class="foot"><span class="pill green">Chart</span><button class="btn sm">Gunakan</button></div></div>
+      </div>\`;
+
+    const studio = () => \`
+      <div class="page-head"><div><div class="eyebrow">Geospatial workspace</div><h1>GIS Studio</h1><p>Siapkan layer untuk Case/Question, digitasi data, dan uji aktivitas GIS sebelum diberikan ke siswa.</p></div><div class="toolbar"><button class="btn">Student Preview</button><button class="btn green">Simpan Proyek</button></div></div>
+      <div class="studio">
+        <aside class="card side">
+          <div class="side-head"><strong style="font-size:12px">Layer Proyek</strong><span class="pill blue">3 layer</span></div>
+          <button class="btn primary" style="width:100%;margin-bottom:12px">+ Tambah Layer</button>
+          <div class="layer"><div class="layer-top"><span class="dot" style="background:#2477ff"></span><h4>Sungai Siak</h4><span>👁</span></div><small>LINE · System Data</small><div class="layer-actions"><button class="btn sm">Style</button><button class="btn sm">Atribut</button></div></div>
+          <div class="layer"><div class="layer-top"><span class="dot"></span><h4>SMA Negeri Pekanbaru</h4><span>👁</span></div><small>POINT · School Data</small><div class="layer-actions"><button class="btn sm">Style</button><button class="btn sm">Atribut</button></div></div>
+          <div class="layer"><div class="layer-top"><span class="dot" style="background:#f0a21b"></span><h4>Buffer 500 m</h4><span>👁</span></div><small>GENERATED · Analysis</small><div class="layer-actions"><button class="btn sm">Style</button><button class="btn sm">Hapus</button></div></div>
+          <div style="border-top:1px solid var(--line);padding-top:12px;margin-top:12px"><strong style="font-size:10px">TOOLS</strong><div class="grid g2" style="margin-top:8px"><button class="btn sm">✎ Digitasi</button><button class="btn sm">◉ Buffer</button><button class="btn sm">⊕ Overlay</button><button class="btn sm">↔ Distance</button></div></div>
+        </aside>
+        <section class="card canvas"><div class="canvas-head"><div><strong style="font-size:11px">Case: Sungai Siak — Sekolah Tangguh Bencana</strong><div class="sub">Question-ready workspace</div></div><div class="toolbar"><span class="pill gray">EPSG:4326</span><button class="btn sm">Bind to Question</button></div></div><div class="mapwrap"><div id="map"></div><div class="mapstatus"><span>📍 Pekanbaru</span><span>Zoom 12.4×</span><span>3 Layer Aktif</span><span>OSM</span></div></div></section>
+      </div>\`;
+
+    const builder = () => {
+      const labels=["Informasi","Stimulus","Data & GIS","Aktivitas","Response","Validation","Feedback","Student Preview"];
+      const body = [
+        \`<h3>Informasi Soal</h3><div class="sub">Identitas akademik dan klasifikasi Spatial Thinking.</div><div class="field"><label>Judul</label><input value="Sekolah Tangguh Bencana — Sungai Siak"></div><div class="grid g2"><div class="field"><label>Spatial Thinking</label><select><option>Location</option></select></div><div class="field"><label>Kelas</label><select><option>XI SMA</option></select></div></div><div class="field"><label>Prompt</label><textarea>SMA Negeri manakah yang berada pada zona buffer paling dekat (&lt; 500 meter) dari garis sempadan Sungai Siak?</textarea></div>\`,
+        \`<h3>Pilih Stimulus</h3><div class="sub">Tidak semua soal harus menggunakan GIS.</div><div class="choice-grid" style="margin-top:14px">\${["Text","Image","Video","Static Map","WebGIS","Dual Map","Map + Table","Map + Chart","Composite"].map(x=>\`<button class="choice \${x==="WebGIS"?"active":""}">\${x}</button>\`).join("")}</div>\`,
+        \`<h3>Data & GIS</h3><div class="sub">Ambil data dari Bank Data atau buka GIS Studio.</div><div class="list" style="margin-top:14px"><div class="row"><span class="dot" style="background:#2477ff"></span><div class="grow"><h4>Sungai Siak</h4><p>DatasetVersion v3 · System Data</p></div><span class="pill green">Visible</span></div><div class="row"><span class="dot"></span><div class="grow"><h4>SMA Negeri Pekanbaru</h4><p>DatasetVersion v1 · School Data</p></div><span class="pill green">Visible</span></div></div><div class="toolbar" style="margin-top:14px"><button class="btn">+ Dari Bank Data</button><button class="btn" onclick="go('studio')">Buka GIS Studio</button></div>\`,
+        \`<h3>Aktivitas Siswa</h3><div class="sub">Tentukan tool yang boleh digunakan dan mana yang wajib dilakukan.</div><div class="grid g2" style="margin-top:14px"><div class="card panel"><h3 style="font-size:12px">Allowed tools</h3><p class="sub">☑ Pan<br>☑ Zoom<br>☑ Popup<br>☑ Buffer<br>☐ Overlay<br>☐ Network</p></div><div class="card panel"><h3 style="font-size:12px">Required action</h3><p class="sub">Buffer<br>Distance: <b>500 m</b><br>Source: <b>Sungai Siak</b></p></div></div>\`,
+        \`<h3>Response</h3><div class="sub">Pilih cara siswa menjawab.</div><div class="choice-grid" style="margin-top:14px">\${["Multiple Choice A–E","Multi Select","Map Feature Select","Draw Point","Draw Line","Draw Polygon","Ranking","Numeric","Short Text"].map((x,i)=>\`<button class="choice \${i===0?"active":""}">\${x}</button>\`).join("")}</div><div class="field"><label>Kunci jawaban</label><select><option>B — SMAN 3 Pekanbaru</option></select></div>\`,
+        \`<h3>Validation</h3><div class="sub">Untuk soal ini gunakan hasil analisis spasial sebagai referensi validasi.</div><div class="field"><label>Metode</label><select><option>Spatial Query</option><option>Static Answer</option><option>Geometry Overlap</option></select></div><div class="notice">Kunci final harus konsisten dengan dataset yang benar-benar digunakan. Jika dataset berubah, publish sebagai QuestionVersion baru.</div>\`,
+        \`<h3>Feedback</h3><div class="field"><label>Pembahasan</label><textarea>Gunakan buffer 500 m dari Sungai Siak lalu identifikasi sekolah yang berpotongan dengan zona tersebut. Jelaskan hubungan proximity dan risiko banjir.</textarea></div><div class="field"><label>Setelah submit</label><select><option>Tampilkan benar/salah + pembahasan</option></select></div>\`,
+        \`<h3>Student Preview</h3><div class="sub">Preview menggunakan renderer yang sama dengan runtime siswa.</div><div class="notice" style="margin-top:14px">Stimulus: WebGIS · Required: Buffer 500 m · Response: A–E · Feedback: setelah submit</div><button class="btn primary" style="margin-top:14px" onclick="showStudentAssessment()">Buka Preview Siswa</button>\`
+      ][builderStep-1];
+      return \`<div class="page-head"><div><div class="eyebrow">Question Builder</div><h1>Builder V2</h1><p>Wizard menampilkan kompleksitas GIS hanya saat memang dibutuhkan.</p></div><button class="btn" onclick="go('questions')">← Kembali ke Bank Soal</button></div><div class="builder"><aside class="card steps">\${labels.map((x,i)=>\`<div class="step \${builderStep===i+1?"active":""}" onclick="builderStep=\${i+1};go('builder')">\${i+1}. \${x}</div>\`).join("")}</aside><section class="card form">\${body}<div style="display:flex;justify-content:space-between;margin-top:20px"><button class="btn" onclick="prevBuilder()" \${builderStep===1?"disabled":""}>← Sebelumnya</button><button class="btn primary" onclick="nextBuilder()">\${builderStep===8?"Simpan Draft":"Berikutnya →"}</button></div></section></div>\`;
+    };
+
+    function render(view){
+      if(map){map.remove();map=null}
+      nav.querySelectorAll("button").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
+      const routes={dashboard,classes,questions,data,media,studio,builder};
+      V.innerHTML=(routes[view]||dashboard)();
+      if(view==="studio") setTimeout(initMap,40);
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
+
+    function initMap(){
+      if(!document.getElementById("map")) return;
+      map=L.map("map",{zoomControl:true}).setView([0.51,101.45],12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
+      const river=L.polyline([[0.54,101.36],[0.55,101.40],[0.54,101.46],[0.53,101.51],[0.54,101.56]],{color:"#2477ff",weight:5,opacity:.75}).addTo(map);
+      L.circle([0.54,101.46],{radius:500,color:"#f0a21b",fillColor:"#f7c96e",fillOpacity:.22}).addTo(map);
+      [[0.545,101.448],[0.538,101.472],[0.555,101.433],[0.525,101.485]].forEach((p,i)=>L.circleMarker(p,{radius:7,color:"#fff",weight:2,fillColor:"#19b87a",fillOpacity:1}).bindPopup("SMA Negeri "+(i+1)).addTo(map));
+    }
+
+    window.go=(v)=>render(v);
+    window.openBuilder=()=>{builderStep=1;render("builder")};
+    window.nextBuilder=()=>{if(builderStep<8){builderStep++;render("builder")}else alert("Draft prototype disimpan.")};
+    window.prevBuilder=()=>{if(builderStep>1){builderStep--;render("builder")}};
+
+    nav.addEventListener("click",e=>{const b=e.target.closest("[data-view]");if(b)render(b.dataset.view)});
+    document.getElementById("studentMode").onclick=showStudentLanding;
+
+    function showStudentLanding(){
+      document.getElementById("teacherTop").classList.add("hidden");
+      document.getElementById("teacherApp").classList.add("hidden");
+      const S=document.getElementById("studentApp");S.classList.remove("hidden");
+      S.innerHTML=\`
+        <header class="top"><div class="brand"><div class="logo">G</div><div><strong>GeoLearn</strong><small>Ruang Belajar Siswa</small></div></div><div style="flex:1"></div><button class="btn" onclick="backTeacher()">Login Guru</button></header>
+        <div class="student-shell"><div class="student-landing"><div class="student-copy"><span class="pill blue">Spatial Thinking Learning</span><h1>Belajar Geografi melalui <span>analisis spasial</span>.</h1><p>Kerjakan soal berbasis gambar, video, tabel, grafik, dan WebGIS. Tidak perlu membuat akun baru—gunakan kode kelas dan ID yang diberikan guru.</p><div class="toolbar"><span class="pill green">✓ Tanpa registrasi siswa</span><span class="pill green">✓ GIS interaktif</span><span class="pill green">✓ Media multimodal</span></div></div><div class="card login-card"><span class="pill blue">KHUSUS SISWA</span><h2>Masuk ke Ruang Belajar</h2><div class="sub">Gunakan informasi akses dari guru.</div><div class="field"><label>Kode Kelas</label><input value="GL-XIA-7K3Q"></div><div class="field"><label>Student ID</label><input value="GL-11A-001"></div><div class="field"><label>PIN</label><input type="password" value="123456"></div><button class="btn primary" style="width:100%" onclick="showStudentHome()">Masuk ke Ruang Belajar</button></div></div></div>\`;
+    }
+    window.backTeacher=()=>{document.getElementById("studentApp").classList.add("hidden");document.getElementById("teacherTop").classList.remove("hidden");document.getElementById("teacherApp").classList.remove("hidden");render("dashboard")};
+
+    window.showStudentHome=()=>{
+      const S=document.getElementById("studentApp");
+      S.innerHTML=\`<header class="top"><div class="brand"><div class="logo">G</div><div><strong>GeoLearn</strong><small>Kelas XI-A</small></div></div><nav class="nav"><button class="active">Beranda</button><button>Tugas</button><button>Hasil Saya</button></nav><div class="right"><div class="avatar">A</div><b style="font-size:11px">Andi</b></div></header><main><div class="page-head"><div><div class="eyebrow">Kelas XI-A</div><h1>Halo, Andi 👋</h1><p>Ada 2 tugas yang perlu kamu kerjakan.</p></div></div><div class="grid g2"><div class="card panel"><span class="pill amber">Belum dikerjakan</span><h3 style="margin-top:12px">Spatial Location — Sungai Siak</h3><div class="sub">5 soal · gambar + WebGIS · batas 15 September</div><button class="btn primary" style="margin-top:15px" onclick="showStudentAssessment()">Mulai Tugas</button></div><div class="card panel"><span class="pill green">Selesai</span><h3 style="margin-top:12px">Koordinat Geografis — Monas</h3><div class="sub">Nilai 80 · Location</div><button class="btn" style="margin-top:15px">Lihat Hasil</button></div></div></main>\`;
+    };
+
+    window.showStudentAssessment=()=>{
+      document.getElementById("teacherTop").classList.add("hidden");document.getElementById("teacherApp").classList.add("hidden");
+      const S=document.getElementById("studentApp");S.classList.remove("hidden");
+      S.innerHTML=\`<header class="top"><div class="brand"><div class="logo">G</div><div><strong>GeoLearn</strong><small>Tugas · Spatial Location</small></div></div><div style="flex:1"></div><span class="pill blue">Soal 1 / 5</span><button class="btn" onclick="showStudentHome()">Keluar</button></header><div class="assessment"><section class="card question-pane"><span class="pill blue">LOCATION</span><h2>SMA Negeri manakah yang berada pada zona buffer paling dekat (&lt;500 meter) dari Sungai Siak?</h2><p class="sub">Gunakan WebGIS untuk membuat buffer dan identifikasi sekolah yang berada dalam zona tersebut.</p><div class="required">Aktivitas wajib: <b>jalankan Buffer 500 m</b> sebelum menjawab.</div><button class="btn primary" id="bufferBtn" onclick="runStudentBuffer()">◉ Jalankan Buffer 500 m</button><div class="answers" id="ans">\${["SMAN 1 Pekanbaru","SMAN 3 Pekanbaru","SMAN 8 Pekanbaru","SMAN 9 Pekanbaru","SMAN 10 Pekanbaru"].map((x,i)=>\`<div class="answer" onclick="selectAnswer(this)"><b>\${"ABCDE"[i]}</b><span>\${x}</span></div>\`).join("")}</div><button class="btn primary" style="width:100%;margin-top:12px" onclick="alert('Prototype: jawaban disimpan dan activity log tercatat.')">Kirim Jawaban</button></section><section class="card stimulus"><div class="stimulus-head"><div><strong style="font-size:11px">WebGIS · Pekanbaru</strong><div class="sub">Sungai + Sekolah</div></div><div class="toolbar"><span class="pill gray">Pan</span><span class="pill gray">Zoom</span><span class="pill gray">Popup</span><span class="pill blue">Buffer</span></div></div><div class="stimulus-body"><div id="studentMap"></div></div></section></div>\`;
+      setTimeout(initStudentMap,40);
+    };
+    window.selectAnswer=(el)=>{document.querySelectorAll(".answer").forEach(x=>x.classList.remove("selected"));el.classList.add("selected")};
+    function initStudentMap(){
+      if(studentMap){studentMap.remove();studentMap=null}
+      studentMap=L.map("studentMap").setView([0.54,101.45],12);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(studentMap);
+      window.sRiver=L.polyline([[0.54,101.36],[0.55,101.40],[0.54,101.46],[0.53,101.51],[0.54,101.56]],{color:"#2477ff",weight:5,opacity:.8}).addTo(studentMap);
+      window.sPoints=[[0.545,101.448],[0.538,101.472],[0.555,101.433],[0.525,101.485],[0.548,101.492]].map((p,i)=>L.circleMarker(p,{radius:7,color:"#fff",weight:2,fillColor:"#19b87a",fillOpacity:1}).bindPopup("SMAN "+(i+1)+" Pekanbaru").addTo(studentMap));
+    }
+    window.runStudentBuffer=()=>{
+      if(!studentMap)return;
+      if(!window.buf)L.circle([0.54,101.46],{radius:500,color:"#f0a21b",fillColor:"#f7c96e",fillOpacity:.22}).addTo(studentMap);
+      document.getElementById("bufferBtn").textContent="✓ Buffer 500 m selesai";
+      document.getElementById("bufferBtn").classList.add("green");
+    };
+
+    render("dashboard");
+  })();
+  </script>
+</body>
+</html>

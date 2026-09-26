@@ -35,9 +35,17 @@ Browser
 
 ## Security and environment isolation
 
-Production and staging use different Compose projects, database credentials, database volumes, Caddy state, and named networks. Database services have no `ports` mapping and join only an `internal` application network. Only Caddy binds host ports. Secrets live under `/opt/geolearn/secrets`, outside Git worktrees, with restrictive permissions.
+Production and staging use different Compose projects, database credentials, database volumes, and named networks. Database services have no `ports` mapping and join only an `internal` application network. Production retains its Compose-managed Caddy service and state; staging uses the existing host Caddy and publishes its application on loopback only. Secrets live under `/opt/geolearn/secrets`, outside Git worktrees, with restrictive permissions.
 
 Authentication, authorization roles, audit events, backups, restore tests, rate limits, and privacy retention rules are required before storing real student data; they are intentionally not implemented in this foundation.
+
+## Slice 1 runtime and delivery
+
+- The runtime baseline is Node.js 24, Next.js 16 App Router, React 19, and strict TypeScript. Product routes live only in `apps/web`; the root prototype is not imported or built by the product.
+- Server-only database access is centralized in `src/server/db.ts`. `GET /api/health` checks a real PostGIS query and reports only status, environment, PostGIS version, and timestamp; connection strings and exception details are never returned.
+- SQL migrations are ordered, forward-only, checksummed, transactionally applied, and serialized with a PostgreSQL advisory lock. The initial migration explicitly enables PostGIS before later spatial schemas are introduced.
+- Staging Compose binds the app's internal port 3000 to `127.0.0.1:3101` only. The web service is attached to both the private application network and a non-internal edge bridge so Docker can publish the loopback port, while PostGIS and the migrator remain only on the private internal network. The host's shared Caddy instance imports `deploy/Caddyfile.staging`, terminates TLS for `geolearn.43-156-101-13.sslip.io`, and proxies to that loopback address; Caddy is intentionally not duplicated inside the staging project. The generic `deploy/Caddyfile` remains the production Compose template.
+- The staging checkout remains `/opt/geolearn/worktrees/staging`, deployed from the staging integration branch. Environment secrets remain outside the worktree.
 
 ## Initial module contracts
 
@@ -61,3 +69,9 @@ Question Config
 The page does not calculate buffers, inspect village geometry, or decide which tools exist. It loads a question and passes it to the learning workspace. The registry translates configured tool IDs into implemented engine operations; the engine validates prerequisites and performs Turf analysis; the adapter renders the resulting snapshot. Generic question types retain all eight Spatial Thinking modes while specialized configurations can require mode-specific layers and settings. This keeps future PostGIS-backed engines or alternative map adapters possible without creating a page per question.
 
 These are scaffolding contracts, not a finalized domain model. Introduce runtime schema validation and migrations before accepting authored content.
+
+## Map workspace presentation boundary
+
+Student assessment maps and the teacher QuestionVersion live preview share `MapWorkspace` as presentation chrome around their existing Leaflet renderers. The workspace owns only the compact tool rail, contextual panel, responsive panel placement, and accessibility state. Each runtime continues to derive the available tools and panel content from its normalized QuestionVersion interactions, and continues to own data loading, layer visibility, feature selection, search, coordinate navigation, and map rendering.
+
+This boundary intentionally does not create a second GIS capability registry or move authoritative analysis into UI code. A disabled interaction is omitted from the workspace tool list. On narrow viewports the same contextual panel moves above a bottom control rail; a richer gesture-driven bottom sheet can be added later without changing QuestionVersion semantics or Leaflet behavior.

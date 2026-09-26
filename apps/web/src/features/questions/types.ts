@@ -4,7 +4,7 @@ export const spatialThinkingModes = [
   "location",
   "condition",
   "influence",
-  "group",
+  "region",
   "hierarchy",
   "analogy",
   "pattern",
@@ -34,7 +34,7 @@ export const gisToolIds = [
   "transparency",
 ] as const;
 export type GisToolId = (typeof gisToolIds)[number];
-export type AnswerId = "A" | "B" | "C" | "D";
+export type AnswerId = "A" | "B" | "C" | "D" | "E";
 
 export type RiverLayer = {
   id: string;
