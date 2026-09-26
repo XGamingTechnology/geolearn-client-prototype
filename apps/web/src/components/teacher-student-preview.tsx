@@ -56,23 +56,37 @@ export function TeacherStudentPreview({
   const filledAnswers=answers.filter((answer)=>answer.label.trim());
 
   return <article className={styles.card} ref={root}>
-    <div className={styles.top}><span>{stimulus.toUpperCase()} · PREVIEW SISWA</span><em>{spatialModeLabel}</em></div>
+    <header className={styles.top}>
+      <div><span>PREVIEW PENGALAMAN SISWA</span><small>Urutan dan hierarchy mengikuti runtime assessment.</small></div>
+      <em>{spatialModeLabel}</em>
+    </header>
+
     <div className={styles.body}>
-      <span className={styles.liveBadge}>Live preview</span>
-
-      {stimulus==="webgis"&&<TeacherLiveMapPreview bindings={bindings} activityConfig={activityConfig}/>} 
-      {stimulus==="image"&&(mediaSource?<figure className={styles.media}><img src={mediaSource} alt="Preview stimulus"/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih gambar dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
-      {stimulus==="video"&&(mediaSource?<figure className={styles.media}><video src={mediaSource} controls preload="metadata"/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih video dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
-      {stimulus==="text"&&<div className={styles.placeholder}>Soal ini menggunakan stimulus teks. Siswa langsung membaca pertanyaan di bawah.</div>}
-
-      {stimulus==="webgis"&&allowedTools.length>0&&<div className={styles.tools} aria-label="Analisis GIS tersedia">{allowedTools.map((tool)=><span className={`${styles.tool} ${requiredTools.includes(tool)?styles.required:""}`} key={tool}>{tool.toUpperCase()}<small>{requiredTools.includes(tool)?"wajib":"opsional"}</small></span>)}</div>}
-
-      <section className={styles.question}>
-        <strong>{title.trim()||"Judul soal akan tampil di sini"}</strong>
+      <section className={styles.questionIntro}>
+        <div className={styles.questionMeta}><span>SOAL · {stimulus.toUpperCase()}</span><span className={styles.liveBadge}>Live preview</span></div>
+        <h3>{title.trim()||"Judul soal akan tampil di sini"}</h3>
         <p>{prompt.trim()||"Prompt siswa mengikuti isi pada langkah Pertanyaan."}</p>
+      </section>
+
+      <section className={styles.stimulusBlock}>
+        <div className={styles.sectionLabel}><span>01</span><div><strong>Stimulus & WebGIS</strong><small>Ruang utama siswa untuk membaca bukti spasial.</small></div></div>
+        {stimulus==="webgis"&&<TeacherLiveMapPreview bindings={bindings} activityConfig={activityConfig}/>} 
+        {stimulus==="image"&&(mediaSource?<figure className={styles.media}><img src={mediaSource} alt="Preview stimulus"/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih gambar dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
+        {stimulus==="video"&&(mediaSource?<figure className={styles.media}><video src={mediaSource} controls preload="metadata"/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih video dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
+        {stimulus==="text"&&<div className={styles.placeholder}>Soal ini menggunakan stimulus teks. Siswa langsung melanjutkan ke aktivitas dan respons.</div>}
+      </section>
+
+      {stimulus==="webgis"&&allowedTools.length>0&&<section className={styles.activityBlock}>
+        <div className={styles.sectionLabel}><span>02</span><div><strong>Aktivitas GIS</strong><small>Tool wajib dan opsional tampil setelah siswa memahami peta.</small></div></div>
+        <div className={styles.tools} aria-label="Analisis GIS tersedia">{allowedTools.map((tool)=><span className={`${styles.tool} ${requiredTools.includes(tool)?styles.required:""}`} key={tool}>{tool.toUpperCase()}<small>{requiredTools.includes(tool)?"wajib":"opsional"}</small></span>)}</div>
+      </section>}
+
+      <section className={styles.responseBlock}>
+        <div className={styles.sectionLabel}><span>{stimulus==="webgis"&&allowedTools.length>0?"03":"02"}</span><div><strong>Jawaban</strong><small>Respons menjadi tahap terakhir setelah stimulus dan aktivitas.</small></div></div>
         {responseType==="multiple-choice"?<div className={styles.answers}>{filledAnswers.length?filledAnswers.map((answer)=><button className={`${styles.answer} ${selected===answer.id?styles.answerSelected:""}`} type="button" key={answer.id} onClick={()=>setSelected(answer.id)}><b>{answer.id}</b><span>{answer.label}</span></button>):<p className={styles.readOnly}>Tambahkan pilihan jawaban untuk melihat tampilan siswa.</p>}</div>:<div className={styles.spatialAnswer}>Respons spasial: {responseType.replaceAll("-"," ")}</div>}
       </section>
-      <p className={styles.readOnly}>Preview ini adalah sandbox guru. Pilihan jawaban dan interaksi peta tidak membuat Response, Attempt, atau GIS Activity.</p>
+
+      <p className={styles.readOnly}>Sandbox guru. Interaksi di preview tidak membuat Response, Attempt, atau GIS Activity.</p>
     </div>
   </article>;
 }
