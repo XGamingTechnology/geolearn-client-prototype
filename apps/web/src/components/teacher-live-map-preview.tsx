@@ -7,7 +7,7 @@ import type {Layer} from "leaflet";
 import L from "leaflet";
 import {assessmentPathStyle,assessmentPointStyle} from "./assessment-map-style";
 import {AssessmentAttributeTable,type SelectedMapFeature} from "./assessment-attribute-table";
-import {featureAt,featureIndexOf,featuresOf} from "./attribute-table-data";
+import {featureAt,featureIndexOf} from "./attribute-table-data";
 import {BasemapSwitcher,GeoLearnBasemap,basemapRuntime} from "./map-basemap";
 import {MapWorkspace,type MapWorkspaceTool} from "./map-workspace";
 import {normalizeBasemap,normalizeMapExperience,normalizeMapInteractions,type BasemapId,type MapInteraction} from "@/features/questions/experience";
