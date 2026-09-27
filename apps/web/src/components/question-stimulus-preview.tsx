@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element -- authenticated media delivery URLs are not static image assets. */
-import type {QuestionBankRow} from "@/server/content/question-bank";
+import type {QuestionBankRow} from "@/server/content/question-bank-model";
 import styles from "@/app/teacher/questions/question-bank.module.css";
 
 function label(type:string|null){return type==="webgis"?"WebGIS":type==="image"?"Gambar":type==="video"?"Video":"Teks";}
