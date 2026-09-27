@@ -4,6 +4,7 @@ import {createSignedRasterTileTemplate,resolveRasterRuntime,verifyRasterTileSign
 import {validateRasterMetadata} from "./raster-ingest";
 import {isSupportedQuestionRasterFormat} from "@/server/content/question-datasets";
 import {applyRasterRendering,leafletRasterBounds,rasterRendering,rescaleFromStatistics} from "./raster-rendering";
+import {normalizeRasterTileCoordinate} from "./raster-tile-coordinate";
 
 beforeEach(()=>{process.env.RASTER_TILE_SIGNING_SECRET="test-secret-that-is-definitely-at-least-32-bytes";});
 
@@ -18,6 +19,7 @@ describe("raster runtime",()=>{
   it("returns a same-origin signed template for COG without a filesystem path",()=>{const value=resolveRasterRuntime({...base,format:"COG",storageKey:"cog/123e4567-e89b-12d3-a456-426614174000.tif"});expect(value?.tileUrl).toMatch(/^\/api\/raster\/version-a\/tiles\/\{z\}/);expect(JSON.stringify(value)).not.toContain("/var/lib");expect(JSON.stringify(value)).not.toContain("cog/123");});
   it("preserves remote XYZ",()=>expect(resolveRasterRuntime({...base,format:"XYZ",storageKey:"https://tiles.example/{z}/{x}/{y}.png"})?.tileUrl).toBe("https://tiles.example/{z}/{x}/{y}.png"));
   it("signs dataset and expiry and rejects tampering or expiration",()=>{const now=1_700_000_000;const template=createSignedRasterTileTemplate("version-a",now+100);const url=new URL(template,"https://local.test");const expiry=url.searchParams.get("expires");const sig=url.searchParams.get("sig");expect(verifyRasterTileSignature("version-a",expiry,sig,now)).toBe(true);expect(verifyRasterTileSignature("version-b",expiry,sig,now)).toBe(false);expect(verifyRasterTileSignature("version-a",String(now+101),sig,now)).toBe(false);expect(verifyRasterTileSignature("version-a",expiry,sig,now+101)).toBe(false);});
+  it("normalizes Next tile route y values that include the .png suffix",()=>{expect(normalizeRasterTileCoordinate("128.png",true)).toBe("128");expect(normalizeRasterTileCoordinate("128")).toBe("128");expect(normalizeRasterTileCoordinate("128.png")).toBeNull();expect(normalizeRasterTileCoordinate("12x.png",true)).toBeNull();});
 });
 
 describe("COG contracts",()=>{
