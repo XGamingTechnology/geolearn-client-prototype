@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -41,9 +40,28 @@ export function MapSwipeDivider({
   targetTitle?: string;
   valid?: boolean;
 }) {
+  return (
+    <MapSwipeDividerState
+      key={questionKey}
+      sourceTitle={sourceTitle}
+      targetTitle={targetTitle}
+      valid={valid}
+    />
+  );
+}
+
+function MapSwipeDividerState({
+  sourceTitle,
+  targetTitle,
+  valid,
+}: {
+  sourceTitle?: string;
+  targetTitle?: string;
+  valid: boolean;
+}) {
   const [position, setPosition] = useState(DEFAULT_SLIDER_POSITION);
   const root = useRef<HTMLDivElement>(null);
-  useEffect(() => setPosition(DEFAULT_SLIDER_POSITION), [questionKey]);
+
   function update(clientX: number) {
     const bounds = root.current?.parentElement?.getBoundingClientRect();
     if (bounds?.width)
@@ -51,12 +69,14 @@ export function MapSwipeDivider({
         clampSliderPosition(((clientX - bounds.left) / bounds.width) * 100),
       );
   }
+
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     update(event.clientX);
   }
+
   function keyDown(event: KeyboardEvent<HTMLDivElement>) {
     let next = position;
     if (event.key === "ArrowLeft") next -= 3;
@@ -68,6 +88,7 @@ export function MapSwipeDivider({
     event.stopPropagation();
     setPosition(clampSliderPosition(next));
   }
+
   return (
     <div
       ref={root}
