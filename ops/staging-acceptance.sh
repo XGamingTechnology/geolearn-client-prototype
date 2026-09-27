@@ -9,6 +9,7 @@ PUBLIC_URL="https://geolearn.43-156-101-13.sslip.io"
 
 fail(){ echo "FAIL: $*" >&2; exit 1; }
 ok(){ echo "OK: $*"; }
+trap 'echo "FAIL: acceptance command failed at line $LINENO" >&2' ERR
 
 [[ -d "$WORKTREE" ]] || fail "Missing staging worktree: $WORKTREE"
 [[ -f "$ENV_FILE" ]] || fail "Missing staging env: $ENV_FILE"
@@ -56,11 +57,13 @@ expected_migrations=(
   0007_question_dataset_bindings.sql
   0008_question_media_bindings.sql
   0009_spatial_analytics.sql
+  0010_case_dataset_bindings.sql
+  0011_question_groups.sql
 )
 for migration in "${expected_migrations[@]}"; do
   grep -Fxq "$migration" <<<"$MIGRATIONS" || fail "missing migration: $migration"
 done
-ok "migrations 0001-0009"
+ok "migrations 0001-0011"
 
 cat <<'SQL' | docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1'
 select to_regclass('public.staff_users') as staff_users,
@@ -73,6 +76,13 @@ select to_regclass('public.staff_users') as staff_users,
        to_regclass('public.spatial_skill_scores') as spatial_skill_scores;
 SQL
 ok "critical database schema"
+
+IMMUTABILITY_TRIGGERS="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T database sh -lc 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "select tgname from pg_trigger where not tgisinternal and tgname in ('\''question_versions_immutable'\'', '\''question_version_dataset_layers_immutable'\'', '\''question_version_media_assets_immutable'\'', '\''quiz_versions_immutable'\'') order by tgname;"' | tr -d '\r')"
+echo "$IMMUTABILITY_TRIGGERS"
+for trigger in question_version_dataset_layers_immutable question_version_media_assets_immutable question_versions_immutable quiz_versions_immutable; do
+  grep -Fxq "$trigger" <<<"$IMMUTABILITY_TRIGGERS" || fail "missing immutability trigger: $trigger"
+done
+ok "published QuestionVersion and QuizVersion immutability triggers"
 
 echo "== Container health =="
 WEB_HEALTH=""
@@ -100,6 +110,18 @@ else
   echo "WARN: public hostname could not be reached from this VPS. Check host Caddy/DNS separately."
 fi
 
+echo "== Anonymous route smoke checks =="
+route_contains(){
+  local route="$1" marker="$2" label="$3" body
+  body="$(curl -fsS --max-time 15 "http://127.0.0.1:3101$route")" || fail "$label route unavailable: $route"
+  grep -Fqi "$marker" <<<"$body" || fail "$label route did not contain expected marker: $marker"
+  ok "$label"
+}
+route_contains "/teacher-login" "Masuk" "teacher authentication entry"
+route_contains "/student-login" "Kode Kelas" "student authentication entry"
+
+echo "Automated checks above are read-only. Complete docs/FINAL_ACCEPTANCE.md for browser and role-authenticated flows."
+
 cat <<'CHECKLIST'
 
 == Manual critical-flow checklist ==
@@ -121,5 +143,5 @@ cat <<'CHECKLIST'
 [ ] Teacher Results shows submitted attempt
 [ ] Spatial Thinking analytics recompute and render
 
-Do not close Slice #14/#15 until this checklist is completed on staging.
+Record the full release decision in docs/FINAL_ACCEPTANCE.md; do not merge until every required item passes.
 CHECKLIST

@@ -141,7 +141,8 @@ async function editableQuestion(session:TeacherSession,questionId:string){
 
 export async function publishQuestionDraft(session:TeacherSession,questionId:string):Promise<void>{
   await editableQuestion(session,questionId);
-  const [draft]=await query<{id:string;stimulusType:StimulusType;responseConfig:{type?:ResponseType;answers?:Array<{id:AnswerId;label:string}>};validationConfig:{correctAnswer?:string};activityConfig:{requiredActions?:Array<{tool?:string;parameters?:{distanceMeters?:number}}>}}>(
+  const [draft]=await query<{id:string;stimulusType:StimulusType;responseConfig:{type?:ResponseType;answers?:Array<{id:AnswerId;label:string}>};validationConfig:{correctAnswer?:string};activityConfig:{mapExperience?:"standard"|"analysis"|"map-data"|"slider";tools?:string[];requiredActions?:Array<{tool?:string;parameters?:{distanceMeters?:number}}>;
+    toolParameters?:{buffer?:{distanceMeters?:number}}}}>(
     `select id,stimulus_config->>'type' as "stimulusType",response_config as "responseConfig",validation_config as "validationConfig",activity_config as "activityConfig" from question_versions where question_id=$1 and status='DRAFT'
      order by version_number desc limit 1`,[questionId],
   );
@@ -150,8 +151,17 @@ export async function publishQuestionDraft(session:TeacherSession,questionId:str
     query<{role:string}>("select role from question_version_dataset_layers where question_version_id=$1",[draft.id]),
     query<{mediaType:string}>("select ma.media_type as \"mediaType\" from question_version_media_assets qvm join media_assets ma on ma.id=qvm.media_asset_id where qvm.question_version_id=$1 and qvm.role='STIMULUS'",[draft.id]),
   ]);
-  const action=draft.activityConfig.requiredActions?.[0];
-  const errors=validateForPublish({stimulusType:draft.stimulusType,responseType:draft.responseConfig.type??"multiple-choice",answers:draft.responseConfig.answers??[],correctAnswer:draft.validationConfig.correctAnswer,mediaAssetId:media[0]?"bound":undefined,selectedMediaType:media[0]?.mediaType,sourceDatasetId:datasets.some(x=>x.role==="SOURCE")?"bound":undefined,targetDatasetId:datasets.some(x=>x.role==="TARGET")?"bound":undefined,requiredGisTool:action?.tool,bufferDistance:action?.parameters?.distanceMeters});
+  const requiredActions=draft.activityConfig.requiredActions??[];
+  const errors=validateForPublish({
+    stimulusType:draft.stimulusType,responseType:draft.responseConfig.type??"multiple-choice",
+    answers:draft.responseConfig.answers??[],correctAnswer:draft.validationConfig.correctAnswer,
+    mediaAssetId:media[0]?"bound":undefined,selectedMediaType:media[0]?.mediaType,
+    datasetBindings:datasets.map((binding,index)=>({datasetId:`binding-${index}`,role:binding.role as "SOURCE"|"TARGET"|"CONTEXT"})),
+    allowedGisTools:draft.activityConfig.tools??requiredActions.flatMap((action)=>action.tool?[action.tool]:[]),
+    requiredGisTools:requiredActions.flatMap((action)=>action.tool?[action.tool]:[]),
+    bufferDistance:draft.activityConfig.toolParameters?.buffer?.distanceMeters??requiredActions.find((action)=>action.tool==="buffer")?.parameters?.distanceMeters,
+    mapExperience:draft.activityConfig.mapExperience,
+  });
   if(errors.length) throw new Error(errors.join(" "));
   await query("update question_versions set status='PUBLISHED',published_at=now() where id=$1",[draft.id]);
 }
