@@ -7,9 +7,10 @@ import {availableBasemapOptions,basemapAvailability,resolveBasemap,type BasemapR
 import styles from "./map-basemap.module.css";
 
 export type {BasemapRuntime} from "@/features/maps/basemap-provider";
+const cartoApiKey=process.env.NEXT_PUBLIC_CARTO_API_KEY?.trim()??"";
 const arcgisApiKey=process.env.NEXT_PUBLIC_ARCGIS_API_KEY?.trim()??"";
 const mapTilerKey=process.env.NEXT_PUBLIC_MAPTILER_KEY?.trim()??"";
-const credentials={arcgisApiKey,mapTilerKey};
+const credentials={cartoApiKey,arcgisApiKey,mapTilerKey};
 export const basemapProviderAvailability=basemapAvailability(credentials);
 export const satelliteBasemapAvailable=basemapProviderAvailability.satellite;
 
@@ -18,7 +19,7 @@ export function basemapRuntime(value:unknown):BasemapRuntime{
 }
 
 export function BasemapSwitcher({value,onChange}:{value:BasemapId;onChange:(value:BasemapId)=>void}){
-  return <div className={styles.options}>{availableBasemapOptions(credentials).map((option)=><button key={option.id} type="button" disabled={!option.available} aria-pressed={value===option.id} onClick={()=>onChange(option.id)}><strong>{option.label}</strong><span>{option.available?option.description:"Provider belum dikonfigurasi"}</span></button>)}</div>;
+  return <div className={styles.options}>{availableBasemapOptions(credentials).map((option)=><button key={option.id} type="button" disabled={!option.available} aria-pressed={option.available&&value===option.id} onClick={()=>onChange(option.id)}><strong>{option.label}</strong><span>{option.available?option.description:option.id==="light"?"Provider Light belum dikonfigurasi":"Provider belum dikonfigurasi"}</span></button>)}</div>;
 }
 
 function ResponsiveMapSize(){
