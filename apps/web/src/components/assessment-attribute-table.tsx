@@ -2,7 +2,7 @@
 
 import {useEffect,useMemo,useState} from "react";
 import type {GeoJsonObject} from "geojson";
-import {extractAttributeRows,featuresOf,resolveActiveLayer,type Scalar} from "./attribute-table-data";
+import {extractAttributeRows,resolveActiveLayer,type Scalar} from "./attribute-table-data";
 import styles from "./assessment-attribute-table.module.css";
 
 export {featuresOf} from "./attribute-table-data";
