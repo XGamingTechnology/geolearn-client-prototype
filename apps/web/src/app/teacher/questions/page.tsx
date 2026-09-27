@@ -4,6 +4,7 @@ import { listQuestionBankPage } from "@/server/content/question-bank";
 import { listQuestionGroups } from "@/server/content/question-groups";
 import { QuestionBankLifecycleAction } from "@/components/question-bank-actions";
 import { StatusNotice } from "@/components/status-notice";
+import {QuestionStimulusPreview} from "@/components/question-stimulus-preview";
 import styles from "./question-bank.module.css";
 
 type Params={
@@ -36,20 +37,6 @@ function hrefWith(params:Params,patch:Partial<Params>){
   for(const key of keys){const value=next[key];if(value)query.set(key,value);}
   const text=query.toString();
   return `/teacher/questions${text?`?${text}`:""}`;
-}
-
-function stimulusIcon(type?:string|null):IconName{
-  if(type==="webgis")return "map";
-  if(type==="image")return "image";
-  if(type==="video")return "video";
-  return "text";
-}
-
-function readableStimulus(type?:string|null){
-  if(type==="webgis")return "WebGIS";
-  if(type==="image")return "Gambar";
-  if(type==="video")return "Video";
-  return "Teks";
 }
 
 function readableResponse(type?:string|null){
@@ -130,11 +117,7 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
       <section className={styles.questionGrid}>
         {result.items.map((q)=>(
           <article className={styles.questionCard} key={q.id}>
-            <div className={`${styles.visual} ${styles[`visual_${q.stimulusType??"text"}`]??""}`}>
-              <span className={styles.visualIcon}><Icon name={stimulusIcon(q.stimulusType)}/></span>
-              {q.stimulusType==="webgis"&&<div className={styles.miniMap}><i/><i/><i/></div>}
-              <span className={styles.stimulusLabel}>{readableStimulus(q.stimulusType)}</span>
-            </div>
+            <QuestionStimulusPreview question={q}/>
             <div className={styles.cardBody}>
               <div className={styles.cardTop}>
                 <div className={styles.tags}>{q.groupTitle&&<span className={styles.groupTag}>{q.groupTitle}</span>}<span>{q.spatialMode??"Spatial"}</span><span>{q.difficulty??"-"}</span></div>
@@ -143,8 +126,9 @@ export default async function QuestionsPage({searchParams}:{searchParams:Promise
               <h3>{q.title}</h3>
               {q.prompt&&<p className={styles.prompt}>{q.prompt}</p>}
               <div className={styles.meta}><span>{readableResponse(q.responseType)}</span><span>{q.topic||q.subject||"Geografi"}</span><span>{q.scope==="PRIVATE"?"Milik Saya":q.scope==="SCHOOL"?"Sekolah":"GeoLearn"}</span></div>
+              {q.stimulusType==="webgis"&&<div className={styles.previewFacts}><span>{q.datasetCount} layer</span><span>{q.configuredGisTools.length} analisis</span><span>{q.mapInteractions.length} interaksi</span></div>}
               <div className={styles.cardActions}>
-                {lifecycle==="ACTIVE"&&<Link className={styles.openAction} href={"/teacher/questions/"+q.id}>Buka Soal <Icon name="arrow"/></Link>}
+                {lifecycle==="ACTIVE"&&<div className={styles.primaryLinks}><Link className={styles.openAction} aria-label={`Preview ${q.title}, versi ${q.versionNumber??"terpilih"}`} href={`/teacher/questions/${q.id}/preview?versionId=${q.versionId}`}>Preview</Link><Link className={styles.openAction} href={"/teacher/questions/"+q.id}>Buka Soal <Icon name="arrow"/></Link></div>}
                 <div className={styles.moreActions}>
                   {lifecycle==="ACTIVE"&&q.versionStatus==="PUBLISHED"&&<form action={"/api/content/questions/"+q.id+"/duplicate"} method="post"><button type="submit">Duplikat</button></form>}
                   {lifecycle==="ACTIVE"&&q.groupId&&<Link href={`/teacher/questions/new?groupId=${q.groupId}`}>+ Kelompok Sama</Link>}

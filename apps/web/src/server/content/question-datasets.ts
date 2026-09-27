@@ -131,6 +131,21 @@ export async function getQuestionDatasetPreviewPayload(actor:TeacherSession,bind
   return {layers,bbox};
 }
 
+/** Loads full geometry only for one explicitly authorized preview, never for the Question Bank listing. */
+export async function getExactQuestionVersionMapPreview(actor:TeacherSession,questionId:string,versionId:string){
+  const [allowed]=await query<{id:string}>(`select qv.id from questions q join question_versions qv on qv.question_id=q.id and qv.id=$2 where q.id=$1 and q.status='ACTIVE' and ((q.scope='SYSTEM' and $5='SYSTEM_ADMIN') or (q.scope='SCHOOL' and q.school_id=$3) or (q.scope='PRIVATE' and q.owner_teacher_id=$4))`,[questionId,versionId,actor.schoolId,actor.staffUserId,actor.role]);
+  if(!allowed)throw new AuthorizationError();
+  const layers=await query<ResolvedQuestionDataset&{position:number;visible:boolean;opacity:number}>(
+    `select dv.dataset_id as "datasetId",dv.id as "datasetVersionId",coalesce(qdl.alias,d.title) title,qdl.role,qdl.position,qdl.visible,qdl.opacity::float8 opacity,
+       d.data_kind as "dataKind",dv.format,dv.storage_key as "storageKey",coalesce(dv.default_style_json,'{}'::jsonb) as "defaultStyle",coalesce(dv.schema_json,'{}'::jsonb) as "schemaJson",coalesce(qdl.style_json,'{}'::jsonb) style,
+       case when jsonb_typeof(dv.bbox)='array' then array[(dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8] else null end bbox
+     from question_version_dataset_layers qdl join dataset_versions dv on dv.id=qdl.dataset_version_id join datasets d on d.id=dv.dataset_id
+     where qdl.question_version_id=$1 order by qdl.position`,[versionId]);
+  const payload=[];for(const layer of layers)payload.push({datasetVersionId:layer.datasetVersionId,title:layer.title,role:layer.role,position:layer.position,visible:layer.visible,opacity:layer.opacity,bbox:layer.bbox,style:layer.style,dataKind:layer.dataKind,format:layer.format,geojson:layer.dataKind==="VECTOR"?await previewFeatureCollection(layer.datasetVersionId):null,raster:rasterPayload(layer)});
+  const boxes=layers.map(layer=>layer.bbox).filter((bbox):bbox is Bbox=>Array.isArray(bbox)&&bbox.length===4);const bbox:Bbox|null=boxes.length?[Math.min(...boxes.map(x=>x[0])),Math.min(...boxes.map(x=>x[1])),Math.max(...boxes.map(x=>x[2])),Math.max(...boxes.map(x=>x[3]))]:null;
+  return {layers:payload,bbox};
+}
+
 export async function listQuestionDatasetOptions(actor:TeacherSession):Promise<QuestionDatasetOption[]>{
   const rows=await query<{
     id:string;title:string;geometryType:string|null;schemaJson:Record<string,unknown>|null;dataKind:"VECTOR"|"RASTER";format:string|null;

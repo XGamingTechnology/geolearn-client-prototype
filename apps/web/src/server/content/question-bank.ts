@@ -3,6 +3,10 @@ import { hasStaffPermission } from "@/server/auth/permissions";
 import { AuthorizationError } from "@/server/auth/authorization";
 import type { TeacherSession } from "@/server/auth/session";
 import type { SpatialThinkingMode } from "@/features/questions/types";
+import { mediaDeliveryUrl } from "@/server/media/storage";
+
+export type QuestionBankMediaPreview={mediaAssetId:string;title:string;mediaType:"IMAGE"|"VIDEO"|"DOCUMENT"|"ILLUSTRATION";deliveryUrl:string|null;altText:string|null;caption:string|null};
+export type QuestionBankDatasetPreview={datasetVersionId:string;title:string;role:"SOURCE"|"TARGET"|"CONTEXT";dataKind:"VECTOR"|"RASTER"|"TABLE";bbox:[number,number,number,number]|null};
 
 export type QuestionBankFilter={
   search?:string;
@@ -37,7 +41,23 @@ export type QuestionBankRow={
   groupId:string|null;
   groupTitle:string|null;
   groupStimulusType:string|null;
+  basemap:string;
+  mapExperience:string;
+  mapInteractions:string[];
+  configuredGisTools:string[];
+  requiredGisTools:string[];
+  datasetCount:number;
+  vectorCount:number;
+  rasterCount:number;
+  datasets:QuestionBankDatasetPreview[];
+  media:QuestionBankMediaPreview|null;
 };
+
+type QuestionBankDatabaseRow=Omit<QuestionBankRow,"media">&{media:(Omit<QuestionBankMediaPreview,"deliveryUrl">&{storageKey:string|null})|null};
+
+export function hydrateQuestionBankRow(row:QuestionBankDatabaseRow):QuestionBankRow{
+  return {...row,media:row.media?{mediaAssetId:row.media.mediaAssetId,title:row.media.title,mediaType:row.media.mediaType,deliveryUrl:mediaDeliveryUrl(row.media.mediaAssetId,row.media.storageKey),altText:row.media.altText,caption:row.media.caption}:null};
+}
 
 export type QuestionBankPage={
   items:QuestionBankRow[];
@@ -99,32 +119,53 @@ export async function listQuestionBankPage(session:TeacherSession,filter:Questio
       order by ${versionOrder}
       limit 1
     ) qv on true
+    /* question-bank-preview-joins */
     where ${conditions.join(" and ")}
       ${versionStatus?"and qv.id is not null":""}`;
 
+  const previewJoins=`\n    left join lateral (
+      select count(*)::int dataset_count,count(*) filter(where d.data_kind='VECTOR')::int vector_count,
+        count(*) filter(where d.data_kind='RASTER')::int raster_count,
+        jsonb_agg(jsonb_build_object('datasetVersionId',dv.id,'title',coalesce(qdl.alias,d.title),'role',qdl.role,'dataKind',d.data_kind,'bbox',dv.bbox) order by qdl.position) datasets
+      from question_version_dataset_layers qdl join dataset_versions dv on dv.id=qdl.dataset_version_id join datasets d on d.id=dv.dataset_id
+      where qdl.question_version_id=qv.id
+    ) layer_preview on true
+    left join lateral (
+      select jsonb_build_object('mediaAssetId',ma.id,'title',ma.title,'mediaType',ma.media_type,'storageKey',ma.storage_key,'altText',qma.alt_text,'caption',qma.caption) media
+      from question_version_media_assets qma join media_assets ma on ma.id=qma.media_asset_id and ma.status='ACTIVE'
+      where qma.question_version_id=qv.id and qma.role='STIMULUS' order by qma.position limit 1
+    ) media_preview on true
+`;
   const client=await database().connect();
   try{
-    const countResult=await client.query<{total:number}>(`select count(*)::int as total ${fromSql}`,values);
+    const countResult=await client.query<{total:number}>(`select count(*)::int as total ${fromSql.replace("/* question-bank-preview-joins */","")}`,values);
     const total=countResult.rows[0]?.total??0;
     const pageCount=Math.max(1,Math.ceil(total/PAGE_SIZE));
     const page=Math.min(requestedPage,pageCount);
     const listValues=[...values,PAGE_SIZE,(page-1)*PAGE_SIZE];
     const limitPlaceholder=`$${values.length+1}`;
     const offsetPlaceholder=`$${values.length+2}`;
-    const listResult=await client.query<QuestionBankRow>(
+    const listResult=await client.query<QuestionBankDatabaseRow>(
       `select q.id,q.title,q.subject,q.topic,q.scope,q.status as "questionStatus",q.owner_teacher_id as "ownerTeacherId",
         qv.id as "versionId",qv.version_number as "versionNumber",qv.spatial_mode as "spatialMode",
         qv.difficulty,qv.prompt,qv.status as "versionStatus",
         qv.stimulus_config->>'type' as "stimulusType",
         qv.response_config->>'type' as "responseType",
         exists(select 1 from question_versions published where published.question_id=q.id and published.status='PUBLISHED') as "hasPublished",
-        g.id as "groupId",g.title as "groupTitle",g.stimulus_type as "groupStimulusType"
-       ${fromSql}
+        g.id as "groupId",g.title as "groupTitle",g.stimulus_type as "groupStimulusType",
+        coalesce(qv.activity_config->>'basemap','street') as basemap,
+        coalesce(qv.activity_config->>'mapExperience','standard') as "mapExperience",
+        coalesce(qv.activity_config->'interactions','[]'::jsonb) as "mapInteractions",
+        coalesce(qv.activity_config->'tools','[]'::jsonb) as "configuredGisTools",
+        coalesce((select jsonb_agg(distinct action->>'tool') filter(where action->>'tool' is not null) from jsonb_array_elements(coalesce(qv.activity_config->'requiredActions','[]'::jsonb)) action),'[]'::jsonb) as "requiredGisTools",
+        coalesce(layer_preview.dataset_count,0) as "datasetCount",coalesce(layer_preview.vector_count,0) as "vectorCount",coalesce(layer_preview.raster_count,0) as "rasterCount",
+        coalesce(layer_preview.datasets,'[]'::jsonb) as datasets,media_preview.media
+       ${fromSql.replace("/* question-bank-preview-joins */",previewJoins)}
        order by coalesce(lower(g.title),''),q.updated_at desc,q.id
        limit ${limitPlaceholder} offset ${offsetPlaceholder}`,
       listValues,
     );
-    return {items:listResult.rows,total,page,pageSize:PAGE_SIZE,pageCount};
+    return {items:listResult.rows.map(hydrateQuestionBankRow),total,page,pageSize:PAGE_SIZE,pageCount};
   }finally{client.release();}
 }
 
