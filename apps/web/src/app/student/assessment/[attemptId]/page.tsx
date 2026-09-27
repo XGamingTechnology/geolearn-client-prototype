@@ -22,7 +22,6 @@ export default async function AssessmentAttemptPage({params,searchParams}:{param
     <main className="assessment-page">
       <header className="assessment-header">
         <div className="assessment-brand"><span className="brand-mark">G</span><div><strong>{runtime.assignmentTitle}</strong><small>{runtime.quizTitle} · Attempt {runtime.attemptNumber}</small></div></div>
-        <div className="assessment-progress"><span>{runtime.questions.length} soal</span><div><i style={{width:"25%"}}/></div></div>
         <Link className="assessment-exit" href="/student/tasks">Keluar</Link>
       </header>
       {status==="error"&&<p className="account-alert error">Attempt belum dapat disubmit. Pastikan semua soal sudah dijawab.</p>}
