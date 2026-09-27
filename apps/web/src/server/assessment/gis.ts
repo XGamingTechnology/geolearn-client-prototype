@@ -3,15 +3,15 @@ import type { StudentSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
 
 type Bbox=[number,number,number,number];
-type BoundLayer={
+export type BoundLayer={
   datasetVersionId:string;title:string;role:"SOURCE"|"TARGET"|"CONTEXT";position:number;
   visible:boolean;opacity:number;bbox:Bbox|null;style:Record<string,unknown>;
   dataKind:"VECTOR"|"RASTER"|"TABLE";format:string|null;storageKey:string|null;
   defaultStyle:Record<string,unknown>;schemaJson:Record<string,unknown>;
 };
-type AttemptQuestionContext={activityConfig:Record<string,unknown>;layers:BoundLayer[];};
+export type GisExecutionContext={activityConfig:Record<string,unknown>;layers:BoundLayer[];};
 
-async function context(session:StudentSession,attemptId:string,questionVersionId:string):Promise<AttemptQuestionContext>{
+async function context(session:StudentSession,attemptId:string,questionVersionId:string):Promise<GisExecutionContext>{
   const [attempt]=await query<{status:string}>(
     `select at.status from attempts at
      join quiz_items qi on qi.quiz_version_id=at.quiz_version_id
@@ -106,22 +106,23 @@ async function record(attemptId:string,questionVersionId:string,toolId:string,pa
     [attemptId,questionVersionId,toolId,toolId+"_run",JSON.stringify(parameters),JSON.stringify(result)],
   );
 }
-function requireVector(layer:BoundLayer|undefined,label:string){
-  if(!layer)throw new Error(`${label} DatasetVersion is not bound`);
+function requireVector(layer:BoundLayer|undefined,label:string,toolId:string){
+  if(!layer)throw new Error(`${toolId[0].toUpperCase()+toolId.slice(1)} memerlukan layer ${label}.`);
   if(layer.dataKind!=="VECTOR")throw new Error(`${label} harus berupa dataset vector untuk analisis GIS ini.`);
   return layer;
 }
 
-export async function executeAssessmentGisTool(session:StudentSession,attemptId:string,questionVersionId:string,toolId:string){
-  const ctx=await context(session,attemptId,questionVersionId);
+export async function executeConfiguredGisTool(ctx:GisExecutionContext,toolId:string){
   const tool=toolConfiguration(ctx.activityConfig,toolId);
-  if(!tool) throw new Error("Tool is not allowed by this QuestionVersion");
-  const source=requireVector(ctx.layers.find((layer)=>layer.role==="SOURCE"),"SOURCE");
+  if(!tool) throw new Error("Tool tidak tersedia pada konfigurasi QuestionVersion ini.");
+  const source=requireVector(ctx.layers.find((layer)=>layer.role==="SOURCE"),"SOURCE",toolId);
   const targetCandidate=ctx.layers.find((layer)=>layer.role==="TARGET");
 
   if(toolId==="buffer"){
-    const configured=Number(tool.parameters?.distanceMeters??500);
-    const distanceMeters=Number.isFinite(configured)&&configured>0&&configured<=100000?configured:500;
+    const rawDistance=tool.parameters?.distanceMeters;
+    const configured=Number(rawDistance??500);
+    if(rawDistance!==undefined&&(!Number.isFinite(configured)||configured<=0||configured>100000))throw new Error("Jarak Buffer harus antara 1 dan 100.000 meter.");
+    const distanceMeters=configured;
     const [row]=await query<{geojson:unknown;featureCount:number}>(
       `select jsonb_build_object('type','FeatureCollection','features',
          coalesce(jsonb_agg(jsonb_build_object(
@@ -133,12 +134,11 @@ export async function executeAssessmentGisTool(session:StudentSession,attemptId:
       [source.datasetVersionId,distanceMeters],
     );
     const result={featureCount:row?.featureCount??0,distanceMeters,geojson:row?.geojson??{type:"FeatureCollection",features:[]}};
-    await record(attemptId,questionVersionId,toolId,{datasetVersionId:source.datasetVersionId,distanceMeters},{featureCount:result.featureCount,distanceMeters});
     return result;
   }
 
   if(toolId==="overlay"){
-    const target=requireVector(targetCandidate,"TARGET");
+    const target=requireVector(targetCandidate,"TARGET",toolId);
     const [row]=await query<{geojson:unknown;intersectionCount:number}>(
       `select jsonb_build_object('type','FeatureCollection','features',coalesce(jsonb_agg(feature) filter(where feature is not null),'[]'::jsonb)) as geojson,count(*)::int as "intersectionCount"
        from (
@@ -150,12 +150,11 @@ export async function executeAssessmentGisTool(session:StudentSession,attemptId:
       [source.datasetVersionId,target.datasetVersionId],
     );
     const result={intersectionCount:row?.intersectionCount??0,geojson:row?.geojson??{type:"FeatureCollection",features:[]}};
-    await record(attemptId,questionVersionId,toolId,{sourceVersionId:source.datasetVersionId,targetVersionId:target.datasetVersionId},{intersectionCount:result.intersectionCount});
     return result;
   }
 
   if(toolId==="distance"){
-    const target=requireVector(targetCandidate,"TARGET");
+    const target=requireVector(targetCandidate,"TARGET",toolId);
     const [row]=await query<{distanceMeters:number|null;sourceFeatureId:string|null;targetFeatureId:string|null;geojson:unknown}>(
       `select ST_Distance(a.geom::geography,b.geom::geography)::float8 as "distanceMeters",
          coalesce(a.source_feature_id,a.id::text) as "sourceFeatureId",coalesce(b.source_feature_id,b.id::text) as "targetFeatureId",
@@ -168,10 +167,22 @@ export async function executeAssessmentGisTool(session:StudentSession,attemptId:
       [source.datasetVersionId,target.datasetVersionId],
     );
     const result={distanceMeters:row?.distanceMeters??null,sourceFeatureId:row?.sourceFeatureId??null,targetFeatureId:row?.targetFeatureId??null,geojson:row?.geojson??null};
-    await record(attemptId,questionVersionId,toolId,{sourceVersionId:source.datasetVersionId,targetVersionId:target.datasetVersionId},{distanceMeters:result.distanceMeters,sourceFeatureId:result.sourceFeatureId,targetFeatureId:result.targetFeatureId});
     return result;
   }
   throw new Error("Unsupported authoritative GIS tool");
+}
+
+export async function executeAssessmentGisTool(session:StudentSession,attemptId:string,questionVersionId:string,toolId:string){
+  const ctx=await context(session,attemptId,questionVersionId);
+  const result=await executeConfiguredGisTool(ctx,toolId);
+  const source=ctx.layers.find((layer)=>layer.role==="SOURCE")!;
+  const target=ctx.layers.find((layer)=>layer.role==="TARGET");
+  const summary={...result,geojson:undefined};
+  const parameters=toolId==="buffer"
+    ?{datasetVersionId:source.datasetVersionId,distanceMeters:(result as {distanceMeters?:number}).distanceMeters}
+    :{sourceVersionId:source.datasetVersionId,targetVersionId:target?.datasetVersionId};
+  await record(attemptId,questionVersionId,toolId,parameters,summary);
+  return result;
 }
 
 export async function completedAssessmentGisTools(session:StudentSession,attemptId:string,questionVersionId:string):Promise<string[]>{
