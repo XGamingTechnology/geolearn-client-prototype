@@ -4,6 +4,7 @@ import { requireTeacherSession } from "@/server/auth/session";
 
 const baseItems = [
   {href:"/teacher/cases",icon:"◇",title:"Case Library",copy:"Media + dataset + related questions"},
+  {href:"/teacher/data",icon:"◫",title:"Bank Data",copy:"Dataset vector, raster, dan citra untuk soal WebGIS"},
   {href:"/teacher/media",icon:"▣",title:"Media",copy:"Image, video, document, illustration"},
   {href:"/teacher/gis",icon:"◎",title:"GIS Studio",copy:"Layer, digitize, Buffer, Overlay"},
   {href:"/teacher/assignments",icon:"✓",title:"Penugasan",copy:"Quiz version, kelas, jadwal, monitoring"},
