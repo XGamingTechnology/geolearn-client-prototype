@@ -3,6 +3,7 @@ import { hasStaffPermission } from "@/server/auth/permissions";
 import { AuthorizationError } from "@/server/auth/authorization";
 import type { TeacherSession } from "@/server/auth/session";
 import type { ContentScope } from "@/server/content/service";
+import {spatialThinkingModes,type SpatialThinkingMode} from "@/features/questions/types";
 
 export type QuestionGroupOption={
   id:string;
@@ -10,7 +11,8 @@ export type QuestionGroupOption={
   description:string|null;
   subject:string|null;
   topic:string|null;
-  stimulusType:"text"|"image"|"video"|"webgis";
+  spatialMode:SpatialThinkingMode|null;
+  stimulusType:"text"|"image"|"video"|"webgis"|null;
   scope:ContentScope;
   ownerTeacherId:string|null;
 };
@@ -25,6 +27,10 @@ function validateScope(value:string):ContentScope{
   if(value!=="SYSTEM"&&value!=="SCHOOL"&&value!=="PRIVATE")throw new Error("Scope tidak valid.");
   return value;
 }
+function validateSpatialMode(value:string):SpatialThinkingMode{
+  if(!(spatialThinkingModes as readonly string[]).includes(value))throw new Error("Spatial Thinking tidak valid.");
+  return value as SpatialThinkingMode;
+}
 
 async function assertScopeWrite(session:TeacherSession,scope:ContentScope){
   if(scope==="SYSTEM"&&session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
@@ -38,9 +44,9 @@ async function assertScopeWrite(session:TeacherSession,scope:ContentScope){
 export async function listQuestionGroups(session:TeacherSession):Promise<QuestionGroupOption[]>{
   if(!session.schoolId&&session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
   return query<QuestionGroupOption>(
-    `select id,title,description,subject,topic,stimulus_type as "stimulusType",scope,owner_teacher_id as "ownerTeacherId"
+    `select id,title,description,subject,topic,spatial_mode as "spatialMode",stimulus_type as "stimulusType",scope,owner_teacher_id as "ownerTeacherId"
      from question_groups
-     where status='ACTIVE' and (
+     where status='ACTIVE' and spatial_mode is not null and (
        scope='SYSTEM'
        or (scope='SCHOOL' and school_id=$1)
        or (scope='PRIVATE' and owner_teacher_id=$2)
@@ -53,14 +59,14 @@ export async function listQuestionGroups(session:TeacherSession):Promise<Questio
 export async function listQuestionGroupCards(session:TeacherSession):Promise<QuestionGroupCard[]>{
   if(!session.schoolId&&session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
   return query<QuestionGroupCard>(
-    `select g.id,g.title,g.description,g.subject,g.topic,g.stimulus_type as "stimulusType",g.scope,
+    `select g.id,g.title,g.description,g.subject,g.topic,g.spatial_mode as "spatialMode",g.stimulus_type as "stimulusType",g.scope,
        g.owner_teacher_id as "ownerTeacherId",
        count(distinct q.id)::int as "questionCount",
        count(distinct q.id) filter(where exists(select 1 from question_versions pv where pv.question_id=q.id and pv.status='PUBLISHED'))::int as "publishedCount",
        count(distinct q.id) filter(where exists(select 1 from question_versions dv where dv.question_id=q.id and dv.status='DRAFT'))::int as "draftCount"
      from question_groups g
      left join questions q on q.question_group_id=g.id and q.status='ACTIVE'
-     where g.status='ACTIVE' and (
+     where g.status='ACTIVE' and g.spatial_mode is not null and (
        g.scope='SYSTEM'
        or (g.scope='SCHOOL' and g.school_id=$1)
        or (g.scope='PRIVATE' and g.owner_teacher_id=$2)
@@ -77,37 +83,40 @@ export async function createQuestionGroup(input:{
   description:string;
   subject:string;
   topic:string;
-  stimulusType:string;
+  spatialMode?:string;
+  stimulusType?:string;
   scope:string;
 }){
   const scope=validateScope(input.scope);
   await assertScopeWrite(input.actor,scope);
   const title=input.title.trim();
-  if(!title||title.length>220)throw new Error("Judul Stimulus Set wajib diisi.");
-  const stimulusType=["text","image","video","webgis"].includes(input.stimulusType)?input.stimulusType:"text";
+  if(!title||title.length>220)throw new Error("Judul kelompok soal wajib diisi.");
+  const spatialMode=input.spatialMode?validateSpatialMode(input.spatialMode):null;
+  const stimulusType=!spatialMode&&["text","image","video","webgis"].includes(input.stimulusType??"")?input.stimulusType!:null;
+  if(!spatialMode&&!stimulusType)throw new Error("Spatial Thinking wajib dipilih.");
   const [row]=await query<{id:string}>(
-    `insert into question_groups(school_id,owner_teacher_id,scope,title,description,subject,topic,stimulus_type,status)
-     values($1,$2,$3,$4,$5,$6,$7,$8,'ACTIVE') returning id`,
+    `insert into question_groups(school_id,owner_teacher_id,scope,title,description,subject,topic,spatial_mode,stimulus_type,status)
+     values($1,$2,$3,$4,$5,$6,$7,$8,$9,'ACTIVE') returning id`,
     [
       scope==="SYSTEM"?null:input.actor.schoolId,
       scope==="SYSTEM"?null:input.actor.staffUserId,
-      scope,title,input.description.trim()||null,input.subject.trim()||null,input.topic.trim()||null,stimulusType,
+      scope,title,input.description.trim()||null,input.subject.trim()||null,input.topic.trim()||null,spatialMode,stimulusType,
     ],
   );
-  if(!row)throw new Error("Stimulus Set gagal dibuat.");
+  if(!row)throw new Error("Kelompok soal gagal dibuat.");
   return row.id;
 }
 
 export async function resolveQuestionGroupForCreate(session:TeacherSession,groupId:string,scope:ContentScope){
   if(!groupId)return null;
   const [row]=await query<QuestionGroupOption & {schoolId:string|null}>(
-    `select id,title,description,subject,topic,stimulus_type as "stimulusType",scope,
+    `select id,title,description,subject,topic,spatial_mode as "spatialMode",stimulus_type as "stimulusType",scope,
        owner_teacher_id as "ownerTeacherId",school_id as "schoolId"
      from question_groups where id=$1 and status='ACTIVE'`,
     [groupId],
   );
-  if(!row)throw new Error("Stimulus Set tidak tersedia.");
-  if(row.scope!==scope)throw new Error("Scope soal harus sama dengan Stimulus Set.");
+  if(!row)throw new Error("Kelompok soal tidak tersedia.");
+  if(row.scope!==scope)throw new Error("Scope soal harus sama dengan kelompok soal.");
   if(row.scope==="SYSTEM"){
     if(session.role!=="SYSTEM_ADMIN")throw new AuthorizationError();
   }else if(row.scope==="SCHOOL"){
@@ -121,15 +130,20 @@ export async function attachQuestionToGroup(input:{
   questionId:string;
   groupId:string;
   questionScope:ContentScope;
+  spatialMode:string;
   stimulusType:string;
 }){
   const group=await resolveQuestionGroupForCreate(input.actor,input.groupId,input.questionScope);
   if(!group)return;
-  if(group.stimulusType!==input.stimulusType)throw new Error("Stimulus soal harus sama dengan Stimulus Set.");
+  if(group.spatialMode){
+    if(group.spatialMode!==input.spatialMode)throw new Error("Spatial Thinking soal harus sama dengan kelompok soal.");
+  }else if(group.stimulusType&&group.stimulusType!==input.stimulusType){
+    throw new Error("Stimulus soal harus sama dengan Stimulus Set lama.");
+  }
   const result=await query<{id:string}>(
     `update questions set question_group_id=$2,updated_at=now()
      where id=$1 and status='ACTIVE' returning id`,
     [input.questionId,input.groupId],
   );
-  if(!result[0])throw new Error("Soal gagal ditambahkan ke Stimulus Set.");
+  if(!result[0])throw new Error("Soal gagal ditambahkan ke kelompok soal.");
 }
