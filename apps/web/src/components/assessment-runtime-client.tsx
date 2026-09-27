@@ -6,6 +6,7 @@ import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { GeoJsonObject } from "geojson";
 import { AssessmentMediaRenderer } from "@/components/assessment-media-renderer";
+import { AssessmentQuestionWorkspace } from "@/components/assessment-question-workspace";
 import styles from "./assessment-runtime-results.module.css";
 
 const AssessmentSpatialResponseMap=dynamic(
@@ -163,9 +164,7 @@ export function AssessmentRuntimeClient({
     finally{setBusy(false);}
   }
 
-  return (
-    <section className="assessment-runtime-grid">
-      <article className="assessment-question-panel">
+  const context=<>
         <div className="question-meta"><span>{question.spatialMode} · {stimulusType}</span><code>Q{question.position}</code></div>
         <h2>{question.title}</h2><p>{question.prompt}</p>
 
@@ -174,11 +173,8 @@ export function AssessmentRuntimeClient({
           <div><strong>{requiredComplete?"Aktivitas GIS wajib selesai":"Aktivitas GIS wajib"}</strong><small>{required.join(", ")}</small></div>
         </div>}
 
-        {stimulusType==="webgis"&&<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} activityConfig={question.activityConfig} analyses={Object.values(currentResults).map((result)=>({toolId:result.toolId,title:result.title,geojson:result.geojson}))}/>}        
-        {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
-        {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
-
-        {allowed.length>0&&<>
+  </>;
+  const activity=allowed.length>0?<>
           <div className="runtime-tool-row">{allowed.map((tool)=>{
             const isRequired=required.includes(tool);const result=currentResults[tool];
             return <button className={done.has(tool)?"complete":""} disabled={busy} key={tool} onClick={()=>runTool(tool)} type="button" title={result?.description??(isRequired?"Wajib":"Opsional")}>{done.has(tool)?"✓ ":""}{tool} · PostGIS {isRequired?"(wajib)":"(opsional)"}</button>;
@@ -189,42 +185,61 @@ export function AssessmentRuntimeClient({
               ? <div className={styles.emptyResult}>Jalankan Buffer, Overlay, atau Distance untuk melihat hasil analisis di sini.</div>
               : <div className={styles.resultGrid}>{allowed.filter((tool)=>currentResults[tool]).map((tool)=>{const result=currentResults[tool];return <article className={styles.resultCard} data-tool={tool} key={tool}><div className={styles.resultCardTop}><span>{result.title}</span><em>SELESAI</em></div><strong className={styles.resultMetric}>{result.metric}</strong><p>{result.description}</p><small>{result.geojson?"Geometri hasil ditampilkan sebagai layer di peta.":"Hasil berupa nilai/summary tanpa geometri peta."}</small></article>;})}</div>}
           </section>
-        </>}
-
-        {!isSpatialResponse&&<fieldset disabled={!requiredComplete||busy}>
+        </>:null;
+  const response=!isSpatialResponse?<fieldset disabled={!requiredComplete||busy}>
           <legend>Jawaban</legend>
           {options.map((option)=><label className={"answer "+(selected===option.id?"selected":"")} key={option.id}><input type="radio" name={"answer-"+question.quizItemId} checked={selected===option.id} onChange={()=>{setAnswers((current)=>({...current,[question.quizItemId]:option.id}));setPersisted((current)=>({...current,[question.quizItemId]:false}));setFeedback((current)=>({...current,[question.quizItemId]:""}));}}/><b>{option.id}</b>{option.label}</label>)}
-        </fieldset>}
-
-        {isSpatialResponse&&requiredComplete&&<AssessmentSpatialResponseMap key={question.quizItemId}
+        </fieldset>:null;
+  const spatialResponse=isSpatialResponse&&requiredComplete?<AssessmentSpatialResponseMap key={question.quizItemId}
           attemptId={attemptId} questionVersionId={question.questionVersionId} quizItemId={question.quizItemId}
           responseType={responseType as "draw-point"|"draw-line"|"draw-polygon"|"feature-select"}
           initialGeometry={(savedSpatial?.geometry as never)??null} initialSelectedFeatureIds={savedSpatial?.selectedFeatureIds??[]}
           durationMs={durationMs}
           onDirtyChange={(dirty)=>{setSpatialDirty((current)=>({...current,[question.quizItemId]:dirty}));if(dirty)setPersisted((current)=>({...current,[question.quizItemId]:false}));}}
           onSaved={(value)=>{setSpatialResponses((current)=>({...current,[question.quizItemId]:value}));setSpatialDirty((current)=>({...current,[question.quizItemId]:false}));setPersisted((current)=>({...current,[question.quizItemId]:true}));}}
-        />}
-        {isSpatialResponse&&!requiredComplete&&<div className="runtime-media-shell">Selesaikan aktivitas GIS wajib sebelum menyimpan respons spasial.</div>}
-
+        />:isSpatialResponse?<div className="runtime-media-shell">Selesaikan aktivitas GIS wajib sebelum menyimpan respons spasial.</div>:null;
+  const messages=<>
         {feedback[question.quizItemId]&&<div className="answer-result correct"><strong>Jawaban tersimpan</strong><p>{feedback[question.quizItemId]}</p></div>}
         {isSpatialResponse&&spatialDirty[question.quizItemId]&&<div className="answer-result pending" role="status"><strong>Perubahan belum disimpan</strong><p>Simpan respons spasial sebelum melanjutkan atau submit.</p></div>}
         {isSpatialResponse&&persisted[question.quizItemId]&&!spatialDirty[question.quizItemId]&&<div className="answer-result correct"><strong>Respons spasial tersimpan</strong><p>Geometry/selection disimpan sebagai ResponseSpatialArtifact.</p></div>}
         {error&&<p className="auth-error">{error}</p>}
-
+  </>;
+  const actions=<>
         <div className="runtime-question-actions">
           <button className="button button-secondary" disabled={index===0||busy} onClick={()=>navigate(Math.max(0,index-1))} type="button">← Sebelumnya</button>
           {!isSpatialResponse
             ? <button className="button" disabled={!selected||!requiredComplete||busy} onClick={saveAnswer} type="button">{index===questions.length-1?"Simpan Jawaban":"Simpan & Lanjut"}</button>
             : <button className="button" disabled={!persisted[question.quizItemId]||spatialDirty[question.quizItemId]||busy} onClick={()=>navigate(Math.min(questions.length-1,index+1))} type="button">{index===questions.length-1?"Respons tersimpan":"Lanjut →"}</button>}
         </div>
-      </article>
-
-      <aside className="assessment-runtime-sidebar">
+  </>;
+  const navigator=<aside className="assessment-runtime-sidebar" aria-label="Navigasi dan progres soal">
         <div><p className="eyebrow">Respons tersimpan</p><strong>{completedCount} / {questions.length}</strong></div>
         <div className="runtime-question-nav">{questions.map((q,i)=><button className={i===index?"active":persisted[q.quizItemId]?"answered":""} onClick={()=>navigate(i)} key={q.quizItemId} type="button" aria-label={`Soal ${q.position}${persisted[q.quizItemId]?", tersimpan":""}`}>{q.position}</button>)}</div>
         <form action={"/api/assessment/attempts/"+attemptId+"/submit"} method="post" onSubmit={(event:FormEvent<HTMLFormElement>)=>{if(!window.confirm("Submit attempt sekarang? Jawaban tidak dapat diubah setelah dikirim."))event.preventDefault();}}><button className="button button-wide" disabled={!allPersisted||busy} type="submit">Submit Attempt</button></form>
         <small>{allPersisted?"Semua respons tersimpan. Attempt siap disubmit.":`${questions.length-completedCount} soal belum mempunyai respons tersimpan.`}</small>
-      </aside>
+      </aside>;
+
+  if(stimulusType==="webgis")return <section className="assessment-runtime-spatial">
+    <AssessmentQuestionWorkspace
+      context={context}
+      activity={activity}
+      response={<>{response}{messages}</>}
+      actions={actions}
+      stimulus={<AssessmentLeafletMap attemptId={attemptId} questionVersionId={question.questionVersionId} activityConfig={question.activityConfig} analyses={Object.values(currentResults).map((result)=>({toolId:result.toolId,title:result.title,geojson:result.geojson}))}/>}
+      after={spatialResponse}
+      status={navigator}
+    />
+  </section>;
+
+  return (
+    <section className="assessment-runtime-grid">
+      <article className="assessment-question-panel">
+        {context}
+        {stimulusType==="image"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="image"/>}
+        {stimulusType==="video"&&<AssessmentMediaRenderer attemptId={attemptId} questionVersionId={question.questionVersionId} preferredType="video"/>}
+        {activity}{response}{spatialResponse}{messages}{actions}
+      </article>
+      {navigator}
     </section>
   );
 }
