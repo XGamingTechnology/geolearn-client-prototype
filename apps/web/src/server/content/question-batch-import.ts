@@ -5,16 +5,21 @@ import {mapExperienceIds,type MapExperience} from "@/features/questions/experien
 import type {TeacherSession} from "@/server/auth/session";
 import {AuthorizationError} from "@/server/auth/authorization";
 import {createQuestionDraft,type ContentScope} from "./service";
+import {attachQuestionToGroup,createQuestionGroup} from "./question-groups";
 
 const answerIds=["A","B","C","D","E"] as const;
 const stimulusTypes=["text","image","video","webgis"] as const;
 const scopes=["PRIVATE","SCHOOL","SYSTEM"] as const;
 const MAX_ITEMS=100;
+const MAX_GROUPS=100;
 
 type AnswerId=(typeof answerIds)[number];
+type StimulusType=(typeof stimulusTypes)[number];
 type DraftInput=Parameters<typeof createQuestionDraft>[0];
+type StimulusSetDefinition={key:string;title:string;description:string;subject:string;topic:string;stimulusType:StimulusType;scope:ContentScope};
+type ParsedItem={index:number;input:DraftInput;groupKey:string};
 export type BatchImportError={index:number;title:string;errors:string[]};
-export type BatchImportResult={total:number;created:number;failed:number;questionIds:string[];errors:BatchImportError[]};
+export type BatchImportResult={total:number;created:number;failed:number;groupsCreated:number;questionIds:string[];groupIds:string[];errors:BatchImportError[]};
 
 function object(value:unknown):Record<string,unknown>|null{return value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:null;}
 function text(value:unknown,field:string,errors:string[],options:{required?:boolean;max?:number}={}){
@@ -30,21 +35,58 @@ function enumeration<T extends readonly string[]>(value:unknown,field:string,val
   return value as T[number];
 }
 
-export function parseQuestionBatchDocument(value:unknown,actor:TeacherSession):{items:Array<{index:number;input:DraftInput}>;errors:BatchImportError[];total:number}{
+function parseStimulusSets(root:Record<string,unknown>,version:number,defaultScope:unknown):StimulusSetDefinition[]{
+  if(version===1)return [];
+  const raw=root.stimulusSets??[];
+  if(!Array.isArray(raw))throw new Error("stimulusSets harus berupa array.");
+  if(raw.length>MAX_GROUPS)throw new Error(`stimulusSets maksimal ${MAX_GROUPS} kelompok.`);
+  const definitions:StimulusSetDefinition[]=[];const keys=new Set<string>();const errors:string[]=[];
+  raw.forEach((entry,index)=>{
+    const item=object(entry);if(!item){errors.push(`stimulusSets[${index}] harus berupa objek.`);return;}
+    const itemErrors:string[]=[];
+    const key=text(item.key,`stimulusSets[${index}].key`,itemErrors,{required:true,max:80});
+    if(key&&!/^[a-z0-9][a-z0-9-_]*$/i.test(key))itemErrors.push(`stimulusSets[${index}].key hanya boleh huruf, angka, - dan _.`);
+    if(key&&keys.has(key))itemErrors.push(`stimulusSets[${index}].key duplikat: ${key}.`);
+    const title=text(item.title,`stimulusSets[${index}].title`,itemErrors,{required:true,max:220});
+    const description=text(item.description,`stimulusSets[${index}].description`,itemErrors,{max:10000});
+    const subject=text(item.subject,`stimulusSets[${index}].subject`,itemErrors,{max:120});
+    const topic=text(item.topic,`stimulusSets[${index}].topic`,itemErrors,{max:160});
+    const stimulusType=enumeration(item.stimulusType,`stimulusSets[${index}].stimulusType`,stimulusTypes,itemErrors,"text") as StimulusType;
+    const scope=enumeration(item.scope??defaultScope,`stimulusSets[${index}].scope`,scopes,itemErrors,"PRIVATE") as ContentScope;
+    if(itemErrors.length){errors.push(...itemErrors);return;}
+    keys.add(key);definitions.push({key,title,description,subject,topic,stimulusType,scope});
+  });
+  if(errors.length)throw new Error(`Definisi Stimulus Set tidak valid: ${errors.join(" ")}`);
+  return definitions;
+}
+
+export function parseQuestionBatchDocument(value:unknown,actor:TeacherSession):{items:ParsedItem[];groups:StimulusSetDefinition[];errors:BatchImportError[];total:number;version:number}{
   const root=object(value);
   if(!root)throw new Error("Dokumen impor harus berupa objek JSON.");
-  if(root.version!==1)throw new Error("version harus bernilai 1.");
+  const version=root.version;
+  if(version!==1&&version!==2)throw new Error("version harus bernilai 1 atau 2.");
   if(!Array.isArray(root.questions))throw new Error("questions harus berupa array.");
   if(root.questions.length<1||root.questions.length>MAX_ITEMS)throw new Error(`questions harus berisi 1–${MAX_ITEMS} soal.`);
   const defaultScope=root.scope===undefined?"PRIVATE":root.scope;
-  const items:Array<{index:number;input:DraftInput}>=[];const failures:BatchImportError[]=[];
+  const groups=parseStimulusSets(root,version,defaultScope);
+  const groupByKey=new Map(groups.map(group=>[group.key,group]));
+  const items:ParsedItem[]=[];const failures:BatchImportError[]=[];
   root.questions.forEach((raw,index)=>{
     const errors:string[]=[];const item=object(raw);
     if(!item){failures.push({index,title:`Soal ${index+1}`,errors:["Item harus berupa objek."]});return;}
     const title=text(item.title,"title",errors,{required:true,max:220});
     const scope=enumeration(item.scope??defaultScope,"scope",scopes,errors,"PRIVATE") as ContentScope;
     const spatialMode=enumeration(item.spatialMode,"spatialMode",spatialThinkingModes,errors,"location") as SpatialThinkingMode;
-    const stimulusType=enumeration(item.stimulusType??"text","stimulusType",stimulusTypes,errors,"text");
+    const stimulusType=enumeration(item.stimulusType??"text","stimulusType",stimulusTypes,errors,"text") as StimulusType;
+    const groupKey=version===2?text(item.groupKey,"groupKey",errors,{max:80}):"";
+    if(groupKey){
+      const group=groupByKey.get(groupKey);
+      if(!group)errors.push(`groupKey tidak ditemukan pada stimulusSets: ${groupKey}.`);
+      else{
+        if(group.scope!==scope)errors.push("scope soal harus sama dengan scope Stimulus Set.");
+        if(group.stimulusType!==stimulusType)errors.push("stimulusType soal harus sama dengan Stimulus Set.");
+      }
+    }
     const prompt=text(item.prompt,"prompt",errors,{required:true,max:10000});
     const answersRaw=Array.isArray(item.answers)?item.answers:null;
     const answers=answerIds.map((id,answerIndex)=>{
@@ -73,21 +115,42 @@ export function parseQuestionBatchDocument(value:unknown,actor:TeacherSession):{
     const feedbackCorrect=text(item.explanation??item.feedbackCorrect,"explanation",errors,{max:10000});
     const feedbackIncorrect=text(item.feedbackIncorrect,"feedbackIncorrect",errors,{max:10000});
     if(errors.length){failures.push({index,title:title||`Soal ${index+1}`,errors});return;}
-    items.push({index,input:{actor,title,scope,subject,topic,spatialMode,difficulty,prompt,stimulusType,answers,correctAnswer,
+    items.push({index,groupKey,input:{actor,title,scope,subject,topic,spatialMode,difficulty,prompt,stimulusType,answers,correctAnswer,
       feedbackCorrect,feedbackIncorrect,
       activityConfig:{mapExperience,tools,toolParameters:toolParameters??{},requiredActions:[]},
     }});
   });
-  return {items,errors:failures,total:root.questions.length};
+  return {items,groups,errors:failures,total:root.questions.length,version};
 }
 
-/** Each item uses createQuestionDraft's own Question + QuestionVersion transaction. */
+/** V1 creates standalone drafts. V2 may create Stimulus Sets, then attach dependent drafts to them. */
 export async function importQuestionBatch(actor:TeacherSession,document:unknown):Promise<BatchImportResult>{
-  const parsed=parseQuestionBatchDocument(document,actor);const questionIds:string[]=[];const errors=[...parsed.errors];
+  const parsed=parseQuestionBatchDocument(document,actor);const questionIds:string[]=[];const groupIds:string[]=[];const errors=[...parsed.errors];
+  const groupIdByKey=new Map<string,string>();const failedGroupKeys=new Set<string>();
+  for(const group of parsed.groups){
+    try{
+      const id=await createQuestionGroup({actor,title:group.title,description:group.description,subject:group.subject,topic:group.topic,stimulusType:group.stimulusType,scope:group.scope});
+      groupIds.push(id);groupIdByKey.set(group.key,id);
+    }catch{
+      failedGroupKeys.add(group.key);
+    }
+  }
   for(const item of parsed.items){
-    try{questionIds.push(await createQuestionDraft(item.input));}
-    catch(error){errors.push({index:item.index,title:item.input.title,errors:[error instanceof AuthorizationError?"Akun tidak memiliki izin untuk scope soal ini.":"Draft gagal dibuat karena kesalahan penyimpanan."]});}
+    if(item.groupKey&&failedGroupKeys.has(item.groupKey)){
+      errors.push({index:item.index,title:item.input.title,errors:[`Stimulus Set '${item.groupKey}' gagal dibuat sehingga draft tidak dibuat.`]});
+      continue;
+    }
+    try{
+      const questionId=await createQuestionDraft(item.input);
+      if(item.groupKey){
+        const groupId=groupIdByKey.get(item.groupKey);
+        if(!groupId)throw new Error("Stimulus Set tidak tersedia setelah dibuat.");
+        await attachQuestionToGroup({actor,questionId,groupId,questionScope:item.input.scope as ContentScope,stimulusType:item.input.stimulusType});
+      }
+      questionIds.push(questionId);
+    }
+    catch(error){errors.push({index:item.index,title:item.input.title,errors:[error instanceof AuthorizationError?"Akun tidak memiliki izin untuk scope soal ini.":"Draft gagal dibuat atau dikelompokkan karena kesalahan penyimpanan."]});}
   }
   errors.sort((a,b)=>a.index-b.index);
-  return {total:parsed.total,created:questionIds.length,failed:errors.length,questionIds,errors};
+  return {total:parsed.total,created:questionIds.length,failed:errors.length,groupsCreated:groupIds.length,questionIds,groupIds,errors};
 }
