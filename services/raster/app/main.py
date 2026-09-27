@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Literal
 
 import rasterio
+import numpy
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from rasterio.warp import transform_bounds
@@ -40,13 +41,22 @@ def raster_metadata(path: Path) -> dict:
         wgs84 = transform_bounds(dataset.crs, "EPSG:4326", *bounds, densify_pts=21)
         epsg = dataset.crs.to_epsg()
         bands = [1] if dataset.count == 1 else list(range(1, min(dataset.count, 3) + 1))
+        rescale = []
+        for band in bands:
+            values = dataset.read(band, masked=True, out_shape=(min(dataset.height, 1024), min(dataset.width, 1024)))
+            valid = values.compressed()
+            valid = valid[numpy.isfinite(valid)]
+            if valid.size:
+                low, high = numpy.percentile(valid, [2, 98])
+                if numpy.isfinite(low) and numpy.isfinite(high) and low < high:
+                    rescale.append([float(low), float(high)])
         return {
             "sourceCrs": dataset.crs.to_string(), "sourceSrid": epsg,
             "bboxSource": list(bounds), "bboxWgs84": list(wgs84),
             "width": dataset.width, "height": dataset.height, "bandCount": dataset.count,
             "dtypes": list(dataset.dtypes), "nodata": dataset.nodata,
             "resolution": [abs(dataset.res[0]), abs(dataset.res[1])], "driver": dataset.driver,
-            "rendering": {"bands": bands, "mode": "grayscale" if dataset.count == 1 else "rgb"},
+            "rendering": {"bands": bands, "mode": "grayscale" if dataset.count == 1 else "rgb", "rescale": rescale if len(rescale) == len(bands) else []},
         }
 
 

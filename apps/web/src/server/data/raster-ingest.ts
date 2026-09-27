@@ -5,7 +5,7 @@ import {hasStaffPermission} from "@/server/auth/permissions";
 import type {TeacherSession} from "@/server/auth/session";
 import {safeRasterKey} from "./raster-storage";
 
-export type RasterMetadata={sourceCrs:string;sourceSrid:number|null;bboxSource:[number,number,number,number];bboxWgs84:[number,number,number,number];width:number;height:number;bandCount:number;dtypes:string[];nodata:number|null;resolution:[number,number];driver:string;isCog:boolean;rendering:{bands:number[];mode:"grayscale"|"rgb"}};
+export type RasterMetadata={sourceCrs:string;sourceSrid:number|null;bboxSource:[number,number,number,number];bboxWgs84:[number,number,number,number];width:number;height:number;bandCount:number;dtypes:string[];nodata:number|null;resolution:[number,number];driver:string;isCog:boolean;rendering:{bands:number[];mode:"grayscale"|"rgb";rescale?:Array<[number,number]>}};
 export function validateRasterMetadata(value:RasterMetadata){if(!value?.isCog||!Array.isArray(value.bboxWgs84)||value.bboxWgs84.length!==4||!value.sourceCrs||value.width<1||value.height<1||value.bandCount<1)throw new Error("Metadata raster hasil konversi tidak valid.");return value;}
 export async function ingestRaster(sourceKey:string,targetKey:string){
   safeRasterKey(sourceKey,"incoming");safeRasterKey(targetKey,"cog");const url=process.env.RASTER_SERVICE_URL??"http://raster:8000";

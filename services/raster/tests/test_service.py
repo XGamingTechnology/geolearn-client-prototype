@@ -32,6 +32,19 @@ def write_test_raster(path: Path) -> None:
         dataset.write(numpy.full((32, 32), 42, dtype="uint8"), 1)
 
 
+def test_float_dem_metadata_has_display_rescale(tmp_path):
+    path = tmp_path / "dem.tif"
+    with rasterio.open(path, "w", driver="GTiff", width=32, height=32, count=1, dtype="float32", crs="EPSG:4326", transform=from_origin(106, -6, 0.01, 0.01)) as dataset:
+        dataset.write(numpy.linspace(100, 2100, 1024, dtype="float32").reshape(32, 32), 1)
+
+    metadata = main.raster_metadata(path)
+
+    assert metadata["rendering"]["bands"] == [1]
+    assert metadata["rendering"]["mode"] == "grayscale"
+    low, high = metadata["rendering"]["rescale"][0]
+    assert 100 < low < high < 2100
+
+
 def test_ingest_converts_valid_geotiff_and_removes_source(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "DATA_ROOT", tmp_path.resolve())
     source = tmp_path / "incoming" / "123e4567-e89b-12d3-a456-426614174000.tif"
