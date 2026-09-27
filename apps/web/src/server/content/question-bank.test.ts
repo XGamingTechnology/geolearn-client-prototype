@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {hydrateQuestionBankRow} from "./question-bank";
+import {hydrateQuestionBankRow} from "./question-bank-model";
 
 function row(overrides:Record<string,unknown>={}){return {id:"q",title:"Soal",subject:null,topic:null,scope:"PRIVATE",questionStatus:"ACTIVE",ownerTeacherId:"teacher",versionId:"v1",versionNumber:1,spatialMode:"location",difficulty:"Mudah",prompt:"Prompt",versionStatus:"DRAFT",stimulusType:"text",responseType:"multiple-choice",hasPublished:false,groupId:null,groupTitle:null,groupStimulusType:null,basemap:"street",mapExperience:"standard",mapInteractions:[],configuredGisTools:[],requiredGisTools:[],datasetCount:0,vectorCount:0,rasterCount:0,datasets:[],media:null,...overrides} as Parameters<typeof hydrateQuestionBankRow>[0];}
 
