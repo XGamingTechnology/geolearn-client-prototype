@@ -6,6 +6,9 @@ on:
       - staging
     paths:
       - "apps/web/**"
+      - "services/raster/**"
+      - "deploy/**"
+      - "ops/**"
       - "package.json"
       - ".github/workflows/quality-gate.yml"
   workflow_dispatch:

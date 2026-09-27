@@ -1,3 +1,4 @@
+from os import replace
 from pathlib import Path
 from typing import Literal
 
@@ -60,28 +61,46 @@ def health() -> dict:
 
 @app.post("/internal/ingest")
 def ingest(request: IngestRequest) -> dict:
+    target: Path | None = None
+    temporary_target: Path | None = None
+    target_published = False
     try:
         source = resolve_storage_key(request.sourceKey, "incoming")
         target = resolve_storage_key(request.targetKey, "cog")
         if not source.is_file():
             raise ValueError("File raster tidak dapat dibaca.")
+        if target.exists():
+            raise ValueError("Tujuan raster sudah ada.")
         metadata = raster_metadata(source)
         target.parent.mkdir(parents=True, exist_ok=True)
+        temporary_target = target.with_name(f".{target.name}.tmp")
+        temporary_target.unlink(missing_ok=True)
         profile = cog_profiles.get("deflate").copy()
         profile.update({"BIGTIFF": "IF_SAFER"})
-        cog_translate(str(source), str(target), profile, in_memory=False, quiet=True)
-        valid, errors, warnings = cog_validate(str(target), strict=True)
+        cog_translate(str(source), str(temporary_target), profile, in_memory=False, quiet=True)
+        valid, _errors, _warnings = cog_validate(str(temporary_target), strict=True)
         if not valid:
-            target.unlink(missing_ok=True)
             raise ValueError("GeoTIFF gagal dikonversi menjadi COG.")
+        replace(temporary_target, target)
+        target_published = True
+        source.unlink()
         metadata.update({"driver": "GTiff", "isCog": True})
         return metadata
     except ValueError as error:
+        if temporary_target is not None:
+            temporary_target.unlink(missing_ok=True)
+        if target_published and target is not None:
+            target.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail=str(error)) from error
     except rasterio.errors.RasterioError as error:
+        if temporary_target is not None:
+            temporary_target.unlink(missing_ok=True)
+        if target_published and target is not None:
+            target.unlink(missing_ok=True)
         raise HTTPException(status_code=422, detail="File raster tidak dapat dibaca.") from error
     except Exception as error:
-        target = locals().get("target")
-        if isinstance(target, Path):
+        if temporary_target is not None:
+            temporary_target.unlink(missing_ok=True)
+        if target_published and target is not None:
             target.unlink(missing_ok=True)
         raise HTTPException(status_code=500, detail="GeoTIFF gagal dikonversi menjadi COG.") from error
