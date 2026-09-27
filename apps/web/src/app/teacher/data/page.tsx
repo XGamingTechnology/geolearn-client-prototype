@@ -16,7 +16,7 @@ export default async function DataPage({searchParams}:{searchParams:Promise<{sta
   return (
     <main className="dashboard catalog-page">
       <header className="catalog-header">
-        <div><p className="eyebrow">Spatial Data Catalog</p><h1>Bank Data</h1><p>Kelola data spasial reusable. Vector disimpan sebagai geometry PostGIS; raster analitis dapat diregistrasikan sebagai layer XYZ tanpa menjadikannya basemap.</p></div>
+        <div><p className="eyebrow">Spatial Data Catalog</p><h1>Bank Data</h1><p>Kelola data spasial reusable. Vector disimpan di PostGIS; GeoTIFF dioptimalkan menjadi COG untuk WebGIS.</p></div>
         <div className="dashboard-actions"><Link className="button button-secondary" href="/teacher/gis">Open GIS Studio</Link></div>
       </header>
       {status==="error"&&<p className="account-alert error">{message||"Dataset gagal disimpan. Periksa format dan konfigurasi sumber."}</p>}
@@ -49,7 +49,23 @@ export default async function DataPage({searchParams}:{searchParams:Promise<{sta
       </details>
 
       <details className={styles.uploadCard}>
-        <summary className={styles.uploadSummary}>Register Raster / Citra XYZ</summary>
+        <summary className={styles.uploadSummary}>Upload GeoTIFF / COG</summary>
+        <form action="/api/data/datasets" method="post" encType="multipart/form-data" className={styles.form}>
+          <input type="hidden" name="datasetKind" value="RASTER_UPLOAD"/>
+          <label className={styles.field}>Judul<input className={styles.input} name="title" maxLength={220} placeholder="Citra wilayah sekolah"/></label>
+          <label className={styles.field}>Scope<select className={styles.select} name="scope" defaultValue="PRIVATE"><option value="PRIVATE">My Data</option><option value="SCHOOL">School Data</option></select></label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>Deskripsi<input className={styles.input} name="description" placeholder="Keterangan singkat raster"/></label>
+          <label className={`${styles.field} ${styles.fieldFull}`}>File .tif/.tiff<input className={styles.file} name="file" type="file" accept=".tif,.tiff,image/tiff" required/></label>
+          <div className={styles.twoCol}><label className={styles.field}>Sumber / koleksi<input className={styles.input} name="sourceLabel"/></label><label className={styles.field}>Sensor<input className={styles.input} name="sensor"/></label></div>
+          <div className={styles.twoCol}><label className={styles.field}>Tanggal akuisisi<input className={styles.input} name="acquiredAt" type="date"/></label><label className={styles.field}>Label waktu<input className={styles.input} name="temporalLabel" placeholder="2026 / Musim hujan"/></label></div>
+          <label className={`${styles.field} ${styles.fieldFull}`}>Attribution<input className={styles.input} name="attribution" placeholder="Sumber data / lisensi"/></label>
+          <p className={styles.help}>GeoLearn akan membaca CRS dan extent secara otomatis lalu mengoptimalkan GeoTIFF menjadi COG. Maksimal 256 MB.</p>
+          <div className={styles.actions}><button className={`button ${styles.submit}`} type="submit">Upload &amp; Publish Raster</button></div>
+        </form>
+      </details>
+
+      <details className={styles.uploadCard}>
+        <summary className={styles.uploadSummary}>Advanced: Register Raster / Citra XYZ</summary>
         <form action="/api/data/datasets" method="post" className={styles.form}>
           <input type="hidden" name="datasetKind" value="RASTER_XYZ"/>
           <label className={styles.field}>Judul
@@ -81,7 +97,7 @@ export default async function DataPage({searchParams}:{searchParams:Promise<{sta
           <label className={`${styles.field} ${styles.fieldFull}`}>Attribution
             <input className={styles.input} name="attribution" placeholder="Sumber data / lisensi yang wajib ditampilkan"/>
           </label>
-          <p className={styles.help}>Foundation v1 memakai endpoint XYZ publik melalui HTTPS. Jangan masukkan API key, token, password, atau kredensial pada URL. Upload GeoTIFF/COG dan katalog Sentinel/Landsat langsung akan ditambahkan pada fase raster berikutnya.</p>
+          <p className={styles.help}>Gunakan endpoint XYZ publik melalui HTTPS. Jangan masukkan API key, token, password, atau kredensial pada URL.</p>
           <div className={styles.actions}><button className={`button ${styles.submit}`} type="submit">Register Raster</button></div>
         </form>
       </details>
@@ -100,7 +116,7 @@ export default async function DataPage({searchParams}:{searchParams:Promise<{sta
           </article>
         ))}
       </section>
-      {!datasets.length&&<div className="empty-state"><strong>Bank Data masih kosong.</strong><p>Upload vector atau register raster XYZ pertama untuk mulai membangun pengalaman spasial.</p></div>}
+      {!datasets.length&&<div className="empty-state"><strong>Bank Data masih kosong.</strong><p>Upload vector atau GeoTIFF pertama untuk mulai membangun pengalaman spasial.</p></div>}
     </main>
   );
 }

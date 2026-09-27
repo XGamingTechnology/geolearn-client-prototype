@@ -16,8 +16,13 @@ services:
       MEDIA_STORAGE_PATH: /var/lib/geolearn/media
       MEDIA_MAX_IMAGE_BYTES: ${MEDIA_MAX_IMAGE_BYTES:-10485760}
       MEDIA_MAX_VIDEO_BYTES: ${MEDIA_MAX_VIDEO_BYTES:-104857600}
+      RASTER_SERVICE_URL: http://raster:8000
+      RASTER_STORAGE_PATH: /var/lib/geolearn/raster
+      RASTER_MAX_UPLOAD_BYTES: ${RASTER_MAX_UPLOAD_BYTES:-268435456}
+      RASTER_TILE_SIGNING_SECRET: ${RASTER_TILE_SIGNING_SECRET}
     volumes:
       - staging_media:/var/lib/geolearn/media
+      - staging_raster:/var/lib/geolearn/raster
     ports:
       - "127.0.0.1:3101:3000"
     depends_on:
@@ -25,6 +30,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      raster:
+        condition: service_healthy
     networks: [staging_app, staging_edge]
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
@@ -44,6 +51,19 @@ services:
       database:
         condition: service_healthy
     networks: [staging_app]
+
+  raster:
+    build:
+      context: ../services/raster
+    restart: unless-stopped
+    volumes:
+      - staging_raster:/data
+    networks: [staging_app]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   database:
     image: postgis/postgis:17-3.5-alpine
@@ -66,6 +86,8 @@ volumes:
     name: geolearn_staging_postgres
   staging_media:
     name: geolearn_staging_media
+  staging_raster:
+    name: geolearn_staging_raster
 
 networks:
   staging_app:

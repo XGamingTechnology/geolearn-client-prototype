@@ -1,6 +1,7 @@
 import { query } from "@/server/db";
 import type { StudentSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
+import {resolveRasterRuntime} from "@/server/data/raster-runtime";
 
 type Bbox=[number,number,number,number];
 export type BoundLayer={
@@ -36,7 +37,7 @@ async function context(session:StudentSession,attemptId:string,questionVersionId
          (dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8
        ] else null end as bbox
      from question_version_dataset_layers qdl
-     join dataset_versions dv on dv.id=qdl.dataset_version_id and dv.status='PUBLISHED'
+     join dataset_versions dv on dv.id=qdl.dataset_version_id and dv.status='PUBLISHED' and dv.processing_status='READY'
      join datasets d on d.id=dv.dataset_id and d.status='ACTIVE'
      where qdl.question_version_id=$1 order by qdl.position`,
     [questionVersionId],
@@ -58,23 +59,14 @@ async function featureCollection(datasetVersionId:string){
 }
 
 function rasterPayload(layer:BoundLayer){
-  if(layer.dataKind!=="RASTER"||layer.format!=="XYZ"||!layer.storageKey)return null;
-  const raster=layer.schemaJson.raster&&typeof layer.schemaJson.raster==="object"?layer.schemaJson.raster as Record<string,unknown>:{};
-  return {
-    tileUrl:layer.storageKey,
-    attribution:typeof layer.defaultStyle.attributionText==="string"?layer.defaultStyle.attributionText:"",
-    sensor:typeof raster.sensor==="string"?raster.sensor:null,
-    acquiredAt:typeof raster.acquiredAt==="string"?raster.acquiredAt:null,
-    temporalLabel:typeof raster.temporalLabel==="string"?raster.temporalLabel:null,
-    sourceLabel:typeof raster.sourceLabel==="string"?raster.sourceLabel:null,
-  };
+  if(layer.dataKind!=="RASTER")return null;return resolveRasterRuntime({datasetVersionId:layer.datasetVersionId,format:layer.format,storageKey:layer.storageKey,schemaJson:layer.schemaJson,defaultStyle:layer.defaultStyle});
 }
 
 export async function getAssessmentMapPayload(session:StudentSession,attemptId:string,questionVersionId:string){
   const ctx=await context(session,attemptId,questionVersionId);
   const layers=[];
   for(const layer of ctx.layers){
-    if(layer.dataKind==="RASTER"&&(!layer.storageKey||layer.format!=="XYZ"))continue;
+    if(layer.dataKind==="RASTER"&&(!layer.storageKey||(layer.format!=="XYZ"&&layer.format!=="COG")))continue;
     layers.push({
       ...layer,
       geojson:layer.dataKind==="VECTOR"?await featureCollection(layer.datasetVersionId):null,

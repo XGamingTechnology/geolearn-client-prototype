@@ -1,6 +1,7 @@
 import { database, query } from "@/server/db";
 import type { TeacherSession } from "@/server/auth/session";
 import { AuthorizationError } from "@/server/auth/authorization";
+import {resolveRasterRuntime} from "@/server/data/raster-runtime";
 
 export type QuestionDatasetRole="SOURCE"|"TARGET"|"CONTEXT";
 export type QuestionLayerLabel={enabled:boolean;field?:string|null;minZoom?:number};
@@ -15,6 +16,7 @@ export type QuestionDatasetOption={
   dataKind:"VECTOR"|"RASTER";format:string|null;
   temporalLabel:string|null;sensor:string|null;
 };
+export function isSupportedQuestionRasterFormat(format:string|null){return format==="XYZ"||format==="COG";}
 type Bbox=[number,number,number,number];
 type ResolvedQuestionDataset={
   datasetId:string;datasetVersionId:string;title:string;role:QuestionDatasetRole;style:Record<string,unknown>;bbox:Bbox|null;
@@ -65,7 +67,7 @@ async function resolveVersions(actor:TeacherSession,bindings:QuestionDatasetSele
          (dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8
        ] else null end as bbox
      from datasets d join lateral (
-       select id,schema_json,bbox,format,storage_key,default_style_json from dataset_versions x where x.dataset_id=d.id and x.status='PUBLISHED'
+       select id,schema_json,bbox,format,storage_key,default_style_json from dataset_versions x where x.dataset_id=d.id and x.status='PUBLISHED' and x.processing_status='READY'
        order by x.version_number desc limit 1
      ) dv on true
      where d.id=any($1::uuid[]) and d.status='ACTIVE' and d.data_kind in ('VECTOR','RASTER') and (
@@ -78,7 +80,7 @@ async function resolveVersions(actor:TeacherSession,bindings:QuestionDatasetSele
   return clean.map((binding)=>{
     const version=map.get(binding.datasetId)!;
     if(version.dataKind!=="VECTOR"&&version.dataKind!=="RASTER")throw new Error("Jenis dataset belum didukung pada Question Builder.");
-    if(version.dataKind==="RASTER"&&version.format!=="XYZ")throw new Error("Raster ini belum memiliki renderer yang didukung.");
+    if(version.dataKind==="RASTER"&&!isSupportedQuestionRasterFormat(version.format))throw new Error("Raster ini belum memiliki renderer yang didukung.");
     const schema=version.schemaJson??{};
     const label=normalizedLabel(binding.label,schema,version.dataKind);
     return {
@@ -103,16 +105,7 @@ async function previewFeatureCollection(datasetVersionId:string){
 }
 
 function rasterPayload(layer:ResolvedQuestionDataset){
-  if(layer.dataKind!=="RASTER"||layer.format!=="XYZ"||!layer.storageKey)return null;
-  const raster=layer.schemaJson.raster&&typeof layer.schemaJson.raster==="object"?layer.schemaJson.raster as Record<string,unknown>:{};
-  return {
-    tileUrl:layer.storageKey,
-    attribution:typeof layer.defaultStyle.attributionText==="string"?layer.defaultStyle.attributionText:"",
-    sensor:typeof raster.sensor==="string"?raster.sensor:null,
-    acquiredAt:typeof raster.acquiredAt==="string"?raster.acquiredAt:null,
-    temporalLabel:typeof raster.temporalLabel==="string"?raster.temporalLabel:null,
-    sourceLabel:typeof raster.sourceLabel==="string"?raster.sourceLabel:null,
-  };
+  if(layer.dataKind!=="RASTER")return null;return resolveRasterRuntime({datasetVersionId:layer.datasetVersionId,format:layer.format,storageKey:layer.storageKey,schemaJson:layer.schemaJson,defaultStyle:layer.defaultStyle});
 }
 
 export async function getQuestionDatasetPreviewPayload(actor:TeacherSession,bindings:QuestionDatasetSelection[]){
@@ -139,7 +132,7 @@ export async function getExactQuestionVersionMapPreview(actor:TeacherSession,que
     `select dv.dataset_id as "datasetId",dv.id as "datasetVersionId",coalesce(qdl.alias,d.title) title,qdl.role,qdl.position,qdl.visible,qdl.opacity::float8 opacity,
        d.data_kind as "dataKind",dv.format,dv.storage_key as "storageKey",coalesce(dv.default_style_json,'{}'::jsonb) as "defaultStyle",coalesce(dv.schema_json,'{}'::jsonb) as "schemaJson",coalesce(qdl.style_json,'{}'::jsonb) style,
        case when jsonb_typeof(dv.bbox)='array' then array[(dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8] else null end bbox
-     from question_version_dataset_layers qdl join dataset_versions dv on dv.id=qdl.dataset_version_id join datasets d on d.id=dv.dataset_id
+     from question_version_dataset_layers qdl join dataset_versions dv on dv.id=qdl.dataset_version_id and dv.processing_status='READY' join datasets d on d.id=dv.dataset_id
      where qdl.question_version_id=$1 order by qdl.position`,[versionId]);
   const payload=[];for(const layer of layers)payload.push({datasetVersionId:layer.datasetVersionId,title:layer.title,role:layer.role,position:layer.position,visible:layer.visible,opacity:layer.opacity,bbox:layer.bbox,style:layer.style,dataKind:layer.dataKind,format:layer.format,geojson:layer.dataKind==="VECTOR"?await previewFeatureCollection(layer.datasetVersionId):null,raster:rasterPayload(layer)});
   const boxes=layers.map(layer=>layer.bbox).filter((bbox):bbox is Bbox=>Array.isArray(bbox)&&bbox.length===4);const bbox:Bbox|null=boxes.length?[Math.min(...boxes.map(x=>x[0])),Math.min(...boxes.map(x=>x[1])),Math.max(...boxes.map(x=>x[2])),Math.max(...boxes.map(x=>x[3]))]:null;
@@ -153,9 +146,9 @@ export async function listQuestionDatasetOptions(actor:TeacherSession):Promise<Q
     `select d.id,d.title,d.data_kind as "dataKind",dv.geometry_type as "geometryType",dv.schema_json as "schemaJson",dv.format
      from datasets d join lateral (
        select geometry_type,schema_json,format from dataset_versions x
-       where x.dataset_id=d.id and x.status='PUBLISHED' order by x.version_number desc limit 1
+       where x.dataset_id=d.id and x.status='PUBLISHED' and x.processing_status='READY' order by x.version_number desc limit 1
      ) dv on true
-     where d.status='ACTIVE' and (d.data_kind='VECTOR' or (d.data_kind='RASTER' and dv.format='XYZ')) and (
+     where d.status='ACTIVE' and (d.data_kind='VECTOR' or (d.data_kind='RASTER' and dv.format in ('XYZ','COG'))) and (
        d.scope='SYSTEM' or (d.scope='SCHOOL' and d.school_id=$1) or (d.scope='PRIVATE' and d.owner_teacher_id=$2)
      )
      order by d.updated_at desc`,
