@@ -23,6 +23,14 @@ function questionIdFromAction(action:string){return action.match(/\/questions\/(
 function kindFromLabel(label:string):BulkKind{return label==="Hapus"?"delete":label==="Pulihkan"?"restore":"archive";}
 function currentFilter(){const params=new URLSearchParams(window.location.search);const value=(name:string)=>params.get(name)??undefined;return {q:value("q"),stimulus:value("stimulus"),mode:value("mode"),response:value("response"),difficulty:value("difficulty"),versionStatus:value("versionStatus"),scope:value("scope"),groupId:value("groupId"),lifecycle:value("lifecycle")};}
 function join(...names:Array<string|false|undefined>){return names.filter(Boolean).join(" ");}
+function discoverPublishedVersion(questionId:string){
+  if(typeof document==="undefined")return undefined;
+  const anchor=document.querySelector<HTMLAnchorElement>(`a[href^="/teacher/questions/${questionId}/preview?versionId="]`);
+  const card=anchor?.closest("article");
+  if(!anchor||!card||!card.textContent?.includes("Published"))return undefined;
+  const url=new URL(anchor.href,window.location.origin);
+  return url.searchParams.get("versionId")??undefined;
+}
 
 function BulkToolbar(){
   useSyncExternalStore(subscribe,snapshot,snapshot);
@@ -60,9 +68,11 @@ function BulkToolbar(){
 }
 
 export function QuestionBankLifecycleAction({action,label,confirmText,tone="default",questionVersionId}:{action:string;label:string;confirmText:string;tone?:"default"|"danger";questionVersionId?:string}){
-  const instanceId=useId();const questionId=questionIdFromAction(action);const kind=kindFromLabel(label);const entry={questionId,kind,questionVersionId};
+  const instanceId=useId();const questionId=questionIdFromAction(action);const kind=kindFromLabel(label);
+  const [resolvedVersionId,setResolvedVersionId]=useState(questionVersionId);
   useSyncExternalStore(subscribe,snapshot,snapshot);
-  useEffect(()=>{if(!questionId)return;register(instanceId,entry);return()=>unregister(instanceId);},[instanceId,kind,questionId,questionVersionId]);
-  const title=tone==="danger"?`${label} draft?`:`${label} soal?`;const checked=questionId?store.selected.has(questionId):false;const isOwner=store.owner===instanceId;
+  useEffect(()=>{if(!questionId)return;setResolvedVersionId(questionVersionId??discoverPublishedVersion(questionId));},[questionId,questionVersionId]);
+  useEffect(()=>{if(!questionId)return;const entry={questionId,kind,questionVersionId:resolvedVersionId};register(instanceId,entry);return()=>unregister(instanceId);},[instanceId,kind,questionId,resolvedVersionId]);
+  const entry={questionId,kind,questionVersionId:resolvedVersionId};const title=tone==="danger"?`${label} draft?`:`${label} soal?`;const checked=questionId?store.selected.has(questionId):false;const isOwner=store.owner===instanceId;
   return <>{questionId&&<label className={styles.selectControl} data-selected={checked} title="Pilih untuk aksi massal"><input type="checkbox" checked={checked} onChange={event=>setSelected(entry,event.target.checked)}/><span className={styles.box} aria-hidden="true"/><span>{checked?"Dipilih":"Pilih"}</span></label>}<ConfirmAction action={action} triggerLabel={label} title={title} description={confirmText} confirmLabel={label} tone={tone} triggerClassName={tone==="danger"?"question-action danger":"question-action"}/>{isOwner&&typeof document!=="undefined"&&<BulkToolbar/>}</>;
 }
