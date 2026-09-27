@@ -38,4 +38,11 @@ describe("question builder configuration",()=>{
     const value={stimulusType:"webgis" as const,responseType:"multiple-choice" as const,answers:normalizeAnswers(["a","b"]),correctAnswer:"A",sourceDatasetId:"source",targetDatasetId:"target",requiredGisTool:"buffer",bufferDistance:500};
     expect(validateForPublish(value)).toEqual([]);
   });
+  it("requires exactly one SOURCE and TARGET for Map Slider without counting CONTEXT",()=>{
+    const base={stimulusType:"webgis" as const,responseType:"multiple-choice" as const,answers:normalizeAnswers(["a","b"]),correctAnswer:"A",mapExperience:"slider" as const,allowedGisTools:[],requiredGisTools:[]};
+    expect(validateForPublish({...base,datasetBindings:[{datasetId:"s",role:"SOURCE" as const},{datasetId:"t",role:"TARGET" as const},{datasetId:"c1",role:"CONTEXT" as const},{datasetId:"c2",role:"CONTEXT" as const}]})).toEqual([]);
+    expect(validateForPublish({...base,datasetBindings:[{datasetId:"s",role:"SOURCE" as const}]})).toContain("Map Slider memerlukan tepat satu TARGET Dataset.");
+    expect(validateForPublish({...base,datasetBindings:[{datasetId:"t",role:"TARGET" as const}]})).toContain("Map Slider memerlukan tepat satu SOURCE Dataset.");
+    expect(validateForPublish({...base,datasetBindings:[{datasetId:"s",role:"SOURCE" as const},{datasetId:"t1",role:"TARGET" as const},{datasetId:"t2",role:"TARGET" as const}]})).toContain("Map Slider memerlukan tepat satu TARGET Dataset.");
+  });
 });
