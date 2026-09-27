@@ -3,6 +3,7 @@
 import {createPortal} from "react-dom";
 import {useEffect,useId,useState,useSyncExternalStore} from "react";
 import {ConfirmAction} from "./confirm-action";
+import styles from "./question-bank-actions.module.css";
 
 type BulkKind="delete"|"archive"|"restore";
 type Entry={questionId:string;kind:BulkKind};
@@ -35,45 +36,58 @@ function currentFilter(){
   const value=(name:string)=>params.get(name)??undefined;
   return {q:value("q"),stimulus:value("stimulus"),mode:value("mode"),response:value("response"),difficulty:value("difficulty"),versionStatus:value("versionStatus"),scope:value("scope"),groupId:value("groupId"),lifecycle:value("lifecycle")};
 }
+function join(...names:Array<string|false|undefined>){return names.filter(Boolean).join(" ");}
 
 function BulkToolbar(){
   useSyncExternalStore(subscribe,snapshot,snapshot);
-  const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");
+  const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [isError,setIsError]=useState(false);
   const selected=Array.from(store.selected.entries());
   const kinds=new Set(selected.map(([,kind])=>kind));
-  const count=store.selectAllFiltered?"Semua hasil filter":`${selected.length} dipilih`;
   const lifecycle=typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("lifecycle")==="ARCHIVED"?"ARCHIVED":"ACTIVE";
   const versionStatus=typeof window!=="undefined"?new URLSearchParams(window.location.search).get("versionStatus"):null;
   const canDelete=store.selectAllFiltered?lifecycle==="ACTIVE"&&versionStatus==="DRAFT":selected.length>0&&kinds.size===1&&kinds.has("delete");
   const canArchive=store.selectAllFiltered?lifecycle==="ACTIVE"&&versionStatus==="PUBLISHED":selected.length>0&&kinds.size===1&&kinds.has("archive");
   const canRestore=store.selectAllFiltered?lifecycle==="ARCHIVED":selected.length>0&&kinds.size===1&&kinds.has("restore");
+  const countLabel=store.selectAllFiltered?"Semua hasil filter":`${selected.length} soal`;
+  const modeLabel=store.selectAllFiltered?"Mode filter aktif":"Terpilih untuk aksi massal";
 
   async function run(action:BulkKind){
     const label=action==="delete"?"hapus permanen":action==="archive"?"arsipkan":"pulihkan";
     const target=store.selectAllFiltered?"semua soal yang cocok dengan filter":`${selected.length} soal`;
     const warning=action==="delete"?" Tindakan hapus permanen tidak dapat dibatalkan.":"";
     if(!window.confirm(`Yakin ingin ${label} ${target}?${warning}`))return;
-    setBusy(true);setMessage("");
+    setBusy(true);setMessage("");setIsError(false);
     try{
       const response=await fetch("/api/content/questions/bulk",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,ids:selected.map(([id])=>id),selectAllFiltered:store.selectAllFiltered,filter:currentFilter()})});
       const body=await response.json() as BulkResponse|{error:string};
       if(!response.ok||"error" in body)throw new Error("error" in body?body.error:"Bulk action gagal.");
       setMessage(body.failed?`${body.completed} berhasil, ${body.failed} gagal.`:`${body.completed} soal berhasil diproses.`);
+      setIsError(body.failed>0);
       clearSelection();
-      window.setTimeout(()=>window.location.reload(),700);
-    }catch(error){setMessage(error instanceof Error?error.message:"Bulk action gagal.");}
+      window.setTimeout(()=>window.location.reload(),800);
+    }catch(error){setMessage(error instanceof Error?error.message:"Bulk action gagal.");setIsError(true);}
     finally{setBusy(false);}
   }
 
-  return createPortal(<aside aria-live="polite" style={{position:"fixed",left:"50%",bottom:"22px",transform:"translateX(-50%)",zIndex:120,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",maxWidth:"calc(100vw - 32px)",padding:"10px 12px",border:"1px solid #dbe7f3",borderRadius:14,background:"rgba(255,255,255,.97)",boxShadow:"0 18px 48px rgba(15,35,63,.18)",fontSize:12}}>
-    <strong style={{color:"#10233f"}}>{count}</strong>
-    <button type="button" onClick={selectPage} disabled={busy||store.registered.size===0}>Pilih halaman</button>
-    <button type="button" onClick={selectFiltered} disabled={busy}>Pilih semua hasil filter</button>
-    {lifecycle==="ACTIVE"&&<button type="button" onClick={()=>run("archive")} disabled={busy||!canArchive}>Arsipkan</button>}
-    {lifecycle==="ACTIVE"&&<button type="button" onClick={()=>run("delete")} disabled={busy||!canDelete} style={{color:canDelete?"#b42318":undefined}}>Hapus Draft</button>}
-    {lifecycle==="ARCHIVED"&&<button type="button" onClick={()=>run("restore")} disabled={busy||!canRestore}>Pulihkan</button>}
-    {(selected.length>0||store.selectAllFiltered)&&<button type="button" onClick={clearSelection} disabled={busy}>Batal</button>}
-    {message&&<span>{message}</span>}
+  const visible=selected.length>0||store.selectAllFiltered;
+  if(!visible)return null;
+
+  return createPortal(<aside className={styles.toolbar} aria-live="polite">
+    <div className={styles.summary}>
+      <span className={styles.summaryIcon}>✓</span>
+      <span className={styles.summaryText}><strong>{countLabel}</strong><span>{modeLabel}</span></span>
+    </div>
+    <div className={styles.selectionActions}>
+      <button className={styles.button} type="button" onClick={selectPage} disabled={busy||store.registered.size===0}>Pilih halaman</button>
+      <button className={join(styles.button,store.selectAllFiltered&&styles.primary)} type="button" onClick={selectFiltered} disabled={busy}>Pilih semua hasil filter</button>
+    </div>
+    <div className={styles.lifecycleActions}>
+      {lifecycle==="ACTIVE"&&<button className={join(styles.button,styles.archive)} type="button" onClick={()=>run("archive")} disabled={busy||!canArchive}>Arsipkan</button>}
+      {lifecycle==="ACTIVE"&&<button className={join(styles.button,styles.danger)} type="button" onClick={()=>run("delete")} disabled={busy||!canDelete}>Hapus Draft</button>}
+      {lifecycle==="ARCHIVED"&&<button className={join(styles.button,styles.primary)} type="button" onClick={()=>run("restore")} disabled={busy||!canRestore}>Pulihkan</button>}
+      <button className={join(styles.button,styles.ghost)} type="button" onClick={clearSelection} disabled={busy}>Batal</button>
+    </div>
+    {message&&<span className={styles.message} data-error={isError}>{message}</span>}
   </aside>,document.body);
 }
 
@@ -95,7 +109,7 @@ export function QuestionBankLifecycleAction({
   const checked=questionId?store.selected.has(questionId):false;
   const isOwner=store.owner===instanceId;
   return <>
-    {questionId&&<label title="Pilih untuk aksi massal" style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:"#52647a",cursor:"pointer"}}><input type="checkbox" checked={checked} onChange={event=>setSelected({questionId,kind},event.target.checked)}/> Pilih</label>}
+    {questionId&&<label className={styles.selectControl} data-selected={checked} title="Pilih untuk aksi massal"><input type="checkbox" checked={checked} onChange={event=>setSelected({questionId,kind},event.target.checked)}/><span className={styles.box} aria-hidden="true"/><span>{checked?"Dipilih":"Pilih"}</span></label>}
     <ConfirmAction
       action={action}
       triggerLabel={label}
