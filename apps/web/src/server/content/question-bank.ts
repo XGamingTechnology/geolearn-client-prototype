@@ -3,7 +3,7 @@ import { hasStaffPermission } from "@/server/auth/permissions";
 import { AuthorizationError } from "@/server/auth/authorization";
 import type { TeacherSession } from "@/server/auth/session";
 import type { SpatialThinkingMode } from "@/features/questions/types";
-import { mediaDeliveryUrl } from "@/server/media/storage";
+import { mediaDeliveryUrl } from "@/server/media/storage-core";
 
 export type QuestionBankMediaPreview={mediaAssetId:string;title:string;mediaType:"IMAGE"|"VIDEO"|"DOCUMENT"|"ILLUSTRATION";deliveryUrl:string|null;altText:string|null;caption:string|null};
 export type QuestionBankDatasetPreview={datasetVersionId:string;title:string;role:"SOURCE"|"TARGET"|"CONTEXT";dataKind:"VECTOR"|"RASTER"|"TABLE";bbox:[number,number,number,number]|null};
