@@ -2,6 +2,7 @@
 
 import {createPortal} from "react-dom";
 import {useEffect,useId,useState,useSyncExternalStore} from "react";
+import {useRouter} from "next/navigation";
 import {ConfirmAction} from "./confirm-action";
 import styles from "./question-bank-actions.module.css";
 
@@ -34,6 +35,7 @@ function discoverPublishedVersion(questionId:string){
 
 function BulkToolbar(){
   useSyncExternalStore(subscribe,snapshot,snapshot);
+  const router=useRouter();
   const [busy,setBusy]=useState(false);const [message,setMessage]=useState("");const [isError,setIsError]=useState(false);
   const selected=Array.from(store.selected.values());
   const kinds=new Set(selected.map(item=>item.kind));
@@ -52,7 +54,7 @@ function BulkToolbar(){
     setBusy(true);setMessage("");setIsError(false);
     try{const response=await fetch("/api/content/questions/bulk",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,ids:selected.map(item=>item.questionId),selectAllFiltered:store.selectAllFiltered,filter:currentFilter()})});const body=await response.json() as BulkResponse|{error:string};if(!response.ok||"error" in body)throw new Error("error" in body?body.error:"Bulk action gagal.");setMessage(body.failed?`${body.completed} berhasil, ${body.failed} gagal.`:`${body.completed} soal berhasil diproses.`);setIsError(body.failed>0);clearSelection();window.setTimeout(()=>window.location.reload(),800);}catch(error){setMessage(error instanceof Error?error.message:"Bulk action gagal.");setIsError(true);}finally{setBusy(false);}
   }
-  function useInAssignment(){if(!canAssign)return;const query=new URLSearchParams();for(const id of assignVersions)query.append("qv",id);window.location.href=`/teacher/assignments?${query.toString()}`;}
+  function useInAssignment(){if(!canAssign)return;const query=new URLSearchParams();for(const id of assignVersions)query.append("qv",id);router.push(`/teacher/assignments?${query.toString()}`);}
   if(!(selected.length>0||store.selectAllFiltered))return null;
   return createPortal(<aside className={styles.toolbar} aria-live="polite">
     <div className={styles.summary}><span className={styles.summaryIcon}>✓</span><span className={styles.summaryText}><strong>{countLabel}</strong><span>{modeLabel}</span></span></div>
@@ -69,10 +71,9 @@ function BulkToolbar(){
 
 export function QuestionBankLifecycleAction({action,label,confirmText,tone="default",questionVersionId}:{action:string;label:string;confirmText:string;tone?:"default"|"danger";questionVersionId?:string}){
   const instanceId=useId();const questionId=questionIdFromAction(action);const kind=kindFromLabel(label);
-  const [resolvedVersionId,setResolvedVersionId]=useState(questionVersionId);
   useSyncExternalStore(subscribe,snapshot,snapshot);
-  useEffect(()=>{if(!questionId)return;setResolvedVersionId(questionVersionId??discoverPublishedVersion(questionId));},[questionId,questionVersionId]);
-  useEffect(()=>{if(!questionId)return;const entry={questionId,kind,questionVersionId:resolvedVersionId};register(instanceId,entry);return()=>unregister(instanceId);},[instanceId,kind,questionId,resolvedVersionId]);
-  const entry={questionId,kind,questionVersionId:resolvedVersionId};const title=tone==="danger"?`${label} draft?`:`${label} soal?`;const checked=questionId?store.selected.has(questionId):false;const isOwner=store.owner===instanceId;
-  return <>{questionId&&<label className={styles.selectControl} data-selected={checked} title="Pilih untuk aksi massal"><input type="checkbox" checked={checked} onChange={event=>setSelected(entry,event.target.checked)}/><span className={styles.box} aria-hidden="true"/><span>{checked?"Dipilih":"Pilih"}</span></label>}<ConfirmAction action={action} triggerLabel={label} title={title} description={confirmText} confirmLabel={label} tone={tone} triggerClassName={tone==="danger"?"question-action danger":"question-action"}/>{isOwner&&typeof document!=="undefined"&&<BulkToolbar/>}</>;
+  useEffect(()=>{if(!questionId)return;const entry={questionId,kind,questionVersionId:questionVersionId??discoverPublishedVersion(questionId)};register(instanceId,entry);return()=>unregister(instanceId);},[instanceId,kind,questionId,questionVersionId]);
+  const title=tone==="danger"?`${label} draft?`:`${label} soal?`;const checked=questionId?store.selected.has(questionId):false;const isOwner=store.owner===instanceId;
+  const currentEntry=store.registered.get(instanceId)??{questionId,kind,questionVersionId};
+  return <>{questionId&&<label className={styles.selectControl} data-selected={checked} title="Pilih untuk aksi massal"><input type="checkbox" checked={checked} onChange={event=>setSelected(currentEntry,event.target.checked)}/><span className={styles.box} aria-hidden="true"/><span>{checked?"Dipilih":"Pilih"}</span></label>}<ConfirmAction action={action} triggerLabel={label} title={title} description={confirmText} confirmLabel={label} tone={tone} triggerClassName={tone==="danger"?"question-action danger":"question-action"}/>{isOwner&&typeof document!=="undefined"&&<BulkToolbar/>}</>;
 }
