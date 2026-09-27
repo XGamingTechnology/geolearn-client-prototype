@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { primaryNavigation, resourceNavigation } from "./app-shell";
 
+// Release guard: keep the mobile navigation contract explicit and regression-tested.
 describe("teacher responsive navigation", () => {
   it("keeps the four primary mobile destinations in the required order", () => {
     expect(primaryNavigation.slice(0, 4).map(({ href, short }) => ({ href, short }))).toEqual([
