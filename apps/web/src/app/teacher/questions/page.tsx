@@ -215,6 +215,13 @@ export default async function QuestionsPage({
             </Link>
             <Link
               className={styles.secondaryAction}
+              href="/teacher/questions/import"
+            >
+              <Icon name="layers" />
+              Impor JSON
+            </Link>
+            <Link
+              className={styles.secondaryAction}
               href="/teacher/assignments"
             >
               <Icon name="assignment" />
