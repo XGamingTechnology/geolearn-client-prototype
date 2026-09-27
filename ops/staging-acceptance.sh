@@ -88,6 +88,10 @@ if [[ "$WEB_HEALTH" != "healthy" && "$WEB_HEALTH" != "none" ]]; then
 fi
 ok "web container state"
 
+RASTER_HEALTH="$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T raster python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read().decode())")" || fail "raster service health endpoint unavailable"
+echo "$RASTER_HEALTH" | grep -q '"status":"ok"' || fail "raster health status is not ok"
+ok "internal raster service health endpoint"
+
 echo "== Public route =="
 if curl -fsS --max-time 20 "$PUBLIC_URL/api/health" >/tmp/geolearn-staging-health.json; then
   grep -q '"status":"ok"' /tmp/geolearn-staging-health.json || fail "public health response not ok"
