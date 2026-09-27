@@ -3,16 +3,16 @@ import type {TeacherSession} from "@/server/auth/session";
 import {query} from "@/server/db";
 import {executeConfiguredGisTool,type BoundLayer,type GisExecutionContext} from "@/server/assessment/gis";
 
-async function draftContext(actor:TeacherSession,questionId:string):Promise<GisExecutionContext>{
+async function previewContext(actor:TeacherSession,questionId:string,versionId?:string):Promise<GisExecutionContext>{
   const [question]=await query<{id:string;activityConfig:Record<string,unknown>}>(
     `select qv.id,qv.activity_config as "activityConfig"
-     from questions q join question_versions qv on qv.question_id=q.id and qv.status='DRAFT'
+     from questions q join question_versions qv on qv.question_id=q.id and (($5::uuid is not null and qv.id=$5::uuid) or ($5::uuid is null and qv.status='DRAFT'))
      where q.id=$1 and q.status='ACTIVE'
        and ((q.scope='SYSTEM' and $4='SYSTEM_ADMIN')
          or (q.scope='SCHOOL' and q.school_id=$2)
          or (q.scope='PRIVATE' and q.owner_teacher_id=$3))
      order by qv.version_number desc limit 1`,
-    [questionId,actor.schoolId,actor.staffUserId,actor.role],
+    [questionId,actor.schoolId,actor.staffUserId,actor.role,versionId??null],
   );
   if(!question)throw new AuthorizationError();
   const layers=await query<BoundLayer>(
@@ -31,6 +31,6 @@ async function draftContext(actor:TeacherSession,questionId:string):Promise<GisE
 }
 
 /** Read-only teacher sandbox: deliberately has no Attempt/GIS Activity persistence dependency. */
-export async function executeQuestionPreviewGis(actor:TeacherSession,questionId:string,toolId:string){
-  return executeConfiguredGisTool(await draftContext(actor,questionId),toolId);
+export async function executeQuestionPreviewGis(actor:TeacherSession,questionId:string,toolId:string,versionId?:string){
+  return executeConfiguredGisTool(await previewContext(actor,questionId,versionId),toolId);
 }

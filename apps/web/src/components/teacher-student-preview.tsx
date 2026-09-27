@@ -17,10 +17,11 @@ type Answer={id:string;label:string};
 export type PreviewAnalysisResult={id:string;toolId:string;summary:string;geojson:GeoJsonObject|null};
 
 export function TeacherStudentPreview({
-  questionId,stimulus,spatialModeLabel,bindings,mapExperience,basemap,mapInteractions,allowedTools,requiredTools,responseType,answers,
-  initialTitle,initialPrompt,mediaSource,mediaCaption,
+  questionId,questionVersionId,stimulus,spatialModeLabel,bindings,mapExperience,basemap,mapInteractions,allowedTools,requiredTools,responseType,answers,
+  initialTitle,initialPrompt,mediaSource,mediaAltText,mediaCaption,
 }: {
   questionId?:string;
+  questionVersionId?:string;
   stimulus:StimulusType;
   spatialModeLabel:string;
   bindings:DatasetSelection[];
@@ -34,6 +35,7 @@ export function TeacherStudentPreview({
   initialTitle?:string;
   initialPrompt?:string;
   mediaSource?:string|null;
+  mediaAltText?:string;
   mediaCaption?:string;
 }){
   const root=useRef<HTMLElement|null>(null);
@@ -48,7 +50,7 @@ export function TeacherStudentPreview({
     if(!questionId)return;
     setRunning(toolId);setAnalysisError("");
     try{
-      const response=await fetch(`/api/content/questions/${questionId}/preview/gis/execute`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({toolId})});
+      const response=await fetch(`/api/content/questions/${questionId}/preview/gis/execute`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({toolId,versionId:questionVersionId})});
       const body=await response.json() as {error?:string;geojson?:GeoJsonObject|null;featureCount?:number;intersectionCount?:number;distanceMeters?:number|null};
       if(!response.ok)throw new Error(body.error??"Analisis preview gagal dijalankan.");
       const summary=toolId==="buffer"?`${body.featureCount??0} feature · ${body.distanceMeters??0} meter`:toolId==="overlay"?`${body.intersectionCount??0} irisan`:body.distanceMeters===null?"Tidak ada pasangan feature":`${Math.round(body.distanceMeters??0).toLocaleString("id-ID")} meter`;
@@ -87,8 +89,8 @@ export function TeacherStudentPreview({
   return <article className={styles.card} ref={root}>
     <div className={styles.top}><span>{stimulus.toUpperCase()} · PREVIEW SISWA</span><em>{spatialModeLabel}</em></div>
     <div className={styles.body}>
-      {stimulus==="webgis"&&<AssessmentQuestionWorkspace className={styles.spatialWorkspace} context={question} activity={tools} response={response} stimulus={<TeacherLiveMapPreview bindings={bindings} activityConfig={activityConfig} analysisResults={analysisResults}/>} status={<p className={styles.readOnly}>Preview sandbox guru · tidak membuat Response, Attempt, GIS Activity, atau data penilaian.</p>}/>}
-      {stimulus==="image"&&(mediaSource?<figure className={styles.media}><img src={mediaSource} alt="Preview stimulus"/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih gambar dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
+      {stimulus==="webgis"&&<AssessmentQuestionWorkspace className={styles.spatialWorkspace} context={question} activity={tools} response={response} stimulus={<TeacherLiveMapPreview bindings={bindings} activityConfig={activityConfig} analysisResults={analysisResults} questionId={questionId} questionVersionId={questionVersionId}/>} status={<p className={styles.readOnly}>Preview sandbox guru · tidak membuat Response, Attempt, GIS Activity, atau data penilaian.</p>}/>}
+      {stimulus==="image"&&(mediaSource?<figure className={styles.media}><img src={mediaSource} alt={mediaAltText?.trim()||"Stimulus gambar"}/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih gambar dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
       {stimulus==="video"&&(mediaSource?<figure className={styles.media}><video src={mediaSource} controls preload="metadata"/>{mediaCaption&&<figcaption>{mediaCaption}</figcaption>}</figure>:<div className={styles.placeholder}>Pilih video dari Bank Media untuk melihat stimulus sebenarnya.</div>)}
       {stimulus==="text"&&<div className={styles.placeholder}>Soal ini menggunakan stimulus teks. Siswa langsung membaca pertanyaan di bawah.</div>}
 
