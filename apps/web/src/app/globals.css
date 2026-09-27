@@ -140,3 +140,28 @@
 .assessment-runtime-spatial{width:min(1500px,calc(100% - 32px));margin:16px auto 36px}.assessment-runtime-spatial h2{margin:10px 0 8px;color:var(--navy);font-size:22px}.assessment-runtime-spatial .question-meta+p{color:var(--muted)}.assessment-runtime-spatial .assessment-runtime-sidebar{position:static;display:grid;grid-template-columns:auto minmax(180px,1fr) auto minmax(180px,auto);align-items:center;gap:14px;padding:0;border:0;border-radius:0;background:transparent}.assessment-runtime-spatial .assessment-runtime-sidebar>div>strong{font-size:18px}.assessment-runtime-spatial .runtime-question-nav{display:flex!important;flex-wrap:wrap;margin:0}.assessment-runtime-spatial .runtime-question-nav button{width:40px;height:40px;aspect-ratio:auto}.assessment-runtime-spatial .assessment-runtime-sidebar small{margin:0}.assessment-runtime-spatial .runtime-tool-row button{min-height:44px}.assessment-runtime-spatial fieldset{margin:0}.assessment-runtime-spatial .runtime-question-actions .button{min-height:44px}
 @media(max-width:820px){.assessment-runtime-spatial{width:calc(100% - 24px);margin-top:12px}.assessment-runtime-spatial .assessment-runtime-sidebar{grid-template-columns:1fr auto}.assessment-runtime-spatial .runtime-question-nav{grid-column:1/-1;order:3}.assessment-runtime-spatial .assessment-runtime-sidebar small{grid-column:1/-1;order:4}}
 @media(max-width:560px){.assessment-runtime-spatial .assessment-runtime-sidebar{grid-template-columns:1fr}.assessment-runtime-spatial .assessment-runtime-sidebar form{grid-row:auto}.assessment-runtime-spatial .runtime-question-nav{grid-column:auto}.assessment-runtime-spatial .assessment-runtime-sidebar small{grid-column:auto}}
+
+/* Final responsive QA: keep teacher content inside the viewport and above mobile navigation. */
+@media(max-width:1180px){
+  .dashboard,.catalog-page{max-width:100%;overflow-x:clip}
+}
+@media(max-width:767px){
+  .dashboard,.catalog-page{width:calc(100% - 24px);margin-inline:auto;padding-bottom:18px}
+  .catalog-header,.section-heading-row{align-items:flex-start;flex-direction:column}
+  .catalog-header .dashboard-actions,.section-heading-row .dashboard-actions{width:100%;flex-wrap:wrap}
+  .dashboard-actions .button{min-height:44px;flex:1 1 140px;justify-content:center}
+  .dataset-card,.question-bank-card,.media-card,.assignment-management-row,.more-module-grid a{min-width:0}
+  .dataset-card strong,.question-bank-card h2,.more-module-grid strong,.more-module-grid small{overflow-wrap:anywhere}
+  .dataset-actions,.row-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .dataset-actions a,.row-actions a,.more-module-grid a{min-height:44px}
+  .dataset-metadata dl div{align-items:flex-start;flex-direction:column;gap:4px}
+  .dataset-metadata dd{max-width:100%;overflow-wrap:anywhere}
+  input[type=file]{max-width:100%}
+  .gis-toolbar,.runtime-tool-row{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+  .gis-toolbar button,.runtime-tool-row button{flex:0 0 auto;min-height:44px}
+}
+@media(max-width:480px){
+  .analytics-kpi-grid,.question-analytics-grid,.student-mode-grid,.assignment-summary-grid,.class-overview-grid{grid-template-columns:1fr}
+  .more-module-grid a{grid-template-columns:42px minmax(0,1fr) auto;padding:13px}
+  .case-map-large,.dataset-map-large{height:240px}
+}

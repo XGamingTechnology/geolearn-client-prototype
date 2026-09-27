@@ -48,7 +48,8 @@
   font-weight:500;
 }
 .input:focus,.select:focus,.file:focus{outline:none;border-color:#60a5fa;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
-.file{padding:8px}
+.file{padding:8px;max-width:100%}
+.file::file-selector-button{min-height:40px;margin:-4px 10px -4px -4px;padding:0 12px;border:0;border-radius:8px;background:#e8f2ff;color:#1d4ed8;font:inherit;font-weight:750;cursor:pointer}
 
 .formatGrid{
   grid-column:1/-1;
@@ -70,3 +71,5 @@
   .submit{width:100%;min-width:0}
 }
 @media(max-width:520px){.twoCol,.formatGrid{grid-template-columns:1fr}}
+
+@media(max-width:520px){.form{padding:14px}.uploadSummary{min-height:52px;padding:13px 14px}.actions>*{width:100%}}
