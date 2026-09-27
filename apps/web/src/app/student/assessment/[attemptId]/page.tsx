@@ -17,15 +17,21 @@ export default async function AssessmentAttemptPage({params,searchParams}:{param
   ] as const));
   const initialCompletedTools=Object.fromEntries(completedEntries);
   const initialSpatialResponses=await getSavedSpatialResponses(session,attemptId);
+  // Never serialize grading signals into the active student runtime. The
+  // student needs their saved answer only; correctness and awarded score stay
+  // server-side until the assignment's result-visibility policy allows them.
+  const safeSavedResponses=Object.fromEntries(Object.entries(runtime.savedResponses).map(([quizItemId,value])=>[
+    quizItemId,{answer:value.answer},
+  ]));
 
   return (
     <main className="assessment-page">
       <header className="assessment-header">
-        <div className="assessment-brand"><span className="brand-mark">G</span><div><strong>{runtime.assignmentTitle}</strong><small>{runtime.quizTitle} · Attempt {runtime.attemptNumber}</small></div></div>
+        <div className="assessment-brand"><span className="brand-mark">G</span><div><strong>{runtime.assignmentTitle}</strong><small>{runtime.quizTitle} · Percobaan {runtime.attemptNumber}</small></div></div>
         <Link className="assessment-exit" href="/student/tasks">Keluar</Link>
       </header>
-      {status==="error"&&<p className="account-alert error">Attempt belum dapat disubmit. Pastikan semua soal sudah dijawab.</p>}
-      <AssessmentRuntimeClient attemptId={attemptId} questions={runtime.questions} savedResponses={runtime.savedResponses} initialCompletedTools={initialCompletedTools} initialSpatialResponses={initialSpatialResponses}/>
+      {status==="error"&&<p className="account-alert error">Belum dapat dikirim. Pastikan semua soal sudah mempunyai jawaban yang tersimpan.</p>}
+      <AssessmentRuntimeClient attemptId={attemptId} questions={runtime.questions} savedResponses={safeSavedResponses} initialCompletedTools={initialCompletedTools} initialSpatialResponses={initialSpatialResponses}/>
     </main>
   );
 }
