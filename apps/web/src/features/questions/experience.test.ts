@@ -25,7 +25,10 @@ describe("adaptive spatial experience",()=>{
 
   it("falls back to a supported map experience",()=>{
     expect(normalizeMapExperience("analysis")).toBe("analysis");
+    expect(normalizeMapExperience("slider")).toBe("slider");
+    expect(normalizeMapExperience("map-data")).toBe("map-data");
     expect(normalizeMapExperience("compare")).toBe("standard");
+    expect(normalizeMapExperience("dashboard")).toBe("standard");
   });
 
   it("recommends a compare-oriented future experience for spatial analogies without pretending it is active",()=>{
