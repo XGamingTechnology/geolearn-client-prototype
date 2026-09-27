@@ -7,6 +7,7 @@ import { AssignmentScheduleFields } from "@/components/assignment-schedule-field
 import { QuizQuestionSelector } from "@/components/quiz-question-selector";
 import { GuidedAssignmentBuilder } from "@/components/guided-assignment-builder";
 import { LocalDateTime } from "@/components/local-date-time";
+import styles from "./assignments.module.css";
 
 type Params={status?:string;qv?:string|string[]};
 
@@ -26,9 +27,9 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
 
   return (
     <main className="dashboard catalog-page">
-      <header className="catalog-header">
-        <div><p className="eyebrow">Assessment Management</p><h1>Penugasan</h1><p>Pilih soal yang sudah published, atur kelas dan jadwal, lalu review pengalaman siswa sebelum tugas diberikan.</p></div>
-        <span className="status-pill">LIVE</span>
+      <header className={styles.hero}>
+        <div className={styles.heroCopy}><p className={styles.kicker}>Assessment Management</p><h1>Penugasan</h1><p>Susun pengalaman belajar yang terarah dari soal terpublikasi, atur kelas dan jadwal, lalu periksa kembali sebelum diberikan kepada siswa.</p></div>
+        <div className={styles.heroStatus}><span className={styles.statusDot}/><div><strong>Siap digunakan</strong><small>Alur penugasan aktif</small></div></div>
       </header>
 
       {initialSelected.length>0&&<p className="account-alert success"><strong>{initialSelected.length} soal dari Bank Soal sudah dipilih.</strong><span> Lanjutkan pengaturan tugas di bawah.</span></p>}
@@ -37,9 +38,10 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
       {status==="assignment-created"&&<p className="account-alert">Quiz reusable berhasil diberikan ke kelas.</p>}
       {(status==="error"||status==="guided-error")&&<p className="account-alert error">Operasi assessment gagal. Periksa pilihan soal, kelas, dan jadwal.</p>}
 
-      <section className="dashboard-panel">
-        <div className="catalog-header">
-          <div><p className="eyebrow">Guided Flow</p><h2>Buat Penugasan</h2><p>Tiga langkah: pilih soal, atur penugasan, lalu review sebelum publish.</p></div>
+      <section className={styles.builderShell}>
+        <div className={styles.builderHeading}>
+          <div><p className={styles.kicker}>Guided Flow</p><h2>Buat penugasan baru</h2><p>Ikuti tiga langkah singkat untuk menyiapkan penugasan yang siap dibagikan.</p></div>
+          <span className={styles.timeHint}>± 3 menit</span>
         </div>
         <GuidedAssignmentBuilder questions={questions} classes={classes} initialSelected={initialSelected}/>
       </section>
