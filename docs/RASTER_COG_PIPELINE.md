@@ -10,6 +10,10 @@ Both containers use UID/GID 1001 and share a dedicated, environment-specific vol
 
 A shared runtime resolver preserves existing `REMOTE_XYZ` URLs. For `LOCAL_COG`, it returns a 12-hour same-origin template signed with server-only HMAC-SHA256. The proxy verifies expiration/signature with a timing-safe comparison, reloads the READY/PUBLISHED COG record, validates its key, and requests a WebMercatorQuad PNG internally from TiTiler. No volume path, internal hostname, or signing secret enters a browser payload.
 
+Analytical single-band rasters are rendered without changing their stored samples. During ingestion the raster service samples valid pixels and records the 2nd–98th percentile display range in `schema_json.raster.rendering.rescale`; the tile proxy forwards that range as TiTiler `rescale` parameters. Older COG versions without that metadata use TiTiler statistics as a compatibility fallback. Band selection and rescaling therefore affect PNG visualization only, while the source COG remains unchanged. Remote XYZ templates continue to bypass this COG rendering path.
+
+Dataset previews fit the WGS84 `bbox` as Leaflet `[latitude, longitude]` bounds (clamped to Web Mercator latitude), show a reference basemap beneath the analytical overlay, and expose loading or tile-error status instead of leaving an unexplained grey canvas.
+
 Local COG therefore looks like a standard Leaflet tile layer. Existing SOURCE/TARGET Map Slider clipping supports vector/COG, COG/vector, COG/COG, XYZ/COG, and COG/XYZ unchanged. Attribute tables and analytical tools remain vector-only.
 
 ## Required deployment environment

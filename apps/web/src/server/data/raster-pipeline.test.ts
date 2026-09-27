@@ -3,6 +3,7 @@ import {safeRasterKey,validateRasterUpload} from "./raster-storage";
 import {createSignedRasterTileTemplate,resolveRasterRuntime,verifyRasterTileSignature} from "./raster-runtime";
 import {validateRasterMetadata} from "./raster-ingest";
 import {isSupportedQuestionRasterFormat} from "@/server/content/question-datasets";
+import {applyRasterRendering,leafletRasterBounds,rasterRendering,rescaleFromStatistics} from "./raster-rendering";
 
 beforeEach(()=>{process.env.RASTER_TILE_SIGNING_SECRET="test-secret-that-is-definitely-at-least-32-bytes";});
 
@@ -22,4 +23,10 @@ describe("raster runtime",()=>{
 describe("COG contracts",()=>{
   it("allows XYZ and COG but rejects unsupported raster formats",()=>{expect(isSupportedQuestionRasterFormat("COG")).toBe(true);expect(isSupportedQuestionRasterFormat("XYZ")).toBe(true);expect(isSupportedQuestionRasterFormat("GeoTIFF")).toBe(false);});
   it("validates metadata used by DatasetVersion mapping",()=>expect(validateRasterMetadata({sourceCrs:"EPSG:32748",sourceSrid:32748,bboxSource:[1,2,3,4],bboxWgs84:[106,-7,107,-6],width:2,height:2,bandCount:1,dtypes:["uint16"],nodata:null,resolution:[10,10],driver:"GTiff",isCog:true,rendering:{bands:[1],mode:"grayscale"}}).bboxWgs84).toEqual([106,-7,107,-6]));
+});
+
+describe("analytical raster rendering",()=>{
+  it("adds band and non-destructive display rescale parameters to TiTiler",()=>{const url=new URL("http://raster/cog/tiles/WebMercatorQuad/1/2/3.png?url=%2Fdata%2Fcog%2Fa.tif");applyRasterRendering(url,rasterRendering({raster:{rendering:{bands:[1],rescale:[[12.5,932.25]]}}}));expect(url.searchParams.getAll("bidx")).toEqual(["1"]);expect(url.searchParams.getAll("rescale")).toEqual(["12.5,932.25"]);});
+  it("uses TiTiler percentiles and safely rejects incomplete ranges",()=>{expect(rescaleFromStatistics({b1:{min:-10,max:1000,percentile_2:2,percentile_98:800}},[1])).toEqual([[2,800]]);expect(rasterRendering({raster:{rendering:{bands:[1],rescale:[[5,5]]}}}).rescale).toEqual([]);});
+  it("converts WGS84 bbox order to Leaflet latitude/longitude bounds",()=>{expect(leafletRasterBounds([106,-7,107,-6])).toEqual([[-7,106],[-6,107]]);expect(()=>leafletRasterBounds([107,-7,106,-6])).toThrow(/Extent/);});
 });
