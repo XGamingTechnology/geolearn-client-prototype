@@ -16,10 +16,17 @@ services:
       MEDIA_STORAGE_PATH: /var/lib/geolearn/media
       MEDIA_MAX_IMAGE_BYTES: ${MEDIA_MAX_IMAGE_BYTES:-10485760}
       MEDIA_MAX_VIDEO_BYTES: ${MEDIA_MAX_VIDEO_BYTES:-104857600}
+      RASTER_SERVICE_URL: http://raster:8000
+      RASTER_STORAGE_PATH: /var/lib/geolearn/raster
+      RASTER_MAX_UPLOAD_BYTES: ${RASTER_MAX_UPLOAD_BYTES:-268435456}
+      RASTER_TILE_SIGNING_SECRET: ${RASTER_TILE_SIGNING_SECRET}
     volumes:
       - production_media:/var/lib/geolearn/media
+      - production_raster:/var/lib/geolearn/raster
     depends_on:
       database:
+        condition: service_healthy
+      raster:
         condition: service_healthy
     networks: [production_app, production_edge]
 
@@ -38,6 +45,19 @@ services:
       timeout: 5s
       retries: 5
     networks: [production_app]
+
+  raster:
+    build:
+      context: ../services/raster
+    restart: unless-stopped
+    volumes:
+      - production_raster:/data
+    networks: [production_app]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   caddy:
     image: caddy:2-alpine
@@ -58,6 +78,8 @@ volumes:
     name: geolearn_production_postgres
   production_media:
     name: geolearn_production_media
+  production_raster:
+    name: geolearn_production_raster
   production_caddy_data:
     name: geolearn_production_caddy_data
   production_caddy_config:

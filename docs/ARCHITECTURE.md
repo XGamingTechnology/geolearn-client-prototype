@@ -1,5 +1,7 @@
 # GeoLearn product architecture
 
+The local raster ingestion, COG storage, signed tile proxy, and deployment boundary are specified in [RASTER_COG_PIPELINE.md](./RASTER_COG_PIPELINE.md).
+
 ## Product principle
 
 GeoLearn is a **QuizInLearning + WebGIS** platform for SMA geography. The question configuration is the orchestration boundary: it determines the spatial-thinking mode, visible layers, enabled GIS tools, required spatial actions, response model, and feedback. The interface must therefore render capabilities from configuration rather than route users to bespoke maps.

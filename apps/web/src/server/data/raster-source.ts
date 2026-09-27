@@ -9,7 +9,7 @@ export {validateRasterBbox,validateXyzTemplate} from "./raster-validation";
 type Scope="SYSTEM"|"SCHOOL"|"PRIVATE";
 type Bbox=RasterBbox;
 
-export type RasterDatasetMetadata={tileUrl:string;bbox:Bbox|null;attribution:string;sourceLabel:string|null;sensor:string|null;acquiredAt:string|null;temporalLabel:string|null;};
+export type RasterDatasetMetadata={tileUrl:string;bbox:Bbox|null;attribution:string;sourceLabel:string|null;sensor:string|null;acquiredAt:string|null;temporalLabel:string|null;format:string;sourceCrs:string|null;width:number|null;height:number|null;bandCount:number|null;dtypes:string[];resolution:number[];};
 
 function scope(value:string):Scope{if(value!=="SYSTEM"&&value!=="SCHOOL"&&value!=="PRIVATE")throw new Error("Scope tidak valid.");return value;}
 async function assertScope(actor:TeacherSession,value:Scope){
@@ -46,13 +46,13 @@ export async function registerRemoteRasterDataset(input:{actor:TeacherSession;ti
 }
 
 export async function getRasterDatasetMetadata(actor:TeacherSession,datasetId:string):Promise<RasterDatasetMetadata|null>{
-  const [row]=await query<{tileUrl:string|null;bbox:Bbox|null;schemaJson:Record<string,unknown>|null;defaultStyle:Record<string,unknown>|null;}>(
-    `select dv.storage_key as "tileUrl",case when jsonb_typeof(dv.bbox)='array' then array[(dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8] else null end as bbox,dv.schema_json as "schemaJson",dv.default_style_json as "defaultStyle"
-     from datasets d join lateral (select * from dataset_versions x where x.dataset_id=d.id and x.status='PUBLISHED' order by x.version_number desc limit 1) dv on true
+  const [row]=await query<{tileUrl:string|null;bbox:Bbox|null;format:string;schemaJson:Record<string,unknown>|null;defaultStyle:Record<string,unknown>|null;}>(
+    `select dv.storage_key as "tileUrl",dv.format,case when jsonb_typeof(dv.bbox)='array' then array[(dv.bbox->>0)::float8,(dv.bbox->>1)::float8,(dv.bbox->>2)::float8,(dv.bbox->>3)::float8] else null end as bbox,dv.schema_json as "schemaJson",dv.default_style_json as "defaultStyle"
+     from datasets d join lateral (select * from dataset_versions x where x.dataset_id=d.id and x.status='PUBLISHED' and x.processing_status='READY' order by x.version_number desc limit 1) dv on true
      where d.id=$1 and d.status='ACTIVE' and d.data_kind='RASTER' and (d.scope='SYSTEM' or (d.scope='SCHOOL' and d.school_id=$2) or (d.scope='PRIVATE' and d.owner_teacher_id=$3))`,
     [datasetId,actor.schoolId,actor.staffUserId],
   );
   if(!row?.tileUrl)return null;
   const raster=row.schemaJson?.raster&&typeof row.schemaJson.raster==="object"?row.schemaJson.raster as Record<string,unknown>:{};
-  return {tileUrl:row.tileUrl,bbox:row.bbox,attribution:typeof row.defaultStyle?.attributionText==="string"?row.defaultStyle.attributionText:"",sourceLabel:typeof raster.sourceLabel==="string"?raster.sourceLabel:null,sensor:typeof raster.sensor==="string"?raster.sensor:null,acquiredAt:typeof raster.acquiredAt==="string"?raster.acquiredAt:null,temporalLabel:typeof raster.temporalLabel==="string"?raster.temporalLabel:null};
+  return {tileUrl:row.tileUrl,bbox:row.bbox,format:row.format,attribution:typeof row.defaultStyle?.attributionText==="string"?row.defaultStyle.attributionText:"",sourceLabel:typeof raster.sourceLabel==="string"?raster.sourceLabel:null,sensor:typeof raster.sensor==="string"?raster.sensor:null,acquiredAt:typeof raster.acquiredAt==="string"?raster.acquiredAt:null,temporalLabel:typeof raster.temporalLabel==="string"?raster.temporalLabel:null,sourceCrs:typeof raster.sourceCrs==="string"?raster.sourceCrs:null,width:typeof raster.width==="number"?raster.width:null,height:typeof raster.height==="number"?raster.height:null,bandCount:typeof raster.bandCount==="number"?raster.bandCount:null,dtypes:Array.isArray(raster.dtypes)?raster.dtypes.filter((x):x is string=>typeof x==="string"):[],resolution:Array.isArray(raster.resolution)?raster.resolution.filter((x):x is number=>typeof x==="number"):[]};
 }
