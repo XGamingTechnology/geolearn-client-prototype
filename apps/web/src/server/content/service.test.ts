@@ -15,6 +15,7 @@ function draft(activityConfig:Record<string,unknown>){
   return {id:"draft-1",stimulusType:"webgis",responseConfig:{type:"multiple-choice",answers},validationConfig:{correctAnswer:"A"},activityConfig};
 }
 
+// Release guard: publication must validate the complete persisted WebGIS contract.
 describe("QuestionVersion publication regression gate",()=>{
   beforeEach(()=>queryMock.mockReset());
 
