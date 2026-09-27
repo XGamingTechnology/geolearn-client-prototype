@@ -100,6 +100,21 @@ official production domain
 9. Production app is exposed only on loopback `127.0.0.1:3100`.
 10. PostgreSQL/PostGIS is never published directly to the Internet.
 
+## Public basemap credentials
+
+The web image accepts `NEXT_PUBLIC_CARTO_API_KEY`, `NEXT_PUBLIC_MAPTILER_KEY`, and
+`NEXT_PUBLIC_ARCGIS_API_KEY` as build arguments. These values are intentionally public
+browser credentials, not secret server credentials. Even so, operators must restrict
+each key with the provider's available origin, API, and quota controls. CARTO Light is
+disabled without its key. Satellite resolves to MapTiler first, then ArcGIS, while the
+saved QuestionVersion continues to contain only the provider-independent `satellite`
+identifier.
+
+Google basemaps are not supported by the current provider registry. A future official
+Google Map Tiles adapter would require an API key, a billing-enabled Google Maps
+Platform project, a session token, and a dedicated provider adapter. Unofficial Google
+XYZ tile URLs must not be added as a substitute.
+
 ## Persistent media storage and backup
 
 Media Bank uploads use the application storage abstraction and a Docker named volume

@@ -5,7 +5,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import {QuestionBuilderForm,type QuestionBuilderInitial} from "./question-builder-form";
 import {TeacherStudentPreview} from "./teacher-student-preview";
 import {basemapOptions,normalizeBasemap,type BasemapId} from "@/features/questions/experience";
-import {satelliteBasemapAvailable} from "./map-basemap";
+import {basemapProviderAvailability} from "./map-basemap";
 import type {DatasetSelection,ResponseType,StimulusType} from "@/features/questions/builder";
 
 type Dataset={id:string;title:string;geometryType?:string|null;fields?:string[]};
@@ -67,8 +67,8 @@ function BasemapSelector({host,value,onChange}:{host:HTMLElement|null;value:Base
       <input type="hidden" name="basemap" value={value}/>
       <div><strong>Basemap</strong><p>Pilih konteks visual peta. Basemap tidak menggantikan dataset raster/citra analitis.</p></div>
       <div className="geolearn-basemap-grid">{basemapOptions.map((item)=>{
-        const unavailable=item.id==="satellite"&&!satelliteBasemapAvailable;
-        return <button type="button" disabled={unavailable} aria-pressed={value===item.id} key={item.id} onClick={()=>onChange(item.id)}><b>{item.label}</b><span>{item.description}</span>{unavailable&&<em>Butuh provider key</em>}</button>;
+        const unavailable=!basemapProviderAvailability[item.id];
+        return <button type="button" disabled={unavailable} aria-pressed={value===item.id&&!unavailable} key={item.id} onClick={()=>onChange(item.id)}><b>{item.label}</b><span>{item.description}</span>{unavailable&&<em>{item.id==="light"?"Provider Light belum dikonfigurasi":"Provider belum dikonfigurasi"}</em>}</button>;
       })}</div>
     </section>,host,
   );

@@ -660,7 +660,7 @@ export function TeacherLiveMapPreview({
         </strong>
         <small>
           {basemap.fallbackFrom
-            ? "Satellite belum dikonfigurasi, preview memakai Street sementara."
+            ? `Provider ${basemap.fallbackFrom === "light" ? "Light" : "Satellite"} belum dikonfigurasi, preview memakai Street sementara.`
             : "Preview guru · tanpa menyimpan Attempt/GIS Activity"}
         </small>
       </div>
