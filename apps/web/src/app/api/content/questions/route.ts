@@ -15,7 +15,7 @@ function answers(form:FormData){return (["A","B","C","D","E"] as const).map(id=>
 function failureReason(error:unknown){
   if(error instanceof AuthorizationError)return "permission";
   const message=error instanceof Error?error.message:"";
-  if(/stimulus set|group|scope soal|stimulus soal/i.test(message))return "group";
+  if(/kelompok|group|scope soal|spatial thinking|stimulus set/i.test(message))return "group";
   if(/dataset|binding|version|label field|vector|raster/i.test(message))return "dataset";
   return "save";
 }
@@ -62,22 +62,25 @@ export async function POST(request:NextRequest){
     const form=await request.formData();
     const correct=String(form.get("correctAnswer")??"A") as "A"|"B"|"C"|"D"|"E";
     const stimulus=String(form.get("stimulusType")??"text");
+    const spatialMode=String(form.get("spatialMode")??"location");
     const responseType=String(form.get("responseType")??"multiple-choice");
     const scope=contentScope(String(form.get("scope")??"PRIVATE"));
     if(groupId){
       const group=await resolveQuestionGroupForCreate(actor,groupId,scope);
-      if(!group||group.stimulusType!==stimulus)throw new Error("Stimulus soal harus sama dengan Stimulus Set.");
+      if(!group)throw new Error("Kelompok soal tidak tersedia.");
+      if(group.spatialMode&&group.spatialMode!==spatialMode)throw new Error("Spatial Thinking soal harus sama dengan kelompok soal.");
+      if(!group.spatialMode&&group.stimulusType&&group.stimulusType!==stimulus)throw new Error("Stimulus soal harus sama dengan Stimulus Set lama.");
     }
     const bindings=stimulus==="webgis"?datasetBindings(form):[];
     const activityConfig=questionActivityConfigFromForm(form);
     await assertQuestionDatasetCompatibility({actor,bindings,activityConfig,responseType});
     const id=await createQuestionDraft({
       actor,title:String(form.get("title")??""),subject:String(form.get("subject")??""),topic:String(form.get("topic")??""),scope,
-      spatialMode:String(form.get("spatialMode")??"location"),difficulty:String(form.get("difficulty")??"Sedang"),prompt:String(form.get("prompt")??""),stimulusType:stimulus,
+      spatialMode,difficulty:String(form.get("difficulty")??"Sedang"),prompt:String(form.get("prompt")??""),stimulusType:stimulus,
       answers:answers(form),correctAnswer:correct,responseType,feedbackCorrect:String(form.get("feedbackCorrect")??""),feedbackIncorrect:String(form.get("feedbackIncorrect")??""),
       activityConfig,validationConfig:spatialValidationConfig(form),
     });
-    if(groupId)await attachQuestionToGroup({actor,questionId:id,groupId,questionScope:scope,stimulusType:stimulus});
+    if(groupId)await attachQuestionToGroup({actor,questionId:id,groupId,questionScope:scope,spatialMode,stimulusType:stimulus});
     await replaceQuestionDraftDatasetBindings(actor,id,bindings);
     await replaceQuestionDraftMediaBindings(actor,id,stimulus==="image"||stimulus==="video"?[{mediaAssetId:String(form.get("stimulusMediaId")??""),role:"STIMULUS",altText:String(form.get("mediaAltText")??""),caption:String(form.get("mediaCaption")??"")}]:[]);
     return NextResponse.redirect(publicRedirectUrl(request,"/teacher/questions/"+id),303);
