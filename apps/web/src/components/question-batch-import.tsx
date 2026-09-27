@@ -5,6 +5,7 @@ import Link from "next/link";
 import styles from "./question-batch-import.module.css";
 
 type Result={total:number;created:number;failed:number;questionIds:string[];errors:Array<{index:number;title:string;errors:string[]}>};
+type ErrorResponse={error:string};
 
 export function QuestionBatchImport(){
   const [result,setResult]=useState<Result|null>(null);const [error,setError]=useState("");const [busy,setBusy]=useState(false);
@@ -13,8 +14,9 @@ export function QuestionBatchImport(){
     const form=new FormData(event.currentTarget);
     try{
       const response=await fetch("/api/content/questions/batch-import",{method:"POST",body:form});
-      const body=await response.json() as Result&{error?:string};
-      if(!response.ok&&!("total" in body))throw new Error(body.error||"Impor soal gagal.");
+      const body=await response.json() as Result|ErrorResponse;
+      if(!response.ok&&"error" in body)throw new Error(body.error||"Impor soal gagal.");
+      if(!("total" in body))throw new Error("Respons impor tidak valid.");
       setResult(body);
     }catch(cause){setError(cause instanceof Error?cause.message:"Impor soal gagal.");}
     finally{setBusy(false);}
