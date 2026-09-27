@@ -9,7 +9,7 @@ type IconName = "home" | "question" | "assignment" | "result" | "class" | "data"
 
 type NavItem = { href: string; label: string; short: string; icon: IconName; admin?: boolean };
 
-const primaryNavigation: NavItem[] = [
+export const primaryNavigation: NavItem[] = [
   { href: "/teacher", label: "Dashboard", short: "Home", icon: "home" },
   { href: "/teacher/questions", label: "Soal", short: "Soal", icon: "question" },
   { href: "/teacher/assignments", label: "Penugasan", short: "Tugas", icon: "assignment" },
@@ -17,7 +17,7 @@ const primaryNavigation: NavItem[] = [
   { href: "/teacher/classes", label: "Kelas & Siswa", short: "Kelas", icon: "class" },
 ];
 
-const resourceNavigation: NavItem[] = [
+export const resourceNavigation: NavItem[] = [
   { href: "/teacher/data", label: "Bank Data", short: "Data", icon: "data" },
   { href: "/teacher/media", label: "Media", short: "Media", icon: "media" },
   { href: "/teacher/gis", label: "GIS Studio", short: "GIS", icon: "gis" },
