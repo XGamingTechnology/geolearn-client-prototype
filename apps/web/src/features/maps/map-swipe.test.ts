@@ -28,4 +28,17 @@ describe("map swipe helpers", () => {
     expect(roles.target.map((x) => x.id)).toEqual([2]);
     expect(roles.context).toHaveLength(2);
   });
+  it.each([
+    ["VECTOR", "VECTOR"],
+    ["VECTOR", "RASTER"],
+    ["RASTER", "VECTOR"],
+    ["RASTER", "RASTER"],
+  ] as const)("preserves the %s/%s slider architecture",(sourceKind,targetKind)=>{
+    const roles=sliderRoleAssignment([
+      {role:"SOURCE",dataKind:sourceKind,id:"before"},
+      {role:"TARGET",dataKind:targetKind,id:"after"},
+    ]);
+    expect(roles.source).toEqual([{role:"SOURCE",dataKind:sourceKind,id:"before"}]);
+    expect(roles.target).toEqual([{role:"TARGET",dataKind:targetKind,id:"after"}]);
+  });
 });
