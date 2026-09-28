@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useMemo,useState} from "react";
 import type {QuizQuestionOption} from "@/server/assessment/quiz-authoring";
 import styles from "./guided-assignment-builder.module.css";
@@ -47,7 +48,14 @@ export function GuidedAssignmentBuilder({questions,classes,initialSelected=[]}:{
   const steps=[{number:1,label:"Soal",hint:"Pilih materi"},{number:2,label:"Pengaturan",hint:"Kelas & jadwal"},{number:3,label:"Review & Publish",hint:"Periksa & bagikan"}] as const;
 
   return <form action="/api/assessment/guided-assignment" method="post" className={`${styles.form} assessment-create-form`} onSubmit={(event)=>{if(!canPublish)event.preventDefault();}}>
-    <input type="hidden" name="title" value={title}/><input type="hidden" name="instructions" value={instructions}/>{selected.map(id=><input key={id} type="hidden" name="questionVersionIds" value={id}/>)}<input type="hidden" name="opensAt" value={toUtc(opensAt)}/><input type="hidden" name="closesAt" value={toUtc(closesAt)}/>
+    <input type="hidden" name="title" value={title}/>
+    <input type="hidden" name="instructions" value={instructions}/>
+    <input type="hidden" name="classId" value={classId}/>
+    <input type="hidden" name="attemptLimit" value={attemptLimit}/>
+    <input type="hidden" name="resultVisibility" value={resultVisibility}/>
+    {selected.map(id=><input key={id} type="hidden" name="questionVersionIds" value={id}/>)}
+    <input type="hidden" name="opensAt" value={toUtc(opensAt)}/>
+    <input type="hidden" name="closesAt" value={toUtc(closesAt)}/>
 
     <nav className={styles.stepper} aria-label="Langkah membuat penugasan">
       {steps.map(item=>{const completed=step>item.number;const available=item.number===1||(item.number===2?canContinue:canReview);return <button key={item.number} className={`${styles.step} ${step===item.number?styles.active:""} ${completed?styles.completed:""}`} type="button" disabled={!available} aria-current={step===item.number?"step":undefined} onClick={()=>available&&setStep(item.number)}><span className={styles.stepNumber}>{completed?"✓":item.number}</span><span><strong>{item.label}</strong><small>{item.hint}</small></span></button>;})}
@@ -74,10 +82,10 @@ export function GuidedAssignmentBuilder({questions,classes,initialSelected=[]}:{
     {step===2&&<>
       <section className={styles.settingsCard}>
         <div className={styles.sectionHeading}><span>2</span><div><h2>Atur penugasan</h2><p>Tentukan identitas tugas, kelas tujuan, dan waktu pengerjaan siswa.</p></div></div>
-        <div className="builder-two-col"><label>Judul Penugasan<input required maxLength={220} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Analisis Spatial Thinking"/></label><label>Kelas<select name="classId" required value={classId} onChange={e=>setClassId(e.target.value)}><option value="" disabled>Pilih Kelas</option>{classes.filter(item=>item.status==="ACTIVE").map(item=><option key={item.id} value={item.id}>{item.name} · {item.classCode}</option>)}</select></label></div>
+        <div className="builder-two-col"><label>Judul Penugasan<input required maxLength={220} value={title} onChange={e=>setTitle(e.target.value)} placeholder="Analisis Spatial Thinking"/></label><label>Kelas<select required value={classId} onChange={e=>setClassId(e.target.value)}><option value="" disabled>Pilih Kelas</option>{classes.filter(item=>item.status==="ACTIVE").map(item=><option key={item.id} value={item.id}>{item.name} · {item.classCode}</option>)}</select></label></div>
         <label>Instruksi<textarea rows={3} value={instructions} onChange={e=>setInstructions(e.target.value)} placeholder="Petunjuk singkat untuk siswa…"/></label>
         <div className="builder-two-col"><label>Dibuka<input type="datetime-local" value={opensAt} onChange={e=>setOpensAt(e.target.value)}/></label><label>Deadline<input type="datetime-local" value={closesAt} onChange={e=>setClosesAt(e.target.value)}/></label></div>
-        <div className="builder-two-col"><label>Batas Percobaan<input name="attemptLimit" type="number" min={1} max={10} value={attemptLimit} onChange={e=>setAttemptLimit(Number(e.target.value))}/></label><label>Hasil Siswa<select name="resultVisibility" value={resultVisibility} onChange={e=>setResultVisibility(e.target.value)}><option value="AFTER_SUBMIT">Setelah submit</option><option value="AFTER_CLOSE">Setelah deadline</option><option value="HIDDEN">Jangan tampilkan</option></select></label></div>
+        <div className="builder-two-col"><label>Batas Percobaan<input type="number" min={1} max={10} value={attemptLimit} onChange={e=>setAttemptLimit(Number(e.target.value))}/></label><label>Hasil Siswa<select value={resultVisibility} onChange={e=>setResultVisibility(e.target.value)}><option value="AFTER_SUBMIT">Setelah submit</option><option value="AFTER_CLOSE">Setelah deadline</option><option value="HIDDEN">Jangan tampilkan</option></select></label></div>
       </section>
       <div className={styles.footerActions}><button className="button button-secondary" type="button" onClick={()=>setStep(1)}>← Kembali</button><button className="button" type="button" disabled={!canReview} onClick={()=>setStep(3)}>Lanjut ke Review →</button></div>
     </>}
@@ -85,10 +93,14 @@ export function GuidedAssignmentBuilder({questions,classes,initialSelected=[]}:{
     {step===3&&<>
       <section className={styles.settingsCard}>
         <div className="panel-heading"><div><p className="eyebrow">Review Sebelum Publish</p><h2>{title||"Penugasan baru"}</h2><p>{selectedClass?`${selectedClass.name} (${selectedClass.classCode})`:"Kelas belum dipilih"}</p></div><span className="status-pill">{selected.length} SOAL</span></div>
-        <div className="assignment-summary-grid"><article><small>Soal</small><strong>{selected.length}</strong><span>QuestionVersion published</span></article><article><small>Attempt</small><strong>{attemptLimit}</strong><span>batas percobaan</span></article><article><small>Dibuka</small><strong>{opensAt?"Terjadwal":"Langsung"}</strong><span>{opensAt||"setelah publish"}</span></article><article><small>Deadline</small><strong>{closesAt?"Ada":"Tanpa batas"}</strong><span>{closesAt||"-"}</span></article></div>
+        <div className="assignment-summary-grid"><article><small>Soal</small><strong>{selected.length}</strong><span>soal terpublikasi</span></article><article><small>Percobaan</small><strong>{attemptLimit}</strong><span>batas pengerjaan</span></article><article><small>Dibuka</small><strong>{opensAt?"Terjadwal":"Langsung"}</strong><span>{opensAt||"setelah publish"}</span></article><article><small>Deadline</small><strong>{closesAt?"Ada":"Tanpa batas"}</strong><span>{closesAt||"-"}</span></article></div>
         <div className="question-analytics-grid">{Object.entries(modeCounts).map(([mode,count])=><article key={mode}><div className="question-tags"><span>Spatial Thinking</span></div><h3>{modeLabel(mode)}</h3><div className="question-analytics-metrics"><span><b>{count}</b><small>soal</small></span></div></article>)}</div>
         {instructions&&<div className="account-alert"><strong>Instruksi siswa</strong><span> · {instructions}</span></div>}
-        <div className="dashboard-panel"><p className="eyebrow">Preview Pengalaman Siswa</p><h3>{selectedItems[0]?.title??"Belum ada soal"}</h3><p className="form-note">Preview ini memeriksa susunan tugas sebelum publish. Setelah dipublish, siswa akan membuka setiap soal dalam Spatial Question Workspace yang sama dengan QuestionVersion terpilih.</p>{selectedItems.slice(0,5).map((item,index)=><p key={item.questionVersionId}><strong>{index+1}. {item.title}</strong> · {modeLabel(item.spatialMode)} · {item.stimulusType??"text"}</p>)}{selectedItems.length>5&&<p>+ {selectedItems.length-5} soal lainnya</p>}</div>
+        <div className={styles.previewPanel}>
+          <div className={styles.previewHeading}><div><p className="eyebrow">Preview Pengalaman Siswa</p><h3>Lihat soal dalam tampilan yang sama seperti siswa</h3><p>Preview dibuka sebagai sandbox read-only. Tidak membuat attempt, jawaban, aktivitas GIS, atau nilai.</p></div></div>
+          <div className={styles.previewList}>{selectedItems.slice(0,5).map((item,index)=><article className={styles.previewItem} key={item.questionVersionId}><span className={styles.previewNumber}>{index+1}</span><div><strong>{item.title}</strong><small>{modeLabel(item.spatialMode)} · {item.stimulusType??"text"} · v{item.versionNumber}</small></div><Link className={styles.previewLink} href={`/teacher/questions/${item.questionId}/preview?versionId=${item.questionVersionId}`} target="_blank">Preview sebagai siswa ↗</Link></article>)}</div>
+          {selectedItems.length>5&&<p className={styles.previewMore}>+ {selectedItems.length-5} soal lainnya. Preview dapat dibuka dari Bank Soal bila diperlukan.</p>}
+        </div>
         <p className="form-note">Saat dipublish, versi soal yang dipilih dibekukan ke penugasan sehingga perubahan Bank Soal berikutnya tidak mengubah tugas siswa yang sudah berjalan.</p>
       </section>
       <div className={styles.footerActions}><button className="button button-secondary" type="button" onClick={()=>setStep(2)}>← Kembali</button><button className="button" type="submit" disabled={!canPublish}>Publish & Assign</button></div>
