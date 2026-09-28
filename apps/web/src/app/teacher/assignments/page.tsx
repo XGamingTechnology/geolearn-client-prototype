@@ -6,6 +6,7 @@ import { listQuizQuestionOptions } from "@/server/assessment/quiz-authoring";
 import { AssignmentScheduleFields } from "@/components/assignment-schedule-fields";
 import { QuizQuestionSelector } from "@/components/quiz-question-selector";
 import { GuidedAssignmentBuilder } from "@/components/guided-assignment-builder";
+import { AssignmentFlowPolish } from "@/components/assignment-flow-polish";
 import { LocalDateTime } from "@/components/local-date-time";
 import styles from "./assignments.module.css";
 
@@ -27,6 +28,7 @@ export default async function AssignmentsPage({searchParams}:{searchParams:Promi
 
   return (
     <main className="dashboard catalog-page">
+      <AssignmentFlowPolish/>
       <header className={styles.hero}>
         <div className={styles.heroCopy}><p className={styles.kicker}>Assessment Management</p><h1>Penugasan</h1><p>Susun pengalaman belajar yang terarah dari soal terpublikasi, atur kelas dan jadwal, lalu periksa kembali sebelum diberikan kepada siswa.</p></div>
         <div className={styles.heroStatus}><span className={styles.statusDot}/><div><strong>Siap digunakan</strong><small>Alur penugasan aktif</small></div></div>
