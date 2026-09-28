@@ -1,0 +1,37 @@
+.backdrop{position:fixed;inset:0;z-index:240;background:rgba(10,31,49,.58);backdrop-filter:blur(6px);display:grid;place-items:center;padding:24px}.modal{width:min(1480px,calc(100vw - 48px));height:min(900px,calc(100vh - 48px));border:1px solid rgba(214,228,236,.95);border-radius:22px;background:#fff;box-shadow:0 36px 90px rgba(8,31,48,.34);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}.header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:18px 22px;border-bottom:1px solid #e5edf2;background:linear-gradient(135deg,#fbfdff,#eef8fb)}.header span{display:block;color:#0b8792;font-size:10px;font-weight:900;letter-spacing:.12em}.header h2{margin:5px 0 4px;color:#153954;font-size:22px;line-height:1.25}.header p{margin:0;color:#6f8799;font-size:11px}.header button,.footer button{border:1px solid #d2e0e8;border-radius:10px;background:#fff;color:#355b73;font-size:11px;font-weight:800;cursor:pointer}.header button{min-height:38px;padding:8px 12px}.frameShell{min-height:0;background:#eef3f6}.frame{width:100%;height:100%;border:0;background:#fff}.footer{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 18px;border-top:1px solid #e3ebf0;background:#fff}.footer span{color:#73899a;font-size:10px}.footer button{min-height:40px;padding:8px 14px;border-color:#1677ea;background:#1677ea;color:#fff}
+
+@media(min-width:1100px){
+:global(.assignment-guided-polished){gap:30px!important}
+:global(.assignment-guided-polished nav[aria-label="Langkah membuat penugasan"] button){min-height:76px!important;padding:14px 20px!important}
+:global(.assignment-guided-polished nav[aria-label="Langkah membuat penugasan"] button>span:first-child){width:36px!important;height:36px!important;font-size:12px!important}
+:global(.assignment-guided-polished nav[aria-label="Langkah membuat penugasan"] strong){font-size:13px!important}
+:global(.assignment-guided-polished nav[aria-label="Langkah membuat penugasan"] small){font-size:10px!important}
+:global(.assignment-guided-polished input),:global(.assignment-guided-polished select),:global(.assignment-guided-polished textarea){font-size:13px!important}
+:global(.assignment-guided-polished input:not([type="hidden"])),:global(.assignment-guided-polished select){min-height:42px}
+:global(.assignment-guided-polished textarea){line-height:1.55}
+:global(.assignment-guided-polished details summary){min-height:84px!important;padding:18px 20px!important}
+:global(.assignment-guided-polished details summary strong){font-size:13px!important}
+:global(.assignment-guided-polished details summary small){font-size:10px!important}
+:global(.assignment-guided-polished details summary span:last-child){font-size:9.5px!important}
+:global(.assignment-guided-polished fieldset label){min-height:86px!important;padding:15px!important}
+:global(.assignment-guided-polished fieldset label>span:last-child>span:first-child){font-size:12.5px!important;line-height:1.45!important}
+:global(.assignment-guided-polished fieldset label>span:last-child>span:last-child span){font-size:8.5px!important;padding:5px 8px!important}
+:global(.assignment-guided-polished button){font-size:10.5px}
+:global(.assignment-guided-polished p){line-height:1.55}
+:global(.assignment-guided-polished aside p),:global(.assignment-guided-polished aside span){font-size:10px}
+:global(.assignment-guided-polished aside h3){font-size:11px!important}
+:global(.assignment-guided-polished aside button){min-height:46px!important;font-size:10.5px!important}
+:global(.assignment-guided-polished .builder-two-col label),:global(.assignment-guided-polished>label){font-size:11.5px!important}
+:global(.assignment-guided-polished .builder-two-col){gap:18px!important}
+:global(.assignment-guided-polished h2){font-size:22px}
+:global(.assignment-guided-polished h3){font-size:16px}
+:global(.assignment-guided-polished .assignment-summary-grid article){min-height:112px;padding:20px!important}
+:global(.assignment-guided-polished .assignment-summary-grid article small){font-size:9px!important}
+:global(.assignment-guided-polished .assignment-summary-grid article strong){font-size:24px!important}
+:global(.assignment-guided-polished .assignment-summary-grid article span){font-size:9.5px!important}
+:global(.assignment-guided-polished .question-analytics-grid article){padding:18px!important}
+:global(.assignment-guided-polished .question-analytics-grid h3){font-size:15px!important}
+:global(.assignment-guided-polished a[href*="/preview?versionId="]){min-height:38px!important;padding:9px 12px!important;font-size:10px!important}
+}
+
+@media(max-width:760px){.backdrop{padding:0}.modal{width:100vw;height:100dvh;border:0;border-radius:0}.header{padding:14px}.header h2{font-size:18px}.header p{font-size:10px}.footer{align-items:stretch;flex-direction:column}.footer button{width:100%}}
