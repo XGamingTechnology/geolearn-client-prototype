@@ -42,7 +42,7 @@ export default function PublicHome(){
       <div className={styles.headerInner}>
         <Link className={styles.brand} href="/">
           <span className={styles.logoMark}><Icon name="layers" className={styles.iconLarge}/></span>
-          <span className={styles.brandName}>GeoLearn</span>
+          <span className={styles.brandName}>GeoThink</span>
           <span className={styles.brandTagline}>Spatial Thinking<br/>for a Better Tomorrow</span>
         </Link>
         <nav className={styles.nav} aria-label="Navigasi publik">
@@ -60,12 +60,12 @@ export default function PublicHome(){
         <div className={`${styles.heroCopy} ${polish.heroCopy}`}>
           <p className={styles.eyebrow}>Pendidikan geografi untuk generasi masa depan</p>
           <h1 className={`${styles.heroTitle} ${polish.heroTitle}`}>Belajar geografi<br/>dengan berpikir<br/>secara <span>spasial.</span></h1>
-          <p className={`${styles.lede} ${polish.lede}`}>GeoLearn membantu siswa memahami lokasi, pola, hubungan, dan pengaruh melalui pertanyaan, data, dan WebGIS interaktif.</p>
+          <p className={`${styles.lede} ${polish.lede}`}>GeoThink membantu siswa memahami lokasi, pola, hubungan, dan pengaruh melalui pertanyaan, data, dan WebGIS interaktif.</p>
           <div className={styles.heroButtons}>
             <Link className={styles.button} href="/student-login"><Icon name="graduation"/>Masuk sebagai Siswa</Link>
             <a className={styles.buttonOutline} href="#demo-webgis"><Icon name="play"/>Coba Demo 60 Detik</a>
           </div>
-          <div className={`${styles.proofs} ${polish.proofs}`} aria-label="Kemampuan GeoLearn">
+          <div className={`${styles.proofs} ${polish.proofs}`} aria-label="Kemampuan GeoThink">
             <div className={`${styles.proof} ${polish.proof}`}><span className={styles.proofIcon}><Icon name="brain"/></span><span><strong>Spatial Thinking</strong><small>Lebih dari sekadar menghafal peta.</small></span></div>
             <div className={`${styles.proof} ${polish.proof}`}><span className={styles.proofIcon}><Icon name="layers"/></span><span><strong>WebGIS interaktif</strong><small>Data nyata dalam pertanyaan.</small></span></div>
             <div className={`${styles.proof} ${polish.proof}`}><span className={styles.proofIcon}><Icon name="chart"/></span><span><strong>Analitik pembelajaran</strong><small>Melihat proses dan perkembangan.</small></span></div>
@@ -83,7 +83,7 @@ export default function PublicHome(){
         <div className={`${styles.sectionHeading} ${polish.sectionHeading}`}>
           <p className={styles.sectionEyebrow}>Cara Kerja</p>
           <h2>Dari pertanyaan geografi ke analisis spasial yang nyata.</h2>
-          <p>GeoLearn menjaga alur belajar tetap sederhana, sementara WebGIS hadir tepat saat siswa membutuhkannya.</p>
+          <p>GeoThink menjaga alur belajar tetap sederhana, sementara WebGIS hadir tepat saat siswa membutuhkannya.</p>
         </div>
         <div className={styles.workflowGrid}>
           {workflow.map((step,index)=><article className={`${styles.workflowCard} ${polish.workflowCard}`} key={step.title}>
@@ -107,8 +107,8 @@ export default function PublicHome(){
       <div className={styles.featureGrid}>{features.map((feature)=><article className={`${styles.featureCard} ${polish.featureCard}`} key={feature.title}><span className={styles.featureIcon}><Icon name={feature.icon} className={styles.iconLarge}/></span><div><h3>{feature.title}</h3><p>{feature.copy}</p></div><span className={styles.featureCheck}><Icon name="check" className={styles.iconSmall}/></span></article>)}</div>
     </section>
 
-    <section className={`${styles.closing} ${polish.closing} ${polish.reveal}`}><div className={`${styles.closingContent} ${polish.closingContent}`}><h2>Geografi hari ini, solusi untuk esok.</h2><p>GeoLearn mendukung guru dan siswa dalam membangun pemahaman spasial yang relevan dengan dunia nyata.</p><div className={`${styles.closingActions} ${polish.closingActions}`}><Link className={styles.button} href="/teacher-login">Masuk sebagai Guru</Link><Link className={styles.buttonOutline} href="/learn/demo">Buka Demo Pembelajaran</Link></div></div></section>
+    <section className={`${styles.closing} ${polish.closing} ${polish.reveal}`}><div className={`${styles.closingContent} ${polish.closingContent}`}><h2>Geografi hari ini, solusi untuk esok.</h2><p>GeoThink mendukung guru dan siswa dalam membangun pemahaman spasial yang relevan dengan dunia nyata.</p><div className={`${styles.closingActions} ${polish.closingActions}`}><Link className={styles.button} href="/teacher-login">Masuk sebagai Guru</Link><Link className={styles.buttonOutline} href="/learn/demo">Buka Demo Pembelajaran</Link></div></div></section>
 
-    <footer className={styles.footer}><div className={styles.footerInner}><div className={styles.footerBrandWrap}><span className={styles.footerBrand}><Icon name="layers" className={styles.iconSmall}/>GeoLearn</span><span>© 2026 GeoLearn. All rights reserved.</span></div><nav className={styles.footerLinks} aria-label="Navigasi footer"><a href="#tentang">Tentang</a><a href="#cara-kerja">Cara Kerja</a><Link href="/learn/demo">Demo</Link><Link href="/teacher-login">Guru</Link><Link href="/student-login">Siswa</Link></nav></div></footer>
+    <footer className={styles.footer}><div className={styles.footerInner}><div className={styles.footerBrandWrap}><span className={styles.footerBrand}><Icon name="layers" className={styles.iconSmall}/>GeoThink</span><span>© 2026 GeoThink. All rights reserved.</span></div><nav className={styles.footerLinks} aria-label="Navigasi footer"><a href="#tentang">Tentang</a><a href="#cara-kerja">Cara Kerja</a><Link href="/learn/demo">Demo</Link><Link href="/teacher-login">Guru</Link><Link href="/student-login">Siswa</Link></nav></div></footer>
   </main>;
 }

@@ -9,7 +9,7 @@ export default async function StudentTasksPage({searchParams}:{searchParams:Prom
   return (
     <main className="student-home">
       <header className="student-header">
-        <Link className="brand" href="/student"><span className="brand-mark">G</span><span>GeoLearn<small>Tugas</small></span></Link>
+        <Link className="brand" href="/student"><span className="brand-mark">G</span><span>GeoThink<small>Tugas</small></span></Link>
         <div className="student-identity"><span>{session.className}</span><strong>{session.fullName}</strong></div>
       </header>
 

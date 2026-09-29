@@ -3,8 +3,14 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GeoLearn",
-  description: "QuizInLearning dan WebGIS untuk pembelajaran geografi SMA.",
+  metadataBase: new URL("https://geothink.net"),
+  title: {
+    default: "GeoThink",
+    template: "%s | GeoThink",
+  },
+  description: "Spatial Thinking dan WebGIS untuk pembelajaran geografi SMA.",
+  applicationName: "GeoThink",
+  alternates: { canonical: "/" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
