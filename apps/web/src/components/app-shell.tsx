@@ -41,7 +41,7 @@ const titleByPath: Array<[string, string, string]> = [
   ["/teacher/gis", "GIS Studio", "Siapkan layer dan analisis"],
   ["/teacher/geolab", "GeoLab", "Ruang kreatif pembelajaran berbasis peta"],
   ["/teacher/accounts", "Akun & Akses", "Kelola pengguna sekolah"],
-  ["/teacher", "Dashboard", "Ruang kerja guru GeoLearn"],
+  ["/teacher", "Dashboard", "Ruang kerja guru GeoThink"],
 ];
 
 function Icon({ name }: { name: IconName }) {
@@ -81,7 +81,7 @@ export function TeacherShell({ children, displayName, schoolName, canManageAccou
       <aside className={styles.sidebar}>
         <Link className={styles.brand} href="/teacher">
           <span className={styles.brandMark}><Icon name="layers"/></span>
-          <span className={styles.brandText}><strong>GeoLearn</strong><small>Pendidikan Geospasial</small></span>
+          <span className={styles.brandText}><strong>GeoThink</strong><small>Pendidikan Geospasial</small></span>
         </Link>
 
         <div className={styles.navLabel}>Utama</div>
@@ -109,9 +109,9 @@ export function TeacherShell({ children, displayName, schoolName, canManageAccou
 
           <div className={styles.actions}>
             <Link className={styles.quickButton} href="/teacher/questions/new"><Icon name="plus"/><span>Buat Soal</span></Link>
-            <div className={styles.profile} title={schoolName ?? "GeoLearn"}>
+            <div className={styles.profile} title={schoolName ?? "GeoThink"}>
               <span className={styles.avatar}>{initials}</span>
-              <span className={styles.profileText}><strong>{displayName}</strong><small>{schoolName ?? "GeoLearn"}</small></span>
+              <span className={styles.profileText}><strong>{displayName}</strong><small>{schoolName ?? "GeoThink"}</small></span>
             </div>
             <form action="/api/auth/logout" method="post"><button className={styles.logout} type="submit">Keluar</button></form>
           </div>
