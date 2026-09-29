@@ -50,7 +50,7 @@ export default function AuthLoginForm({ role, errorMessage }: AuthLoginFormProps
         visualTitle: "Dari soal ke pengalaman belajar spasial, dalam satu ruang kerja.",
         visualText: "Susun pengalaman belajar berbasis peta, data, dan analisis dengan alur yang jelas dari soal hingga hasil siswa.",
         image: "/auth-teacher-visual.svg",
-        imageAlt: "Ilustrasi dashboard guru GeoLearn dengan soal, peta, penugasan, dan analitik hasil",
+        imageAlt: "Ilustrasi dashboard guru GeoThink dengan soal, peta, penugasan, dan analitik hasil",
         action: "/api/auth/teacher/login",
         submit: "Masuk ke Ruang Guru",
         switchHref: "/student-login",
@@ -63,9 +63,9 @@ export default function AuthLoginForm({ role, errorMessage }: AuthLoginFormProps
         title: "Siap menjelajah?",
         intro: "Gunakan data dari guru untuk membuka penugasan, membaca stimulus, dan menjelajahi WebGIS.",
         visualTitle: "Baca konteks. Jelajahi peta. Temukan bukti.",
-        visualText: "GeoLearn membantu Anda berpikir secara spasial, bukan hanya menghafal lokasi di peta.",
+        visualText: "GeoThink membantu Anda berpikir secara spasial, bukan hanya menghafal lokasi di peta.",
         image: "/auth-student-visual.svg",
-        imageAlt: "Ilustrasi pengalaman belajar siswa GeoLearn dengan WebGIS, buffer, dan analisis spasial",
+        imageAlt: "Ilustrasi pengalaman belajar siswa GeoThink dengan WebGIS, buffer, dan analisis spasial",
         action: "/api/auth/student/login",
         submit: "Masuk ke Ruang Belajar",
         switchHref: "/teacher-login",
@@ -79,9 +79,9 @@ export default function AuthLoginForm({ role, errorMessage }: AuthLoginFormProps
       <div className={styles.ambient} aria-hidden="true"><span/><span/><span/></div>
 
       <header className={styles.topbar}>
-        <Link className={styles.brand} href="/" aria-label="Kembali ke GeoLearn">
+        <Link className={styles.brand} href="/" aria-label="Kembali ke GeoThink">
           <BrandMark />
-          <span className={styles.brandText}><strong>GeoLearn</strong><small>Spatial Thinking for a Better Tomorrow</small></span>
+          <span className={styles.brandText}><strong>GeoThink</strong><small>Spatial Thinking for a Better Tomorrow</small></span>
         </Link>
         <Link className={styles.homeLink} href="/">
           <span>Kembali ke beranda</span><Icon name="arrow" />
