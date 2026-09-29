@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://geothink.net"),
+  metadataBase: new URL("https://geothink.pro"),
   title: {
     default: "GeoThink",
     template: "%s | GeoThink",
