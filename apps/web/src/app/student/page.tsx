@@ -14,7 +14,7 @@ export default async function StudentPage() {
   return (
     <main className="student-home">
       <header className="student-header">
-        <Link className="brand" href="/"><span className="brand-mark">G</span><span>GeoLearn<small>Ruang Siswa</small></span></Link>
+        <Link className="brand" href="/"><span className="brand-mark">G</span><span>GeoThink<small>Ruang Siswa</small></span></Link>
         <div className="student-identity"><span>{session.className}</span><strong>{session.fullName}</strong><form action="/api/auth/logout" method="post"><button className="logout-button" type="submit">Keluar</button></form></div>
       </header>
 
@@ -22,7 +22,7 @@ export default async function StudentPage() {
         <div>
           <p className="eyebrow">Selamat datang</p>
           <h1>Siap melihat geografi dari sudut pandang spasial?</h1>
-          <p>Anda masuk melalui enrollment aktif untuk kelas ini. Tugas dari guru siap dikerjakan melalui assessment GeoLearn.</p>
+          <p>Anda masuk melalui enrollment aktif untuk kelas ini. Tugas dari guru siap dikerjakan melalui assessment GeoThink.</p>
         </div>
         <div className="student-progress">
           <span>Progress tugas</span><strong>{submittedCount}/{tasks.length}</strong><small>Tugas selesai dari assignment kelas</small>
