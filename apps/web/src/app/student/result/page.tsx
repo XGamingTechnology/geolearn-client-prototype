@@ -23,7 +23,7 @@ export default async function StudentResultPage({searchParams}:{searchParams:Pro
   return (
     <main className={styles.page}>
       <header className={styles.header}>
-        <Link className="brand" href="/student"><span className="brand-mark">G</span><span>GeoLearn<small>Hasil Saya</small></span></Link>
+        <Link className="brand" href="/student"><span className="brand-mark">G</span><span>GeoThink<small>Hasil Saya</small></span></Link>
         <span className="status-pill">HASIL</span>
       </header>
 
